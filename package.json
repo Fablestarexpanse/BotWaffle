@@ -1,0 +1,24 @@
+{
+  "name": "botwaffle",
+  "productName": "BotWaffle",
+  "version": "1.0.0",
+  "description": "A comprehensive desktop application for creating, storing, tracking, and managing AI chatbots and their associated prompts.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chatbot",
+    "ai",
+    "prompt-engineering",
+    "manager",
+    "electron"
+  ],
+  "author": "Fablestar Expanse",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "dependencies": {}
+}

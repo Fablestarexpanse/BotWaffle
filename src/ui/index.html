@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotWaffle - Chatbot Authoring Studio</title>
+
+    <!-- Content Security Policy using meta tag as fallback/addition -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/sidebar.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Sidebar Shell -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">BotWaffle</div>
+            </div>
+            <ul class="nav-links">
+                <li class="nav-item">
+                    <a href="#" class="nav-link active">My Library</a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">Settings</a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main id="content">
+            <!-- Dynamic Content Loaded Here -->
+            <div id="view-container">
+                <chatbot-list></chatbot-list>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="components/sidebar.js"></script>
+    <script src="components/chatbot-card.js"></script>
+    <script src="components/chatbot-list.js"></script>
+    <script src="components/personality-builder.js"></script>
+    <script src="components/sections/section-base.js"></script>
+    <script src="components/sections/section-profile.js"></script>
+    <script src="components/sections/section-personality.js"></script>
+
+    <script src="components/chatbot-editor.js"></script>
+
+    <script>
+        // Simple Router / State Manager
+        const container = document.getElementById('view-container');
+
+        // Listen for 'create-bot' event from List
+        document.addEventListener('create-bot', () => {
+            const editor = document.createElement('chatbot-editor');
+            editor.mode = 'create';
+            container.innerHTML = '';
+            container.appendChild(editor);
+        });
+
+        // Listen for 'edit-bot' event from Card
+        document.addEventListener('edit-bot', async (e) => {
+            const botId = e.detail.id;
+            const editor = document.createElement('chatbot-editor');
+            editor.mode = 'edit';
+
+            // Fetch fresh data
+            const botData = await window.api.chatbot.get(botId);
+            editor.chatbotData = botData;
+
+            container.innerHTML = '';
+            container.appendChild(editor);
+        });
+
+        // Listen for 'editor-cancel' or 'editor-save' to return to list
+        document.addEventListener('editor-cancel', () => showList());
+        document.addEventListener('editor-save', () => showList());
+
+        // Listen for sidebar navigation
+        document.addEventListener('navigate-library', () => showList());
+
+        function showList() {
+            container.innerHTML = '<chatbot-list></chatbot-list>';
+        }
+    </script>
+</body>
+
+</html>

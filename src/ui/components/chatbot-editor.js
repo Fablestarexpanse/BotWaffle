@@ -34,6 +34,7 @@ class ChatbotEditor extends HTMLElement {
                 <h2>${isEdit ? 'Edit Chatbot' : 'Create New Chatbot'}</h2>
                 <div class="actions">
                     <button id="add-section-btn" class="secondary-btn">+ Add Section</button>
+                    <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
                         <button id="export-btn" class="secondary-btn">Export PNG</button>
@@ -58,22 +59,44 @@ class ChatbotEditor extends HTMLElement {
         container.innerHTML = '';
 
         this.layout.forEach(sectionConfig => {
-            const tagName = `section-${sectionConfig.type}`;
-
-            // Check if component is defined
-            if (!customElements.get(tagName)) {
-                console.warn(`Component ${tagName} not defined, skipping section.`);
-                const errorEl = document.createElement('div');
-                errorEl.style.color = 'red';
-                errorEl.style.padding = '10px';
-                errorEl.style.border = '1px dashed red';
-                errorEl.style.margin = '10px 0';
-                errorEl.textContent = `Error: Unknown section type '${sectionConfig.type}'`;
-                container.appendChild(errorEl);
-                return;
+            let element;
+            
+            if (sectionConfig.type === 'custom') {
+                // Custom category section
+                const tagName = 'section-custom';
+                if (!customElements.get(tagName)) {
+                    console.warn(`Component ${tagName} not defined, skipping section.`);
+                    const errorEl = document.createElement('div');
+                    errorEl.style.color = 'red';
+                    errorEl.style.padding = '10px';
+                    errorEl.style.border = '1px dashed red';
+                    errorEl.style.margin = '10px 0';
+                    errorEl.textContent = `Error: Custom section component not defined.`;
+                    container.appendChild(errorEl);
+                    return;
+                }
+                element = document.createElement(tagName);
+                if (sectionConfig.id) element.id = sectionConfig.id;
+                // Set category and fields before appending to ensure title renders correctly
+                element.category = sectionConfig.category || '';
+                element.fields = sectionConfig.fields || [];
+            } else {
+                // Standard section types (profile, personality, etc.)
+                const tagName = `section-${sectionConfig.type}`;
+                if (!customElements.get(tagName)) {
+                    console.warn(`Component ${tagName} not defined, skipping section.`);
+                    const errorEl = document.createElement('div');
+                    errorEl.style.color = 'red';
+                    errorEl.style.padding = '10px';
+                    errorEl.style.border = '1px dashed red';
+                    errorEl.style.margin = '10px 0';
+                    errorEl.textContent = `Error: Unknown section type '${sectionConfig.type}'`;
+                    container.appendChild(errorEl);
+                    return;
+                }
+                element = document.createElement(tagName);
             }
-
-            const element = document.createElement(tagName);
+            
             if (sectionConfig.id) element.id = sectionConfig.id;
 
             // Set initial state
@@ -95,52 +118,9 @@ class ChatbotEditor extends HTMLElement {
             await this.save();
         });
 
-        // Add Section Logic: Show Picker
+        // Add Section Logic: Show Modal
         this.querySelector('#add-section-btn').addEventListener('click', () => {
-            // Create a simple modal/dropdown logic here
-            const options = [
-                { type: 'profile', label: 'Basic Profile', icon: '👤' },
-                { type: 'personality', label: 'Personality Engine', icon: '🧠' },
-                // Future: { type: 'greetings', label: 'Greetings & Prompts', icon: '💬' }
-            ];
-
-            // Check which ones allow multiples (for now assuming singletons for profile/personality)
-            // But user wanted flexible customization, so let's allow re-adding if they really want, 
-            // or filter out if strictly singleton. 
-            // Let's filter out Profile if it exists.
-            const existingTypes = this.layout.map(s => s.type);
-            const available = options.filter(opt => {
-                if (opt.type === 'profile' && existingTypes.includes('profile')) return false;
-                // Personality can be multiple? probably not for now.
-                if (opt.type === 'personality' && existingTypes.includes('personality')) return false;
-                return true;
-            });
-
-            if (available.length === 0) {
-                alert('All available section types are already added!');
-                return;
-            }
-
-            // Minimalist Picker Prompt (since we don't have a UI library)
-            // In a real app we'd append a dialog element.
-            const type = prompt(
-                `Enter section type to add:\n${available.map(a => `- ${a.type} (${a.label})`).join('\n')}`,
-                available[0].type
-            );
-
-            if (type) {
-                const match = available.find(a => a.type === type.trim().toLowerCase());
-                if (match) {
-                    this.layout.push({
-                        type: match.type,
-                        id: `section-${match.type}-${Date.now()}`,
-                        minimized: false
-                    });
-                    this.renderSections(this._data);
-                } else {
-                    alert('Invalid section type.');
-                }
-            }
+            this.showAddSectionModal();
         });
 
         const deleteBtn = this.querySelector('#delete-btn');
@@ -168,20 +148,14 @@ class ChatbotEditor extends HTMLElement {
             });
         }
 
+        // Load Template Logic
+        this.querySelector('#load-template-btn').addEventListener('click', async () => {
+            this.showLoadTemplateModal();
+        });
+
         // Save Template Logic
         this.querySelector('#save-template-btn').addEventListener('click', async () => {
-            const name = prompt('Enter a name for this template:');
-            if (name && name.trim()) {
-                try {
-                    await window.api.templates.save(name.trim(), this.layout);
-                    alert(`Template "${name}" saved successfully!`);
-                } catch (error) {
-                    console.error(error);
-                    alert('Failed to save template. Check console.');
-                }
-            } else if (name !== null) {
-                alert('Template name cannot be empty.');
-            }
+            this.showSaveTemplateModal();
         });
 
         // Listen for section events
@@ -257,6 +231,395 @@ class ChatbotEditor extends HTMLElement {
         this.layout = newLayout;
     }
 
+    showAddSectionModal() {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3>Create Category & Sub-Sections</h3>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="category-name-input">Category Name</label>
+                        <input type="text" id="category-name-input" class="input-field" 
+                               placeholder="e.g., Background, Personality, Goals">
+                    </div>
+                    
+                    <div id="sub-sections-container">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="margin: 0;">Sub-Sections / Fields</label>
+                            <button type="button" class="secondary-btn small" id="add-field-btn">+ Add Field</button>
+                        </div>
+                        <div id="fields-list"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="secondary-btn cancel-modal">Cancel</button>
+                    <button class="primary-btn create-category-btn">Create Category</button>
+                </div>
+            </div>
+        `;
+
+        const closeModal = () => overlay.remove();
+        const fieldsList = overlay.querySelector('#fields-list');
+        let fields = [];
+
+        // Add field button
+        overlay.querySelector('#add-field-btn').addEventListener('click', () => {
+            this.addFieldToModal(fieldsList, fields);
+        });
+
+        // Create category button
+        overlay.querySelector('.create-category-btn').addEventListener('click', () => {
+            const categoryName = overlay.querySelector('#category-name-input').value.trim();
+            if (!categoryName) {
+                alert('Please enter a category name.');
+                return;
+            }
+            if (fields.length === 0) {
+                alert('Please add at least one field to this category.');
+                return;
+            }
+
+            // Extract field data from DOM
+            const fieldData = [];
+            fields.forEach(fieldObj => {
+                const fieldEl = fieldObj._element;
+                const nameInput = fieldEl.querySelector('.field-name-input');
+                const labelInput = fieldEl.querySelector('.field-label-input');
+                const typeInput = fieldEl.querySelector('.field-type-input');
+                const placeholderInput = fieldEl.querySelector('.field-placeholder-input');
+                
+                const name = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 
+                             labelInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const label = labelInput.value.trim() || nameInput.value.trim();
+                
+                if (!name || !label) {
+                    return; // Skip invalid fields
+                }
+                
+                const field = {
+                    name: name,
+                    label: label,
+                    type: typeInput.value || 'text',
+                    placeholder: placeholderInput.value.trim() || ''
+                };
+                
+                if (field.type === 'select') {
+                    const optionsInput = fieldEl.querySelector('.field-options-input');
+                    const optionsText = optionsInput.value.trim();
+                    field.options = optionsText ? optionsText.split(',').map(opt => opt.trim()).filter(opt => opt) : [];
+                }
+                
+                fieldData.push(field);
+            });
+
+            if (fieldData.length === 0) {
+                alert('Please add at least one valid field to this category.');
+                return;
+            }
+
+            const categoryId = `category-${categoryName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
+            this.layout.push({
+                type: 'custom',
+                id: categoryId,
+                category: categoryName,
+                fields: fieldData,
+                minimized: false
+            });
+            this.renderSections(this._data);
+            closeModal();
+        });
+
+        overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.cancel-modal').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            // Only close if clicking the overlay background, not the modal content
+            if (e.target === overlay) closeModal();
+        });
+        
+        // Prevent modal content clicks from closing the modal
+        const modal = overlay.querySelector('.modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        // Allow Enter key on category name to add first field
+        overlay.querySelector('#category-name-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && fields.length === 0) {
+                e.preventDefault();
+                overlay.querySelector('#add-field-btn').click();
+            }
+        });
+
+        document.body.appendChild(overlay);
+        
+        // Focus the category input after a short delay to ensure modal is fully rendered
+        setTimeout(() => {
+            const categoryInput = overlay.querySelector('#category-name-input');
+            if (categoryInput) {
+                categoryInput.focus();
+            }
+        }, 100);
+        
+        // Add first field automatically
+        this.addFieldToModal(fieldsList, fields);
+    }
+
+    addFieldToModal(container, fieldsArray) {
+        const fieldId = `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const fieldIndex = fieldsArray.length;
+        
+        const fieldItem = document.createElement('div');
+        fieldItem.className = 'field-item';
+        fieldItem.style.cssText = 'margin-bottom: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #444; border-radius: 4px;';
+        
+        fieldItem.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong style="color: var(--text-primary);">Field ${fieldIndex + 1}</strong>
+                <button type="button" class="icon-btn remove-field-btn" style="width: 24px; height: 24px; font-size: 14px;">×</button>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>Field Name</label>
+                <input type="text" class="field-name-input input-field" placeholder="e.g., age, description, goal">
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>Field Label (Display Name)</label>
+                <input type="text" class="field-label-input input-field" placeholder="e.g., Age, Description, Goal">
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>Field Type</label>
+                <select class="field-type-input input-field">
+                    <option value="text">Text</option>
+                    <option value="textarea">Text Area</option>
+                    <option value="number">Number</option>
+                    <option value="select">Select/Dropdown</option>
+                    <option value="checkbox">Checkbox</option>
+                </select>
+            </div>
+            <div class="form-group field-options-container" style="margin-bottom: 8px; display: none;">
+                <label>Options (comma-separated for select type)</label>
+                <input type="text" class="field-options-input input-field" placeholder="Option 1, Option 2, Option 3">
+            </div>
+            <div class="form-group">
+                <label>Placeholder (optional)</label>
+                <input type="text" class="field-placeholder-input input-field" placeholder="Enter placeholder text">
+            </div>
+        `;
+
+        // Show/hide options for select type
+        const typeSelect = fieldItem.querySelector('.field-type-input');
+        const optionsContainer = fieldItem.querySelector('.field-options-container');
+        typeSelect.addEventListener('change', () => {
+            optionsContainer.style.display = typeSelect.value === 'select' ? 'block' : 'none';
+        });
+
+        // Remove field button
+        fieldItem.querySelector('.remove-field-btn').addEventListener('click', () => {
+            const index = fieldsArray.findIndex(f => f._element === fieldItem);
+            if (index > -1) {
+                fieldsArray.splice(index, 1);
+            }
+            fieldItem.remove();
+            // Update field numbers
+            container.querySelectorAll('.field-item').forEach((item, idx) => {
+                item.querySelector('strong').textContent = `Field ${idx + 1}`;
+            });
+        });
+
+        const fieldObj = {
+            _element: fieldItem,
+            _index: fieldIndex
+        };
+        fieldsArray.push(fieldObj);
+        container.appendChild(fieldItem);
+    }
+
+    async showLoadTemplateModal() {
+        let templates = [];
+        try {
+            templates = await window.api.templates.list();
+        } catch (error) {
+            console.error('Error loading templates:', error);
+            alert('Failed to load templates. Check console for details.');
+            return;
+        }
+
+        if (templates.length === 0) {
+            alert('No templates found. Save a template first!');
+            return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Load Template</h3>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 16px;">
+                        <label>Select a template to load:</label>
+                    </div>
+                    <div id="templates-list" style="max-height: 400px; overflow-y: auto;">
+                        ${templates.map(template => `
+                            <div class="template-item" data-template-id="${template.id}" style="
+                                padding: 12px;
+                                margin-bottom: 8px;
+                                background: #1a1a1a;
+                                border: 1px solid #444;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            ">
+                                <div style="font-weight: 500; margin-bottom: 4px;">${template.name || 'Unnamed Template'}</div>
+                                <div style="font-size: 12px; color: #888;">
+                                    Created: ${new Date(template.created).toLocaleDateString()}
+                                    ${template.layout ? ` • ${template.layout.length} section(s)` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="secondary-btn cancel-load-template-modal">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        const closeModal = () => overlay.remove();
+        
+        overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.cancel-load-template-modal').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+
+        // Prevent modal content clicks from closing the modal
+        const modal = overlay.querySelector('.modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        // Template selection
+        overlay.querySelectorAll('.template-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const templateId = item.dataset.templateId;
+                try {
+                    const template = await window.api.templates.get(templateId);
+                    if (template && template.layout) {
+                        // Confirm before loading (warns about replacing current layout)
+                        if (confirm(`Load template "${template.name}"? This will replace your current section layout.`)) {
+                            this.layout = template.layout;
+                            this.renderSections(this._data);
+                            closeModal();
+                        }
+                    } else {
+                        alert('Template data is invalid.');
+                    }
+                } catch (error) {
+                    console.error('Error loading template:', error);
+                    alert('Failed to load template. Check console for details.');
+                }
+            });
+
+            item.addEventListener('mouseenter', () => {
+                item.style.background = '#333';
+                item.style.borderColor = 'var(--accent)';
+            });
+
+            item.addEventListener('mouseleave', () => {
+                item.style.background = '#1a1a1a';
+                item.style.borderColor = '#444';
+            });
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    showSaveTemplateModal() {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Save as Template</h3>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="template-name-input">Template Name</label>
+                        <input type="text" id="template-name-input" class="input-field" placeholder="My Custom Template">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="secondary-btn cancel-template-modal">Cancel</button>
+                    <button class="primary-btn save-template-modal">Save Template</button>
+                </div>
+            </div>
+        `;
+
+        const closeModal = () => overlay.remove();
+        
+        overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.cancel-template-modal').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            // Only close if clicking the overlay background, not the modal content
+            if (e.target === overlay) closeModal();
+        });
+
+        // Prevent modal content clicks from closing the modal
+        const modal = overlay.querySelector('.modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        overlay.querySelector('.save-template-modal').addEventListener('click', async () => {
+            const nameInput = overlay.querySelector('#template-name-input');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Template name cannot be empty.');
+                return;
+            }
+
+            try {
+                await window.api.templates.save(name, this.layout);
+                alert(`Template "${name}" saved successfully!`);
+                closeModal();
+            } catch (error) {
+                console.error(error);
+                alert('Failed to save template. Check console for details.');
+            }
+        });
+
+        // Allow Enter key to submit
+        overlay.querySelector('#template-name-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                overlay.querySelector('.save-template-modal').click();
+            }
+        });
+
+        document.body.appendChild(overlay);
+        
+        // Focus the input after a short delay to ensure modal is fully rendered
+        setTimeout(() => {
+            const templateInput = overlay.querySelector('#template-name-input');
+            if (templateInput) {
+                templateInput.focus();
+            }
+        }, 100);
+    }
+
     async save() {
         // Collect data from all sections
         const sections = this.querySelectorAll('#sections-container > *');
@@ -270,26 +633,39 @@ class ChatbotEditor extends HTMLElement {
         sections.forEach(section => {
             if (typeof section.getData === 'function') {
                 const sectionData = section.getData();
+                const tagName = section.tagName.toLowerCase();
+                
                 // Merge strategy: Profile is top level/profile object, Personality is personality object
-                // We need to know where to merge. 
-                // Simple mapping for now based on tag name
-                if (section.tagName.toLowerCase() === 'section-profile') {
+                // Custom sections store data by category name
+                if (tagName === 'section-profile') {
                     // section-profile returns { name, displayName, ... } which belongs in profile
-                    // BUT our creating logic expects profile props at top level or in profile object?
-                    // ChatbotManager: createChatbot(profileData) uses properties directly.
-                    // updateChatbot(id, updates) uses { profile: ... }
-
-                    // Let's structure the data cleanly for the manager
                     fullData.name = sectionData.name;
                     fullData.displayName = sectionData.displayName;
                     fullData.category = sectionData.category;
                     fullData.description = sectionData.description;
                     fullData.tags = sectionData.tags;
                     fullData.image = sectionData.image;
-                } else if (section.tagName.toLowerCase() === 'section-personality') {
+                    fullData.images = sectionData.images;
+                    fullData.thumbnailIndex = sectionData.thumbnailIndex;
+                    
+                    // Also store in profile object for consistency
+                    if (!fullData.profile) fullData.profile = {};
+                    fullData.profile.name = sectionData.name;
+                    fullData.profile.displayName = sectionData.displayName;
+                    fullData.profile.category = sectionData.category;
+                    fullData.profile.description = sectionData.description;
+                    fullData.profile.tags = sectionData.tags;
+                    fullData.profile.image = sectionData.image;
+                    fullData.profile.images = sectionData.images;
+                    fullData.profile.thumbnailIndex = sectionData.thumbnailIndex;
+                } else if (tagName === 'section-personality') {
                     fullData.personality = sectionData;
+                } else if (tagName === 'section-custom') {
+                    // Custom sections: store data by category name
+                    const categoryName = section.category || 'custom';
+                    if (!fullData.customSections) fullData.customSections = {};
+                    fullData.customSections[categoryName] = sectionData;
                 }
-                // Add other sections here
             }
         });
 
@@ -316,6 +692,8 @@ class ChatbotEditor extends HTMLElement {
                     category: fullData.category,
                     description: fullData.description,
                     tags: fullData.tags,
+                    images: fullData.images,
+                    thumbnailIndex: fullData.thumbnailIndex,
                     layout: fullData.layout
                 });
 
@@ -331,7 +709,9 @@ class ChatbotEditor extends HTMLElement {
                         category: fullData.category,
                         description: fullData.description,
                         tags: fullData.tags,
-                        image: fullData.image
+                        image: fullData.image,
+                        images: fullData.images,
+                        thumbnailIndex: fullData.thumbnailIndex
                     },
                     personality: fullData.personality,
                     layout: fullData.layout

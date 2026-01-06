@@ -11,10 +11,11 @@ contextBridge.exposeInMainWorld('api', {
     },
     templates: {
         list: () => ipcRenderer.invoke('template:list'),
-        save: (name, layout) => ipcRenderer.invoke('template:save', name, layout)
+        save: (name, layout) => ipcRenderer.invoke('template:save', name, layout),
+        get: (id) => ipcRenderer.invoke('template:get', id)
     },
     assets: {
-        select: () => ipcRenderer.invoke('assets:select'),
+        select: (multiple = false) => ipcRenderer.invoke('assets:select', multiple),
         save: (path) => ipcRenderer.invoke('assets:save', path)
     }
 });

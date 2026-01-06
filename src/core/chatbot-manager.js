@@ -32,7 +32,10 @@ class ChatbotManager {
                 description: profileData.description || '',
                 category: profileData.category || 'Character',
                 tags: profileData.tags || [],
-                avatar: profileData.avatar || null
+                avatar: profileData.avatar || null,
+                image: profileData.image || (profileData.images && profileData.images[0]) || '',
+                images: profileData.images || [],
+                thumbnailIndex: profileData.thumbnailIndex !== undefined ? profileData.thumbnailIndex : (profileData.images && profileData.images.length > 0 ? 0 : -1)
             },
             // Placeholder sections for future milestones
             personality: {},
@@ -132,8 +135,13 @@ class ChatbotManager {
      * Internal helper to write file
      */
     _saveChatbot(chatbot) {
-        const filePath = path.join(this.basePath, `${chatbot.id}.json`);
-        fs.writeFileSync(filePath, JSON.stringify(chatbot, null, 2));
+        try {
+            const filePath = path.join(this.basePath, `${chatbot.id}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(chatbot, null, 2), 'utf8');
+        } catch (error) {
+            console.error(`Error saving chatbot ${chatbot.id}:`, error);
+            throw new Error(`Failed to save chatbot: ${error.message}`);
+        }
     }
 
     /**

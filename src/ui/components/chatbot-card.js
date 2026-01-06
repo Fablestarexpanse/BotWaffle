@@ -4,11 +4,30 @@ class ChatbotCard extends HTMLElement {
     }
 
     set data(bot) {
+        // Get thumbnail image - prefer thumbnailIndex, fallback to first image
+        let thumbnailImage = null;
+        if (bot.profile.images && bot.profile.images.length > 0) {
+            const thumbnailIndex = bot.profile.thumbnailIndex !== undefined ? bot.profile.thumbnailIndex : 0;
+            thumbnailImage = bot.profile.images[thumbnailIndex] || bot.profile.images[0];
+        } else if (bot.profile.image) {
+            thumbnailImage = bot.profile.image;
+        }
+
+        // Determine if it's a local file path or URL
+        const isLocalFile = thumbnailImage && !thumbnailImage.startsWith('http://') && !thumbnailImage.startsWith('https://') && !thumbnailImage.startsWith('file://');
+        let imageSrc = thumbnailImage;
+        if (imageSrc && isLocalFile) {
+            // Convert Windows path to file:// URL
+            const normalizedPath = thumbnailImage.replace(/\\/g, '/');
+            imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
+        }
+
         this.innerHTML = `
             <div class="chatbot-card">
                 <div class="card-visual">
-                    ${(bot.profile.image || (bot.profile.images && bot.profile.images[0]))
-                ? `<img src="${bot.profile.image || bot.profile.images[0]}" alt="${bot.profile.name}" class="bot-image">`
+                    ${imageSrc
+                ? `<img src="${imageSrc}" alt="${bot.profile.name}" class="bot-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                   <div class="avatar-placeholder" style="display: none;">${bot.profile.name.charAt(0).toUpperCase()}</div>`
                 : `<div class="avatar-placeholder">${bot.profile.name.charAt(0).toUpperCase()}</div>`
             }
                 </div>

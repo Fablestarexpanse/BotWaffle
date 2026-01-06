@@ -12,19 +12,26 @@ class TemplateManager {
     }
 
     saveTemplate(name, layout) {
-        const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        const template = {
-            id,
-            name,
-            layout,
-            created: new Date().toISOString()
-        };
+        try {
+            // Generate unique ID with timestamp to prevent collisions
+            const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const timestamp = Date.now();
+            const id = `${baseId}-${timestamp}`;
+            
+            const template = {
+                id,
+                name,
+                layout,
+                created: new Date().toISOString()
+            };
 
-        fs.writeFileSync(
-            path.join(this.basePath, `${id}.json`),
-            JSON.stringify(template, null, 2)
-        );
-        return template;
+            const filePath = path.join(this.basePath, `${id}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(template, null, 2), 'utf8');
+            return template;
+        } catch (error) {
+            console.error('Error saving template:', error);
+            throw new Error(`Failed to save template: ${error.message}`);
+        }
     }
 
     listTemplates() {
@@ -44,6 +51,19 @@ class TemplateManager {
         } catch (error) {
             console.error('Error listing templates:', error);
             return [];
+        }
+    }
+
+    getTemplate(id) {
+        try {
+            const filePath = path.join(this.basePath, `${id}.json`);
+            if (!fs.existsSync(filePath)) {
+                throw new Error(`Template with id ${id} not found`);
+            }
+            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (error) {
+            console.error('Error getting template:', error);
+            throw new Error(`Failed to get template: ${error.message}`);
         }
     }
 }

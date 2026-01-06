@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { initializeStorage } = require('./src/core/storage');
 const chatbotManager = require('./src/core/chatbot-manager');
@@ -30,7 +30,6 @@ app.whenReady().then(() => {
     ipcMain.handle('chatbot:get', (_, id) => chatbotManager.getChatbot(id));
 
     ipcMain.handle('chatbot:export', async (event, id) => {
-        const { dialog } = require('electron');
         const bot = chatbotManager.getChatbot(id);
 
         const { canceled, filePath } = await dialog.showSaveDialog({
@@ -49,18 +48,22 @@ app.whenReady().then(() => {
     const templateManager = require('./src/core/template-manager');
     ipcMain.handle('template:list', () => templateManager.listTemplates());
     ipcMain.handle('template:save', (_, name, layout) => templateManager.saveTemplate(name, layout));
+    ipcMain.handle('template:get', (_, id) => templateManager.getTemplate(id));
 
     // Asset Handlers
     const assetManager = require('./src/core/asset-manager');
-    const { dialog } = require('electron');
 
-    ipcMain.handle('assets:select', async () => {
+    ipcMain.handle('assets:select', async (event, multiple = false) => {
         const result = await dialog.showOpenDialog({
-            properties: ['openFile'],
-            filters: [{ name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp'] }]
+            properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'],
+            filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
         });
-        if (result.canceled || result.filePaths.length === 0) return null;
-        return result.filePaths[0];
+        
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+            return null;
+        }
+        
+        return multiple ? result.filePaths : result.filePaths[0];
     });
 
     ipcMain.handle('assets:save', (_, sourcePath) => assetManager.saveAsset(sourcePath));

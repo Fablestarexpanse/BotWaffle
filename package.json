@@ -20,5 +20,7 @@
   "devDependencies": {
     "electron": "^33.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "crc-32": "^1.2.2"
+  }
 }

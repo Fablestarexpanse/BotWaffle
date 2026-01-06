@@ -10,10 +10,19 @@ class SectionProfile extends customElements.get('section-base') {
         const data = profile.name ? profile : (this._data || {});
 
         // Handle images: defaults to array if exists, or single image, or empty
-        const images = data.images || (data.image ? [data.image] : ['']);
+        const images = data.images || (data.image ? [data.image] : []);
+        const thumbnailIndex = data.thumbnailIndex !== undefined ? data.thumbnailIndex : (images.length > 0 ? 0 : -1);
 
         const body = this.querySelector('.section-body');
         body.innerHTML = `
+            <div class="form-group" id="images-container">
+                <label>Character Images (Max 5) - First image is thumbnail for character card</label>
+                <div class="image-list" id="image-list">
+                    <!-- Images injected here -->
+                </div>
+                <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image from Computer</button>
+            </div>
+
             <div class="form-group">
                 <label>Internal Name (Required)</label>
                 <input type="text" name="name" class="input-field" value="${data.name || ''}" required placeholder="MyBot_v1">
@@ -39,40 +48,55 @@ class SectionProfile extends customElements.get('section-base') {
                 <textarea name="description" class="input-field" rows="3" placeholder="A brief elevator pitch...">${data.description || ''}</textarea>
             </div>
 
-            <div class="form-group" id="images-container">
-                <label>Character Images (Max 5)</label>
-                <div class="image-list">
-                    <!-- Images injected here -->
-                </div>
-                <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image URL</button>
-            </div>
-
             <div class="form-group">
                 <label>Tags (Comma separated)</label>
                 <input type="text" name="tags" class="input-field" value="${(data.tags || []).join(', ')}" placeholder="friendly, helper, v1">
             </div>
         `;
 
-        this.renderImageInputs(images);
+        this.renderImageList(images, thumbnailIndex);
         this.setupListeners();
     }
 
-    renderImageInputs(images) {
-        const listContainer = this.querySelector('.image-list');
+    renderImageList(images, thumbnailIndex) {
+        const listContainer = this.querySelector('#image-list');
         listContainer.innerHTML = '';
 
-        images.forEach((url, index) => {
-            const row = document.createElement('div');
-            row.className = 'image-input-row';
-            row.style.display = 'flex';
-            row.style.gap = '5px';
-            row.style.marginBottom = '5px';
+        if (images.length === 0) {
+            listContainer.innerHTML = '<div class="image-empty-state">No images added yet. Click "Add Image from Computer" to add images.</div>';
+            return;
+        }
 
-            row.innerHTML = `
-                <input type="text" class="input-field image-url" value="${url}" placeholder="https://example.com/bot.png" style="flex:1">
-                ${images.length > 1 ? `<button type="button" class="icon-btn remove-image-btn" data-index="${index}">×</button>` : ''}
+        images.forEach((imagePath, index) => {
+            const imageItem = document.createElement('div');
+            imageItem.className = 'image-item';
+            imageItem.dataset.index = index;
+            
+            // Determine if this is a local file path or URL
+            const isLocalFile = imagePath && !imagePath.startsWith('http://') && !imagePath.startsWith('https://') && !imagePath.startsWith('file://');
+            let imageSrc = imagePath;
+            if (isLocalFile) {
+                // Convert Windows path to file:// URL
+                const normalizedPath = imagePath.replace(/\\/g, '/');
+                imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
+            }
+            
+            imageItem.innerHTML = `
+                <div class="image-preview-container">
+                    <img src="${imageSrc}" alt="Character image ${index + 1}" class="image-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div class="image-error" style="display: none;">Failed to load image</div>
+                    ${index === thumbnailIndex ? '<div class="thumbnail-badge">Thumbnail</div>' : ''}
+                </div>
+                <div class="image-controls">
+                    <button type="button" class="secondary-btn small set-thumbnail-btn" data-index="${index}">
+                        ${index === thumbnailIndex ? '✓ Thumbnail' : 'Set as Thumbnail'}
+                    </button>
+                    <button type="button" class="icon-btn remove-image-btn" data-index="${index}" title="Remove image">×</button>
+                </div>
+                <input type="hidden" class="image-path-input" value="${imagePath || ''}">
             `;
-            listContainer.appendChild(row);
+            
+            listContainer.appendChild(imageItem);
         });
 
         // Update Add Button State
@@ -90,54 +114,157 @@ class SectionProfile extends customElements.get('section-base') {
             });
         });
 
-        // Add Image
-        body.querySelector('#add-image-btn').addEventListener('click', () => {
-            const currentImages = this.getImageData();
-            if (currentImages.length < 5) {
-                currentImages.push('');
-                this.renderImageInputs(currentImages);
-                this.setupImageListeners(); // Re-bind dynamic inputs
-            }
+        // Add Image Button
+        const addBtn = this.querySelector('#add-image-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', async () => {
+                await this.handleAddImage();
+            });
+        }
+
+        // Set Thumbnail Buttons
+        body.querySelectorAll('.set-thumbnail-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.getAttribute('data-index'));
+                this.setThumbnail(index);
+            });
         });
 
-        this.setupImageListeners();
-    }
-
-    setupImageListeners() {
-        const body = this.querySelector('.section-body');
-
-        // Remove Image
+        // Remove Image Buttons
         body.querySelectorAll('.remove-image-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const index = parseInt(e.target.getAttribute('data-index'));
-                const currentImages = this.getImageData();
-                currentImages.splice(index, 1);
-                // Ensure at least one input always exists if valid or leave empty?
-                // Logic above defaults to [''] if empty, so let's keep it safe.
-                if (currentImages.length === 0) currentImages.push('');
-
-                this.renderImageInputs(currentImages);
-                this.setupImageListeners();
+                this.removeImage(index);
             });
         });
     }
 
+    async handleAddImage() {
+        try {
+            // Get current images to check how many we can add
+            const currentImages = this.getImageData();
+            const remainingSlots = 5 - currentImages.length;
+            
+            if (remainingSlots <= 0) {
+                alert('Maximum of 5 images allowed.');
+                return;
+            }
+
+            // Use the file picker API with multiple selection enabled
+            const filePaths = await window.api.assets.select(true);
+            if (!filePaths) {
+                return; // User cancelled
+            }
+
+            // Ensure filePaths is an array
+            const filePathsArray = Array.isArray(filePaths) ? filePaths : [filePaths];
+            if (filePathsArray.length === 0) {
+                return; // No files selected
+            }
+
+            // Limit to remaining slots
+            const filesToAdd = filePathsArray.slice(0, remainingSlots);
+            if (filePathsArray.length > remainingSlots) {
+                alert(`Only ${remainingSlots} image(s) can be added. Selected ${filePathsArray.length - remainingSlots} extra image(s) were ignored.`);
+            }
+
+            // Save all images to the assets folder
+            const newImages = [];
+            for (const filePath of filesToAdd) {
+                if (!filePath || typeof filePath !== 'string') {
+                    console.warn('Invalid file path:', filePath);
+                    continue;
+                }
+                try {
+                    const savedPath = await window.api.assets.save(filePath);
+                    if (savedPath) {
+                        newImages.push(savedPath);
+                    }
+                } catch (error) {
+                    console.error('Error saving image:', filePath, error);
+                    // Continue with other images even if one fails
+                }
+            }
+
+            if (newImages.length === 0) {
+                alert('Failed to save images. Please try again.');
+                return;
+            }
+
+            // Add new images
+            currentImages.push(...newImages);
+            
+            // If this is the first image, make it the thumbnail
+            const thumbnailIndex = currentImages.length === newImages.length ? 0 : this.getThumbnailIndex();
+            
+            this.renderImageList(currentImages, thumbnailIndex);
+            this.setupListeners();
+            this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+        } catch (error) {
+            console.error('Error adding images:', error);
+            alert('Error adding images: ' + (error.message || 'Unknown error'));
+        }
+    }
+
+    setThumbnail(index) {
+        const currentImages = this.getImageData();
+        this.renderImageList(currentImages, index);
+        this.setupListeners();
+        this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+    }
+
+    removeImage(index) {
+        const currentImages = this.getImageData();
+        const currentThumbnailIndex = this.getThumbnailIndex();
+        
+        currentImages.splice(index, 1);
+        
+        // Adjust thumbnail index if needed
+        let newThumbnailIndex = currentThumbnailIndex;
+        if (index === currentThumbnailIndex) {
+            // Removed the thumbnail, set first image as thumbnail or -1 if none
+            newThumbnailIndex = currentImages.length > 0 ? 0 : -1;
+        } else if (index < currentThumbnailIndex) {
+            // Removed an image before the thumbnail, adjust index
+            newThumbnailIndex = currentThumbnailIndex - 1;
+        }
+        
+        this.renderImageList(currentImages, newThumbnailIndex);
+        this.setupListeners();
+        this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+    }
+
     getImageData() {
-        const inputs = this.querySelectorAll('.image-url');
-        return Array.from(inputs).map(input => input.value);
+        const inputs = this.querySelectorAll('.image-path-input');
+        return Array.from(inputs).map(input => input.value).filter(path => path.trim() !== '');
+    }
+
+    getThumbnailIndex() {
+        // Check which button has "✓ Thumbnail" text
+        const thumbnailButtons = this.querySelectorAll('.set-thumbnail-btn');
+        for (let i = 0; i < thumbnailButtons.length; i++) {
+            if (thumbnailButtons[i].textContent.includes('✓')) {
+                return parseInt(thumbnailButtons[i].getAttribute('data-index'));
+            }
+        }
+        // If no thumbnail is set, default to first image if images exist
+        const images = this.getImageData();
+        return images.length > 0 ? 0 : -1;
     }
 
     getData() {
         const body = this.querySelector('.section-body');
-        const images = this.getImageData().filter(url => url.trim() !== ''); // Clean empty strings
+        const images = this.getImageData();
+        const thumbnailIndex = this.getThumbnailIndex();
 
         return {
             name: body.querySelector('[name="name"]').value,
             displayName: body.querySelector('[name="displayName"]').value,
             category: body.querySelector('[name="category"]').value,
             description: body.querySelector('[name="description"]').value,
-            image: images.length > 0 ? images[0] : '', // Backward compat
+            image: images.length > 0 ? images[0] : '', // Backward compat - first image
             images: images,
+            thumbnailIndex: thumbnailIndex,
             tags: body.querySelector('[name="tags"]').value.split(',').map(t => t.trim()).filter(t => t)
         };
     }

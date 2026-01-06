@@ -1,15 +1,34 @@
 const fs = require('fs');
 const path = require('path');
 
-// Base data directory
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Base data directory - will be set when initializeStorage is called
+// This allows app to be ready before we try to access app.getPath()
+let DATA_DIR = null;
+
+/**
+ * Gets or initializes the data directory path
+ * @returns {string} The data directory path
+ */
+function getDataDir() {
+    if (!DATA_DIR) {
+        try {
+            const { app } = require('electron');
+            DATA_DIR = path.join(app.getPath('userData'), 'data');
+        } catch (error) {
+            // Fallback for testing or if app is not available
+            DATA_DIR = path.join(process.cwd(), 'data');
+        }
+    }
+    return DATA_DIR;
+}
 
 // Subdirectories to initialize
 const REQUIRED_DIRS = [
     'chatbots',
     'conversations',
     'templates',
-    'config'
+    'config',
+    'assets'
 ];
 
 /**
@@ -17,20 +36,23 @@ const REQUIRED_DIRS = [
  */
 function initializeStorage() {
     try {
+        // Initialize DATA_DIR if not already set
+        const dataDir = getDataDir();
+        
         // Create base data dir
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR);
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
         }
 
         // Create subdirectories
         REQUIRED_DIRS.forEach(dir => {
-            const dirPath = path.join(DATA_DIR, dir);
+            const dirPath = path.join(dataDir, dir);
             if (!fs.existsSync(dirPath)) {
-                fs.mkdirSync(dirPath);
+                fs.mkdirSync(dirPath, { recursive: true });
             }
         });
         
-        console.log('Storage initialized at:', DATA_DIR);
+        console.log('Storage initialized at:', dataDir);
         return true;
     } catch (error) {
         console.error('Failed to initialize storage:', error);
@@ -47,7 +69,7 @@ function getDataPath(subdir) {
     if (!REQUIRED_DIRS.includes(subdir)) {
         throw new Error(`Invalid storage directory: ${subdir}`);
     }
-    return path.join(DATA_DIR, subdir);
+    return path.join(getDataDir(), subdir);
 }
 
 module.exports = {

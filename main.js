@@ -28,6 +28,7 @@ app.whenReady().then(() => {
     ipcMain.handle('chatbot:update', (_, id, data) => chatbotManager.updateChatbot(id, data));
     ipcMain.handle('chatbot:delete', (_, id) => chatbotManager.deleteChatbot(id));
     ipcMain.handle('chatbot:get', (_, id) => chatbotManager.getChatbot(id));
+    ipcMain.handle('chatbot:categories', () => chatbotManager.getUniqueCategories());
 
     ipcMain.handle('chatbot:export', async (event, id) => {
         const bot = chatbotManager.getChatbot(id);
@@ -58,11 +59,11 @@ app.whenReady().then(() => {
             properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'],
             filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
         });
-        
+
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
             return null;
         }
-        
+
         return multiple ? result.filePaths : result.filePaths[0];
     });
 

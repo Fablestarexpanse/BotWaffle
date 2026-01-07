@@ -4,7 +4,7 @@ class SectionProfile extends customElements.get('section-base') {
         this._title = 'Basic Profile';
     }
 
-    renderContent() {
+    async renderContent() {
         // Access form data from this._data if editing
         const profile = this._data.profile || {};
         const data = profile.name ? profile : (this._data || {});
@@ -12,6 +12,16 @@ class SectionProfile extends customElements.get('section-base') {
         // Handle images: defaults to array if exists, or single image, or empty
         const images = data.images || (data.image ? [data.image] : []);
         const thumbnailIndex = data.thumbnailIndex !== undefined ? data.thumbnailIndex : (images.length > 0 ? 0 : -1);
+
+        // Fetch categories dynamically
+        let categories = ['Character', 'Assistant', 'Roleplay', 'Educational']; // Fallback
+        try {
+            if (window.api && window.api.chatbot && window.api.chatbot.categories) {
+                categories = await window.api.chatbot.categories();
+            }
+        } catch (e) {
+            console.error('Failed to load categories', e);
+        }
 
         const body = this.querySelector('.section-body');
         body.innerHTML = `
@@ -21,6 +31,11 @@ class SectionProfile extends customElements.get('section-base') {
                     <!-- Images injected here -->
                 </div>
                 <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image from Computer</button>
+            </div>
+
+            <div class="form-group">
+                <label>Tags (Comma separated)</label>
+                <input type="text" name="tags" class="input-field" value="${(data.tags || []).join(', ')}" placeholder="friendly, helper, v1">
             </div>
 
             <div class="form-group">
@@ -35,22 +50,15 @@ class SectionProfile extends customElements.get('section-base') {
 
             <div class="form-group">
                 <label>Category</label>
-                <select name="category" class="input-field">
-                    <option value="Character" ${data.category === 'Character' ? 'selected' : ''}>Character</option>
-                    <option value="Assistant" ${data.category === 'Assistant' ? 'selected' : ''}>Assistant</option>
-                    <option value="Roleplay" ${data.category === 'Roleplay' ? 'selected' : ''}>Roleplay</option>
-                    <option value="Educational" ${data.category === 'Educational' ? 'selected' : ''}>Educational</option>
-                </select>
+                <input type="text" name="category" class="input-field" value="${data.category || 'Character'}" list="category-options" placeholder="Select or type a category...">
+                <datalist id="category-options">
+                    ${categories.map(cat => `<option value="${cat}"></option>`).join('')}
+                </datalist>
             </div>
 
             <div class="form-group">
                 <label>Description</label>
                 <textarea name="description" class="input-field" rows="3" placeholder="A brief elevator pitch...">${data.description || ''}</textarea>
-            </div>
-
-            <div class="form-group">
-                <label>Tags (Comma separated)</label>
-                <input type="text" name="tags" class="input-field" value="${(data.tags || []).join(', ')}" placeholder="friendly, helper, v1">
             </div>
         `;
 
@@ -71,7 +79,7 @@ class SectionProfile extends customElements.get('section-base') {
             const imageItem = document.createElement('div');
             imageItem.className = 'image-item';
             imageItem.dataset.index = index;
-            
+
             // Determine if this is a local file path or URL
             const isLocalFile = imagePath && !imagePath.startsWith('http://') && !imagePath.startsWith('https://') && !imagePath.startsWith('file://');
             let imageSrc = imagePath;
@@ -80,7 +88,7 @@ class SectionProfile extends customElements.get('section-base') {
                 const normalizedPath = imagePath.replace(/\\/g, '/');
                 imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
             }
-            
+
             imageItem.innerHTML = `
                 <div class="image-preview-container">
                     <img src="${imageSrc}" alt="Character image ${index + 1}" class="image-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
@@ -95,7 +103,7 @@ class SectionProfile extends customElements.get('section-base') {
                 </div>
                 <input type="hidden" class="image-path-input" value="${imagePath || ''}">
             `;
-            
+
             listContainer.appendChild(imageItem);
         });
 
@@ -137,6 +145,92 @@ class SectionProfile extends customElements.get('section-base') {
                 this.removeImage(index);
             });
         });
+
+        // Image Preview Click (Open Gallery)
+        body.querySelectorAll('.image-preview').forEach(img => {
+            img.addEventListener('click', (e) => {
+                const item = e.target.closest('.image-item');
+                const index = parseInt(item.dataset.index);
+                this.openGallery(index);
+            });
+        });
+    }
+
+    openGallery(startIndex) {
+        const images = this.getImageData();
+        if (images.length === 0) return;
+
+        // Create Modal Overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'gallery-overlay';
+        overlay.innerHTML = `
+            <button class="gallery-close">×</button>
+            <div class="gallery-main-stage">
+                <img src="" class="gallery-main-image" alt="Full screen view">
+            </div>
+            <div class="gallery-thumbnails">
+                ${images.map((src, i) => `
+                    <div class="gallery-thumb ${i === startIndex ? 'active' : ''}" data-index="${i}">
+                        <img src="${this.normalizePath(src)}" alt="Thumbnail ${i + 1}">
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Logic
+        const mainImg = overlay.querySelector('.gallery-main-image');
+        const updateView = (index) => {
+            const src = images[index];
+            mainImg.src = this.normalizePath(src);
+
+            // Update thumbs
+            overlay.querySelectorAll('.gallery-thumb').forEach(t => {
+                t.classList.toggle('active', parseInt(t.dataset.index) === index);
+            });
+        };
+
+        // Initialize
+        updateView(startIndex);
+
+        // Listeners
+        overlay.querySelector('.gallery-close').addEventListener('click', () => {
+            overlay.remove();
+        });
+
+        // Overlay click to close (if not clicking content)
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || e.target.classList.contains('gallery-main-stage')) {
+                overlay.remove();
+            }
+        });
+
+        // Thumbnail click
+        overlay.querySelectorAll('.gallery-thumb').forEach(thumb => {
+            thumb.addEventListener('click', () => {
+                const index = parseInt(thumb.dataset.index);
+                updateView(index);
+            });
+        });
+
+        // Keyboard support
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') {
+                overlay.remove();
+                document.removeEventListener('keydown', keyHandler);
+            }
+        };
+        document.addEventListener('keydown', keyHandler);
+    }
+
+    normalizePath(imagePath) {
+        const isLocalFile = imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('file://');
+        if (isLocalFile) {
+            const normalizedPath = imagePath.replace(/\\/g, '/');
+            return normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
+        }
+        return imagePath;
     }
 
     async handleAddImage() {
@@ -144,7 +238,7 @@ class SectionProfile extends customElements.get('section-base') {
             // Get current images to check how many we can add
             const currentImages = this.getImageData();
             const remainingSlots = 5 - currentImages.length;
-            
+
             if (remainingSlots <= 0) {
                 alert('Maximum of 5 images allowed.');
                 return;
@@ -193,10 +287,10 @@ class SectionProfile extends customElements.get('section-base') {
 
             // Add new images
             currentImages.push(...newImages);
-            
+
             // If this is the first image, make it the thumbnail
             const thumbnailIndex = currentImages.length === newImages.length ? 0 : this.getThumbnailIndex();
-            
+
             this.renderImageList(currentImages, thumbnailIndex);
             this.setupListeners();
             this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
@@ -216,9 +310,9 @@ class SectionProfile extends customElements.get('section-base') {
     removeImage(index) {
         const currentImages = this.getImageData();
         const currentThumbnailIndex = this.getThumbnailIndex();
-        
+
         currentImages.splice(index, 1);
-        
+
         // Adjust thumbnail index if needed
         let newThumbnailIndex = currentThumbnailIndex;
         if (index === currentThumbnailIndex) {
@@ -228,7 +322,7 @@ class SectionProfile extends customElements.get('section-base') {
             // Removed an image before the thumbnail, adjust index
             newThumbnailIndex = currentThumbnailIndex - 1;
         }
-        
+
         this.renderImageList(currentImages, newThumbnailIndex);
         this.setupListeners();
         this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));

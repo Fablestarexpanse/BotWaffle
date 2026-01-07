@@ -15,31 +15,51 @@
 
 <body>
     <div id="app">
-        <!-- Sidebar Shell -->
-        <aside id="sidebar">
-            <div class="sidebar-header">
-                <div class="brand">BotWaffle</div>
+        <!-- Global Toolbar -->
+        <header id="global-toolbar">
+            <div class="left-controls">
+                <tool-switcher></tool-switcher>
             </div>
-            <ul class="nav-links">
-                <li class="nav-item">
-                    <a href="#" class="nav-link active">My Library</a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">Settings</a>
-                </li>
-            </ul>
-        </aside>
 
-        <!-- Main Content Area -->
-        <main id="content">
-            <!-- Dynamic Content Loaded Here -->
-            <div id="view-container">
-                <chatbot-list></chatbot-list>
+            <div class="brand-area">
+                <img src="../assets/logo.png" alt="BotWaffle Logo" class="toolbar-logo">
+                <span class="brand-text">BotWaffle Studio</span>
             </div>
-        </main>
+
+            <div class="window-controls">
+                <!-- Mac/Windows controls could go here -->
+                <button class="icon-btn xs">⚙️</button>
+                <div class="user-avatar">B</div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div id="workspace">
+            <!-- Sidebar Shell -->
+            <aside id="sidebar">
+                <!-- Sidebar content updates based on tool, for now static BotWaffle menu -->
+                <ul class="nav-links">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active">My Library</a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">Settings</a>
+                    </li>
+                </ul>
+            </aside>
+
+            <!-- Main Content Area -->
+            <main id="content">
+                <!-- Dynamic Content Loaded Here -->
+                <div id="view-container">
+                    <chatbot-list></chatbot-list>
+                </div>
+            </main>
+        </div>
     </div>
 
     <!-- Scripts -->
+    <script src="components/tool-switcher.js"></script>
     <script src="components/sidebar.js"></script>
     <script src="components/chatbot-card.js"></script>
     <script src="components/chatbot-list.js"></script>

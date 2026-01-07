@@ -2,25 +2,38 @@ class ChatbotList extends HTMLElement {
     constructor() {
         super();
         this.innerHTML = `
-            <div class="toolbar">
-                <input type="text" placeholder="Search bots..." id="search-input">
-                <div class="controls">
-                    <select id="sort-select">
-                        <option value="date-desc">Newest First</option>
-                        <option value="date-asc">Oldest First</option>
-                        <option value="name-asc">Name (A-Z)</option>
-                        <option value="name-desc">Name (Z-A)</option>
-                    </select>
+            <div class="chatbot-list-toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search bots..." id="search-input">
+                    </div>
+                </div>
+                
+                <div class="toolbar-center">
+                    <button id="create-btn" class="primary-btn">
+                        <span class="icon">+</span> New Bot
+                    </button>
+                </div>
+
+                <div class="toolbar-right">
+                    <div class="control-group">
+                        <select id="sort-select">
+                            <option value="date-desc">Newest</option>
+                            <option value="date-asc">Oldest</option>
+                            <option value="name-asc">A-Z</option>
+                        </select>
+                    </div>
+                    
                     <div class="view-toggles">
                         <button id="view-grid" class="icon-btn active" title="Grid View">⊞</button>
                         <button id="view-list" class="icon-btn" title="List View">☰</button>
                     </div>
-                </div>
-                <div class="actions">
-                    <button id="create-btn" class="primary-btn">+ New Bot</button>
-                    <button id="refresh-btn" class="icon-btn">↻</button>
+                    
+                    <button id="refresh-btn" class="icon-btn" title="Refresh">↻</button>
                 </div>
             </div>
+
             <div class="grid-container" id="bot-grid">
                 <!-- Cards injected here -->
                 <div class="loading">Loading chatbots...</div>

@@ -152,6 +152,25 @@ class ChatbotManager {
         if (!bot) throw new Error('Bot not found');
         return exportToPng(bot, outputPath, bot.profile.avatar);
     }
+    /**
+     * Retrieves unique categories from all bots + defaults.
+     * @returns {Array<string>}
+     */
+    getUniqueCategories() {
+        const defaults = new Set(['Character', 'Assistant', 'Roleplay', 'Educational']);
+        const bots = this.listChatbots();
+
+        bots.forEach(bot => {
+            if (bot.profile && bot.profile.category) {
+                // Split by comma just in case, though it's usually single
+                // Normalized to Title Case or just trimmed
+                const cat = bot.profile.category.trim();
+                if (cat) defaults.add(cat);
+            }
+        });
+
+        return Array.from(defaults).sort();
+    }
 }
 
 

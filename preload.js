@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
         update: (id, data) => ipcRenderer.invoke('chatbot:update', id, data),
         delete: (id) => ipcRenderer.invoke('chatbot:delete', id),
         get: (id) => ipcRenderer.invoke('chatbot:get', id),
+        categories: () => ipcRenderer.invoke('chatbot:categories'),
         export: (id) => ipcRenderer.invoke('chatbot:export', id)
     },
     templates: {

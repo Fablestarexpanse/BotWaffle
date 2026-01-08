@@ -125,6 +125,9 @@ function registerPromptWaffleHandlers() {
     });
 
     ipcMain.handle('get-app-version', () => '1.5.2');
+}
+
+module.exports = { registerPromptWaffleHandlers };
 
 
 

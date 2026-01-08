@@ -33,11 +33,10 @@
             </div>
         </header>
 
-        <!-- Main Workspace -->
+        <!-- Main Workspace (BotWaffle Native) -->
         <div id="workspace">
             <!-- Sidebar Shell -->
             <aside id="sidebar">
-                <!-- Sidebar content updates based on tool, for now static BotWaffle menu -->
                 <ul class="nav-links">
                     <li class="nav-item">
                         <a href="#" class="nav-link active">My Library</a>
@@ -50,11 +49,19 @@
 
             <!-- Main Content Area -->
             <main id="content">
-                <!-- Dynamic Content Loaded Here -->
                 <div id="view-container">
                     <chatbot-list></chatbot-list>
                 </div>
             </main>
+        </div>
+
+        <!-- External Tool Container (PromptWaffel) -->
+        <div id="tool-view-container" style="display: none; flex: 1; overflow: hidden; position: relative;">
+            <!-- WebView pointing to PromptWaffle -->
+            <!-- Note: We use relative path from the built index.html location -->
+            <webview id="prompt-waffle-view" src="file:///f:/Cursor%20Projects/BotWaffle/PromptWaffel/src/index.html"
+                preload="file:///f:/Cursor%20Projects/BotWaffle/PromptWaffel/preload.js"
+                style="width: 100%; height: 100%; display:none;" webpreferences="contextIsolation=yes"></webview>
         </div>
     </div>
 
@@ -74,6 +81,53 @@
     <script>
         // Simple Router / State Manager
         const container = document.getElementById('view-container');
+        const workspace = document.getElementById('workspace');
+        const toolContainer = document.getElementById('tool-view-container');
+        const promptWaffleView = document.getElementById('prompt-waffle-view');
+
+        // Tool Switching Logic
+        document.querySelector('tool-switcher').addEventListener('tool-switch', (e) => {
+            const tool = e.detail.tool;
+            console.log('Switching to:', tool);
+
+            if (tool === 'bot-waffle') {
+                workspace.style.display = 'flex';
+                toolContainer.style.display = 'none';
+                promptWaffleView.style.display = 'none';
+            } else if (tool === 'prompt-waffle') {
+                workspace.style.display = 'none';
+                toolContainer.style.display = 'flex';
+                promptWaffleView.style.display = 'inline-flex'; // Webviews are weird about display properties sometimes
+
+                // Inject Theme CSS into PromptWaffle
+                // We do this on switch to ensure it catches updates or reloads
+                injectPromptWaffleTheme();
+            }
+        });
+
+        function injectPromptWaffleTheme() {
+            // CSS to match BotWaffle Navy/Gold Theme
+            // This overrides PromptWaffel's variables or specific styles
+            const themeCSS = `
+                :root {
+                    --bg-primary: #0B1121;
+                    --bg-secondary: #151E32;
+                    --bg-tertiary: #1E2945;
+                    --accent: #FFAB00;
+                    --text-primary: #F0F4F8; 
+                }
+                body, .app-layout { background-color: #0B1121 !important; color: #F0F4F8 !important; }
+                .sidebar { background-color: #151E32 !important; border-right: 1px solid #334155 !important; }
+                .sidebar-top { background-color: #151E32 !important; }
+                /* More styles can be added here */
+            `;
+
+            try {
+                promptWaffleView.insertCSS(themeCSS);
+            } catch (e) {
+                console.warn('Could not inject CSS yet, webview might not be ready', e);
+            }
+        }
 
         // Listen for 'create-bot' event from List
         document.addEventListener('create-bot', () => {

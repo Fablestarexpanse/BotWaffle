@@ -11,7 +11,8 @@ function createWindow() {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
-            contextIsolation: true
+            contextIsolation: true,
+            webviewTag: true
         }
     });
 
@@ -53,6 +54,10 @@ app.whenReady().then(() => {
 
     // Asset Handlers
     const assetManager = require('./src/core/asset-manager');
+
+    // PromptWaffle Integration
+    const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');
+    registerPromptWaffleHandlers();
 
     ipcMain.handle('assets:select', async (event, multiple = false) => {
         const result = await dialog.showOpenDialog({

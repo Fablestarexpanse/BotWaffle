@@ -2,40 +2,38 @@
 Date: 2026-01-07
 
 ## 1. Project Status
-**Status:** Alpha / Integration Phase
+**Status:** Stable / Beta Ready
 **Core Version:** 1.0.0
-**Integration:** PromptWaffle 1.5.2 integrated as embedded tool.
+**Integration:** PromptWaffle 1.5.2 fully integrated & themed.
 
 ## 2. Integration Health
 ### PromptWaffle Embedding
 - **Mechanism:** `<webview>` tag in `src/ui/index.html`.
-- **Communication:** `preload.js` bridge + `src/core/prompt-waffle-handler.js` (IPC).
-- **Styling:** CSS Variable injection via `injectPromptWaffleTheme()`.
-- **Status:** Functional. File operations (Read/Write/Delete) are proxied to the host Node.js process.
+- **Communication:** `pw-` namespaced IPC handlers in `src/core/prompt-waffle-handler.js`.
+- **Styling:** CSS Variable injection matched to BotWaffle Navy/Gold theme.
+- **Status:** Functional. File operations and persistence are working.
 
-### Known Issues
-- **Theme Injection Timing:** CSS injection sometimes races with DOM load. Currently handled by injecting on tool switch.
-- **Duplicate Logic:** Some file handling logic is duplicated between `main.js` and `prompt-waffle-handler.js`. Ideally should be refactored into a shared `FileSystemManager`.
+### Resolved Issues
+- **Theme Injection:** Fixed by injecting CSS on tool activation.
+- **Data Safety:** Implemented "Dirty State" tracking to prevent accidental data loss during navigation.
+- **IPC Conflicts:** Resolved by namespacing all PromptWaffle calls with `pw-`.
 
 ## 3. Dependency Audit
 **Critical Vulnerabilities:** 0
-**Moderate Vulnerabilities:** 1
-- **Package:** `electron` (<35.7.5)
-- **Issue:** ASAR Integrity Bypass
-- **Recommendation:** Upgrade Electron to latest stable version (requires testing as it may break `webview` tag behavior or requires `contextIsolation` adjustments).
+**Moderate Vulnerabilities:** 0
+- **Electron:** Upgraded to latest version. Vulnerabilities resolved.
 
 ## 4. Code Structure
-- `src/core/`: Contains main process logic. `prompt-waffle-handler.js` properly isolates tool-specific logic.
-- `src/ui/`: Contains renderer process logic.
-- `PromptWaffel/`: Submodule/Subdirectory containing the ported tool.
-    - **Optimization:** Consider moving `PromptWaffel` sources into `src/tools/prompt-waffle` for better organization in the future.
+- `src/core/`: Backend logic. `prompt-waffle-handler.js` handles embedded tool IPC.
+- `src/ui/`: Renderer. `index.html` manages the `view-container` (BotWaffle) vs `tool-view-container` (PromptWaffle).
+- `src/ui/components/chatbot-editor.js`: Now includes save state protection.
 
 ## 5. Next Steps
-1.  **Refactor:** Merge `chatbot-manager.js` and other core handlers into a unified plugin system if more tools are added.
-2.  **Security:** Address Electron vulnerability by upgrading and re-verifying `webview` tag security settings.
-3.  **Features:** Enable "Drag and Drop" between BotWaffle and PromptWaffle (e.g. dragging a generated prompt into a bot profile).
+1.  **Refactor:** Consider moving `PromptWaffel` source into a dedicated `src/tools/` directory in a future cleanup.
+2.  **Features:** "Drag and Drop" between tools (e.g. dragging a prompt snippet into a bot field).
+3.  **Testing:** Manual stress testing of large image libraries.
 
 ## 6. Git Status
 - Branch: `main`
 - Remote: Up to date.
-- Clean working tree.
+- Working Tree: Clean.

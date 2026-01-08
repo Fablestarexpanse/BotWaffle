@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "postinstall": "cd PromptWaffel && npm install",
+    "postinstall": "cd src/tools/prompt-waffle && npm install",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

@@ -1,0 +1,6 @@
+dress
+suit
+shirt
+pants
+skirt
+jacket

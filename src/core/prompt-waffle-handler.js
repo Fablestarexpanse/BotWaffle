@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 // Root directory for PromptWuffel data
-const PROMPT_WAFFLE_ROOT = path.join(__dirname, '../../PromptWaffel');
+const PROMPT_WAFFLE_ROOT = path.join(__dirname, '../tools/prompt-waffle');
 
 function getSafePath(target) {
     const resolved = path.resolve(PROMPT_WAFFLE_ROOT, target);

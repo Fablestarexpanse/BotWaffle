@@ -59,8 +59,9 @@
         <div id="tool-view-container" style="display: none; flex: 1; overflow: hidden; position: relative;">
             <!-- WebView pointing to PromptWaffle -->
             <!-- Note: We use relative path from the built index.html location -->
-            <webview id="prompt-waffle-view" src="file:///f:/Cursor%20Projects/BotWaffle/PromptWaffel/src/index.html"
-                preload="file:///f:/Cursor%20Projects/BotWaffle/PromptWaffel/preload.js"
+            <webview id="prompt-waffle-view"
+                src="file:///f:/Cursor%20Projects/BotWaffle/src/tools/prompt-waffle/src/index.html"
+                preload="file:///f:/Cursor%20Projects/BotWaffle/src/tools/prompt-waffle/preload.js"
                 style="width: 100%; height: 100%; display:none;" webpreferences="contextIsolation=yes"></webview>
         </div>
     </div>
@@ -85,8 +86,22 @@
         const toolContainer = document.getElementById('tool-view-container');
         const promptWaffleView = document.getElementById('prompt-waffle-view');
 
+        // Check for unsaved changes before switching context
+        function checkUnsavedChanges() {
+            const editor = container.querySelector('chatbot-editor');
+            if (editor && editor.hasUnsavedChanges) {
+                return !confirm('You have unsaved changes. Are you sure you want to leave? Your changes will be lost.');
+            }
+            return false;
+        }
+
         // Tool Switching Logic
         document.querySelector('tool-switcher').addEventListener('tool-switch', (e) => {
+            // If switching TO bot-waffle, no check needed (we just show/hide divs, state persists).
+            // But if switching FROM bot-waffle (where editor lives), we might want to warn?
+            // Actually, since we hide #workspace but don't destroy it, the editor state persists!
+            // So switching tools is safe. No warning needed there.
+
             const tool = e.detail.tool;
             console.log('Switching to:', tool);
 
@@ -97,10 +112,7 @@
             } else if (tool === 'prompt-waffle') {
                 workspace.style.display = 'none';
                 toolContainer.style.display = 'flex';
-                promptWaffleView.style.display = 'inline-flex'; // Webviews are weird about display properties sometimes
-
-                // Inject Theme CSS into PromptWaffle
-                // We do this on switch to ensure it catches updates or reloads
+                promptWaffleView.style.display = 'inline-flex';
                 injectPromptWaffleTheme();
             }
         });
@@ -129,21 +141,26 @@
             }
         }
 
-        // Listen for 'create-bot' event from List
+        // Listen for events that would replace the editor
         document.addEventListener('create-bot', () => {
+            if (checkUnsavedChanges()) return;
+
             const editor = document.createElement('chatbot-editor');
             editor.mode = 'create';
             container.innerHTML = '';
             container.appendChild(editor);
         });
 
-        // Listen for 'edit-bot' event from Card
         document.addEventListener('edit-bot', async (e) => {
+            if (checkUnsavedChanges()) return;
+
             const botId = e.detail.id;
             const editor = document.createElement('chatbot-editor');
             editor.mode = 'edit';
 
-            // Fetch fresh data
+            // Show loading
+            container.innerHTML = '<div style="color:white; padding: 20px;">Loading...</div>';
+
             const botData = await window.api.chatbot.get(botId);
             editor.chatbotData = botData;
 
@@ -151,12 +168,19 @@
             container.appendChild(editor);
         });
 
-        // Listen for 'editor-cancel' or 'editor-save' to return to list
-        document.addEventListener('editor-cancel', () => showList());
-        document.addEventListener('editor-save', () => showList());
+        // Listen for 'editor-cancel' to return to list
+        document.addEventListener('editor-cancel', () => {
+            if (checkUnsavedChanges()) return;
+            showList();
+        });
 
-        // Listen for sidebar navigation
-        document.addEventListener('navigate-library', () => showList());
+        // document.addEventListener('editor-save', () => showList()); // Removed: stay in editor on save
+
+        // Listen for sidebar navigation (Library / Settings)
+        document.addEventListener('navigate-library', () => {
+            if (checkUnsavedChanges()) return;
+            showList();
+        });
 
         function showList() {
             container.innerHTML = '<chatbot-list></chatbot-list>';

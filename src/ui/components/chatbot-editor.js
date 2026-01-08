@@ -2,6 +2,11 @@ class ChatbotEditor extends HTMLElement {
     constructor() {
         super();
         this.currentId = null;
+        this._isDirty = false;
+    }
+
+    get hasUnsavedChanges() {
+        return this._isDirty;
     }
 
     set mode(value) {
@@ -31,7 +36,10 @@ class ChatbotEditor extends HTMLElement {
 
         this.innerHTML = `
             <div class="editor-header">
-                <h2>${isEdit ? 'Edit Chatbot' : 'Create New Chatbot'}</h2>
+                <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+                    <h2>${isEdit ? 'Edit Chatbot' : 'Create New Chatbot'}</h2>
+                    <button id="save-btn" class="primary-btn">Save</button>
+                </div>
                 <div class="actions">
                     <button id="add-section-btn" class="secondary-btn">+ Add Section</button>
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
@@ -41,7 +49,6 @@ class ChatbotEditor extends HTMLElement {
                         <button id="delete-btn" class="danger-btn">Delete</button>
                     ` : ''}
                     <button id="cancel-btn" class="secondary-btn">Cancel</button>
-                    <button id="save-btn" class="primary-btn">Save</button>
                 </div>
             </div>
 
@@ -60,7 +67,7 @@ class ChatbotEditor extends HTMLElement {
 
         this.layout.forEach(sectionConfig => {
             let element;
-            
+
             if (sectionConfig.type === 'custom') {
                 // Custom category section
                 const tagName = 'section-custom';
@@ -96,7 +103,7 @@ class ChatbotEditor extends HTMLElement {
                 }
                 element = document.createElement(tagName);
             }
-            
+
             if (sectionConfig.id) element.id = sectionConfig.id;
 
             // Set initial state
@@ -201,6 +208,14 @@ class ChatbotEditor extends HTMLElement {
             }
         });
 
+        // Monitor changes from sections
+        this.addEventListener('section-change', () => {
+            this._isDirty = true;
+            // Optional: visual indicator on Save button
+            const saveBtn = this.querySelector('#save-btn');
+            if (saveBtn) saveBtn.textContent = 'Save*';
+        });
+
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('[draggable="true"]:not([style*="opacity: 0.5"])')];
             return draggableElements.reduce((closest, child) => {
@@ -291,28 +306,28 @@ class ChatbotEditor extends HTMLElement {
                 const labelInput = fieldEl.querySelector('.field-label-input');
                 const typeInput = fieldEl.querySelector('.field-type-input');
                 const placeholderInput = fieldEl.querySelector('.field-placeholder-input');
-                
-                const name = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 
-                             labelInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+                const name = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') ||
+                    labelInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
                 const label = labelInput.value.trim() || nameInput.value.trim();
-                
+
                 if (!name || !label) {
                     return; // Skip invalid fields
                 }
-                
+
                 const field = {
                     name: name,
                     label: label,
                     type: typeInput.value || 'text',
                     placeholder: placeholderInput.value.trim() || ''
                 };
-                
+
                 if (field.type === 'select') {
                     const optionsInput = fieldEl.querySelector('.field-options-input');
                     const optionsText = optionsInput.value.trim();
                     field.options = optionsText ? optionsText.split(',').map(opt => opt.trim()).filter(opt => opt) : [];
                 }
-                
+
                 fieldData.push(field);
             });
 
@@ -339,7 +354,7 @@ class ChatbotEditor extends HTMLElement {
             // Only close if clicking the overlay background, not the modal content
             if (e.target === overlay) closeModal();
         });
-        
+
         // Prevent modal content clicks from closing the modal
         const modal = overlay.querySelector('.modal');
         if (modal) {
@@ -357,7 +372,7 @@ class ChatbotEditor extends HTMLElement {
         });
 
         document.body.appendChild(overlay);
-        
+
         // Focus the category input after a short delay to ensure modal is fully rendered
         setTimeout(() => {
             const categoryInput = overlay.querySelector('#category-name-input');
@@ -365,7 +380,7 @@ class ChatbotEditor extends HTMLElement {
                 categoryInput.focus();
             }
         }, 100);
-        
+
         // Add first field automatically
         this.addFieldToModal(fieldsList, fields);
     }
@@ -373,11 +388,11 @@ class ChatbotEditor extends HTMLElement {
     addFieldToModal(container, fieldsArray) {
         const fieldId = `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const fieldIndex = fieldsArray.length;
-        
+
         const fieldItem = document.createElement('div');
         fieldItem.className = 'field-item';
         fieldItem.style.cssText = 'margin-bottom: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #444; border-radius: 4px;';
-        
+
         fieldItem.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <strong style="color: var(--text-primary);">Field ${fieldIndex + 1}</strong>
@@ -493,7 +508,7 @@ class ChatbotEditor extends HTMLElement {
         `;
 
         const closeModal = () => overlay.remove();
-        
+
         overlay.querySelector('.modal-close').addEventListener('click', closeModal);
         overlay.querySelector('.cancel-load-template-modal').addEventListener('click', closeModal);
         overlay.addEventListener('click', (e) => {
@@ -567,7 +582,7 @@ class ChatbotEditor extends HTMLElement {
         `;
 
         const closeModal = () => overlay.remove();
-        
+
         overlay.querySelector('.modal-close').addEventListener('click', closeModal);
         overlay.querySelector('.cancel-template-modal').addEventListener('click', closeModal);
         overlay.addEventListener('click', (e) => {
@@ -586,7 +601,7 @@ class ChatbotEditor extends HTMLElement {
         overlay.querySelector('.save-template-modal').addEventListener('click', async () => {
             const nameInput = overlay.querySelector('#template-name-input');
             const name = nameInput.value.trim();
-            
+
             if (!name) {
                 alert('Template name cannot be empty.');
                 return;
@@ -610,7 +625,7 @@ class ChatbotEditor extends HTMLElement {
         });
 
         document.body.appendChild(overlay);
-        
+
         // Focus the input after a short delay to ensure modal is fully rendered
         setTimeout(() => {
             const templateInput = overlay.querySelector('#template-name-input');
@@ -634,7 +649,7 @@ class ChatbotEditor extends HTMLElement {
             if (typeof section.getData === 'function') {
                 const sectionData = section.getData();
                 const tagName = section.tagName.toLowerCase();
-                
+
                 // Merge strategy: Profile is top level/profile object, Personality is personality object
                 // Custom sections store data by category name
                 if (tagName === 'section-profile') {
@@ -647,7 +662,7 @@ class ChatbotEditor extends HTMLElement {
                     fullData.image = sectionData.image;
                     fullData.images = sectionData.images;
                     fullData.thumbnailIndex = sectionData.thumbnailIndex;
-                    
+
                     // Also store in profile object for consistency
                     if (!fullData.profile) fullData.profile = {};
                     fullData.profile.name = sectionData.name;
@@ -701,6 +716,22 @@ class ChatbotEditor extends HTMLElement {
                     personality: fullData.personality
                 });
 
+                // Update state to 'edit' so subsequent saves don't create duplicates
+                this.currentId = newBot.id;
+                this._mode = 'edit';
+                this.chatbotData = newBot; // Update internal data
+
+                // Update header title
+                const headerTitle = this.querySelector('.editor-header h2');
+                if (headerTitle) headerTitle.textContent = 'Edit Chatbot';
+
+                // Re-render sections not fully needed unless we want to refresh IDs, 
+                // but usually fine to leave as is.
+                this.renderSections(newBot); // Optional: ensure everything syncs
+
+                // Show success feedback
+                alert('Chatbot created successfully!');
+
             } else {
                 await window.api.chatbot.update(this.currentId, {
                     profile: {
@@ -716,7 +747,13 @@ class ChatbotEditor extends HTMLElement {
                     personality: fullData.personality,
                     layout: fullData.layout
                 });
+                // Feedback for update
+                // alert('Saved!'); // Optional, maybe too annoying? Button text change is enough.
             }
+            this._isDirty = false;
+            const saveBtn = this.querySelector('#save-btn');
+            if (saveBtn) saveBtn.textContent = 'Save';
+
             this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
         } catch (error) {
             console.error('Save failed:', error);

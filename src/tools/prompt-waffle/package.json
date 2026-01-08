@@ -1,0 +1,94 @@
+{
+  "name": "promptwaffle",
+  "version": "1.5.2",
+  "description": "A desktop application for creating and managing AI prompt snippets and boards",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:portable": "electron-builder --win portable",
+    "build:installer": "electron-builder --win nsis",
+    "build:all": "electron-builder -mwl",
+    "release": "node scripts/release.js",
+    "test": "echo \"No tests configured\" && exit 0",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,json,md,html,css}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md,html,css}\"",
+    "lint:format": "npm run lint && npm run format"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fablestarexpanse/PromptWaffle.git"
+  },
+  "keywords": [
+    "electron",
+    "prompt",
+    "ai",
+    "snippets",
+    "desktop"
+  ],
+  "author": "PromptWaffle Team",
+  "license": "AGPL-3.0",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Fablestarexpanse/PromptWaffle/issues"
+  },
+  "homepage": "https://github.com/Fablestarexpanse/PromptWaffle#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "prettier": "^3.6.2"
+  },
+  "build": {
+    "appId": "com.promptwaffle.app",
+    "productName": "PromptWaffle",
+    "publish": {
+      "provider": "github",
+      "owner": "Fablestarexpanse",
+      "repo": "PromptWaffle",
+      "private": false
+    },
+    "files": [
+      "src/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "boards/**/*",
+      "snippets/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "src/assets"
+    },
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false
+    },
+    "icon": "src/assets/800x800 logo prompt waffel.png",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "electron-log": "^5.4.1",
+    "electron-updater": "^6.6.2",
+    "notyf": "^3.10.0",
+    "ws": "^8.18.3"
+  }
+}

@@ -1,0 +1,6 @@
+casual
+formal
+fantasy
+sci-fi
+military
+vintage

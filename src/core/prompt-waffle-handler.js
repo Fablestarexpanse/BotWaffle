@@ -23,7 +23,7 @@ async function buildSidebarTree(dirPath, relativePath = '') {
             const fullPath = path.join(dirPath, item.name);
 
             if (item.isDirectory()) {
-                if (['images', 'node_modules', '.git', 'src'].includes(item.name)) continue;
+                if (['images', 'node_modules', '.git', 'src', 'boards', 'wildcards'].includes(item.name)) continue;
 
                 const children = await buildSidebarTree(fullPath, itemPath);
                 tree.push({
@@ -56,7 +56,13 @@ function registerPromptWaffleHandlers() {
 
     ipcMain.handle('pw-get-initial-data', async () => {
         const snippetsDir = path.join(PROMPT_WAFFLE_ROOT, 'snippets');
+        const boardsDir = path.join(PROMPT_WAFFLE_ROOT, 'boards');
+        const wildcardsDir = path.join(PROMPT_WAFFLE_ROOT, 'wildcards');
+
         try { await fs.mkdir(snippetsDir, { recursive: true }); } catch (e) { }
+        try { await fs.mkdir(boardsDir, { recursive: true }); } catch (e) { }
+        try { await fs.mkdir(wildcardsDir, { recursive: true }); } catch (e) { }
+
         const sidebarTree = await buildSidebarTree(snippetsDir);
         return { sidebarTree };
     });
@@ -78,6 +84,22 @@ function registerPromptWaffleHandlers() {
 
     ipcMain.handle('pw-fs-exists', async (_, p) => {
         try { await fs.access(getSafePath(p)); return true; } catch { return false; }
+    });
+
+    ipcMain.handle('pw-fs-stat', async (_, p) => {
+        try {
+            const stats = await fs.stat(getSafePath(p));
+            return {
+                isDirectory: stats.isDirectory(),
+                isFile: stats.isFile(),
+                size: stats.size
+            };
+        } catch { return null; }
+    });
+
+    ipcMain.handle('pw-fs-rename', async (_, oldPath, newPath) => {
+        await fs.rename(getSafePath(oldPath), getSafePath(newPath));
+        return true;
     });
 
     // Stub other calls to prevent crashes in logs, or implement if needed

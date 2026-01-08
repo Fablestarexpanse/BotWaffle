@@ -15,30 +15,34 @@ A comprehensive desktop application for creating, storing, tracking, and managin
 - **Snippet Library**: manage and reuse prompt segments.
 - **Dual-View**: Seamlessly switch between Bot Manager and Prompt Builder with a single click.
 
-## Setup Instructions
+## Quick Start Guide
 
-### Prerequisites
-- Node.js 18.x or higher
-- npm
+### 1. Prerequisites (What you need installed)
+Before you start, make sure you have these two tools installed on your computer:
+- **Node.js**: Download "LTS" version from [nodejs.org](https://nodejs.org/)
+- **Git**: Download from [git-scm.com](https://git-scm.com/downloads)
 
-### Installation
+### 2. Installation (Setting it up)
 
-1.  Clone the repository:
+Open your terminal (Command Prompt, PowerShell, or Terminal) and run these three commands one by one:
+
+1.  **Download the project:**
     ```bash
     git clone https://github.com/Fablestarexpanse/BotWaffle.git
     cd BotWaffle
     ```
 
-2.  Install all dependencies:
+2.  **Install dependencies (Automatic):**
     ```bash
     npm install
     ```
-    *Note: This will automatically install dependencies for the main app AND the embedded PromptWaffle tool via a postinstall script.*
+    *(Wait for this to finish. It installs everything needed for BotWaffle and the integrated PromptWaffle tool automatically.)*
 
-3.  Start the application:
+3.  **Launch the App:**
     ```bash
     npm start
     ```
+
 
 ## Architecture & Integration
 

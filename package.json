@@ -7,7 +7,14 @@
   "scripts": {
     "start": "electron .",
     "postinstall": "cd src/tools/prompt-waffle && npm install",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "TEST_VERBOSE=1 jest --verbose",
+    "lint": "eslint src/**/*.js main.js preload.js",
+    "lint:fix": "eslint src/**/*.js main.js preload.js --fix",
+    "format": "prettier --write \"src/**/*.{js,json}\" \"*.js\" \"*.json\"",
+    "format:check": "prettier --check \"src/**/*.{js,json}\" \"*.js\" \"*.json\""
   },
   "keywords": [
     "chatbot",
@@ -19,7 +26,14 @@
   "author": "Fablestar Expanse",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^39.2.7"
+    "@types/jest": "^30.0.0",
+    "electron": "^39.2.7",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-node": "^11.1.0",
+    "jest": "^30.2.0",
+    "jest-environment-node": "^30.2.0",
+    "prettier": "^3.7.4"
   },
   "dependencies": {
     "crc-32": "^1.2.2"

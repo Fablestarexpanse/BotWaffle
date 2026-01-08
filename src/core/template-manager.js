@@ -1,32 +1,59 @@
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const { getDataPath } = require('./storage');
+const { validatePath } = require('./utils/security');
+const { validateTemplate } = require('./utils/validation');
+const { templateCache } = require('./cache');
 
 class TemplateManager {
     constructor() {
         this.basePath = getDataPath('templates');
-        // Ensure directory exists
-        if (!fs.existsSync(this.basePath)) {
-            fs.mkdirSync(this.basePath, { recursive: true });
+        // Ensure directory exists (async initialization will be done on first use)
+        this._ensureDirectory();
+    }
+
+    async _ensureDirectory() {
+        try {
+            await fsPromises.mkdir(this.basePath, { recursive: true });
+        } catch (error) {
+            // Directory might already exist, ignore error
         }
     }
 
-    saveTemplate(name, layout) {
+    async saveTemplate(name, layout) {
         try {
+            // Validate input data
+            const validation = validateTemplate({ name, layout });
+            if (!validation.valid) {
+                throw new Error(`Invalid template data: ${validation.errors.join(', ')}`);
+            }
+
+            const sanitizedData = validation.data;
+            
             // Generate unique ID with timestamp to prevent collisions
-            const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const baseId = sanitizedData.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
             const timestamp = Date.now();
             const id = `${baseId}-${timestamp}`;
             
             const template = {
                 id,
-                name,
-                layout,
+                name: sanitizedData.name,
+                layout: sanitizedData.layout,
                 created: new Date().toISOString()
             };
 
-            const filePath = path.join(this.basePath, `${id}.json`);
-            fs.writeFileSync(filePath, JSON.stringify(template, null, 2), 'utf8');
+            // Validate path before saving
+            const fileName = `${id}.json`;
+            const validatedPath = validatePath(fileName, this.basePath);
+            if (!validatedPath) {
+                throw new Error('Invalid file path: potential directory traversal detected');
+            }
+
+            await this._ensureDirectory();
+            await fsPromises.writeFile(validatedPath, JSON.stringify(template, null, 2), 'utf8');
+            // Cache the template
+            templateCache.set(id, template);
             return template;
         } catch (error) {
             console.error('Error saving template:', error);
@@ -34,36 +61,79 @@ class TemplateManager {
         }
     }
 
-    listTemplates() {
-        if (!fs.existsSync(this.basePath)) return [];
-
+    async listTemplates() {
         try {
-            return fs.readdirSync(this.basePath)
-                .filter(file => file.endsWith('.json'))
-                .map(file => {
+            await this._ensureDirectory();
+            const files = await fsPromises.readdir(this.basePath);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+            
+            // Load all templates in parallel for better performance
+            const templates = await Promise.all(
+                jsonFiles.map(async (file) => {
                     try {
-                        return JSON.parse(fs.readFileSync(path.join(this.basePath, file), 'utf8'));
+                        const id = file.replace('.json', '');
+                        // Check cache first
+                        const cached = templateCache.get(id);
+                        if (cached) {
+                            return cached;
+                        }
+                        
+                        const filePath = path.join(this.basePath, file);
+                        const data = await fsPromises.readFile(filePath, 'utf8');
+                        const template = JSON.parse(data);
+                        // Cache the template
+                        templateCache.set(id, template);
+                        return template;
                     } catch (e) {
                         return null;
                     }
                 })
-                .filter(t => t);
+            );
+            
+            return templates.filter(t => t);
         } catch (error) {
+            if (error.code === 'ENOENT') {
+                return [];
+            }
             console.error('Error listing templates:', error);
             return [];
         }
     }
 
-    getTemplate(id) {
+    async getTemplate(id) {
         try {
-            const filePath = path.join(this.basePath, `${id}.json`);
-            if (!fs.existsSync(filePath)) {
-                throw new Error(`Template with id ${id} not found`);
+            // Check cache first
+            const cached = templateCache.get(id);
+            if (cached) {
+                return cached;
             }
-            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+            // Validate path before accessing
+            const fileName = `${id}.json`;
+            const validatedPath = validatePath(fileName, this.basePath);
+            if (!validatedPath) {
+                throw new Error('Invalid template ID: potential directory traversal detected');
+            }
+
+            try {
+                const data = await fsPromises.readFile(validatedPath, 'utf8');
+                const template = JSON.parse(data);
+                // Cache the template
+                templateCache.set(id, template);
+                return template;
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    return null; // File doesn't exist
+                }
+                throw error;
+            }
         } catch (error) {
+            // Return null for invalid paths instead of throwing
+            if (error.message && (error.message.includes('Invalid') || error.message.includes('path'))) {
+                return null;
+            }
             console.error('Error getting template:', error);
-            throw new Error(`Failed to get template: ${error.message}`);
+            return null;
         }
     }
 }

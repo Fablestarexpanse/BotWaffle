@@ -22,24 +22,35 @@ class ChatbotCard extends HTMLElement {
             imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
         }
 
+        // Escape all user data to prevent XSS
+        const escapeHtml = window.SecurityUtils.escapeHtml;
+        const displayName = escapeHtml(bot.profile.displayName || bot.profile.name);
+        const name = escapeHtml(bot.profile.name);
+        const category = escapeHtml(bot.profile.category || '');
+        const description = escapeHtml(bot.profile.description || 'No description provided.');
+        const status = escapeHtml(bot.metadata.status || 'draft');
+        const version = escapeHtml(bot.metadata.version || '1.0.0');
+        const firstChar = name.charAt(0).toUpperCase();
+        const altText = escapeHtml(name);
+
         this.innerHTML = `
             <div class="chatbot-card">
                 <div class="card-visual">
                     ${imageSrc
-                ? `<img src="${imageSrc}" alt="${bot.profile.name}" class="bot-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                   <div class="avatar-placeholder" style="display: none;">${bot.profile.name.charAt(0).toUpperCase()}</div>`
-                : `<div class="avatar-placeholder">${bot.profile.name.charAt(0).toUpperCase()}</div>`
+                ? `<img src="${escapeHtml(imageSrc)}" alt="${altText}" class="bot-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                   <div class="avatar-placeholder" style="display: none;">${firstChar}</div>`
+                : `<div class="avatar-placeholder">${firstChar}</div>`
             }
                 </div>
                 <div class="card-content">
                     <div class="card-header">
-                        <h3>${bot.profile.displayName || bot.profile.name}</h3>
-                        <div class="status-badge ${bot.metadata.status}">${bot.metadata.status}</div>
+                        <h3>${displayName}</h3>
+                        <div class="status-badge ${status}">${status}</div>
                     </div>
-                    <div class="category">${bot.profile.category}</div>
-                    <p class="description">${bot.profile.description || 'No description provided.'}</p>
+                    <div class="category">${category}</div>
+                    <p class="description">${description}</p>
                     <div class="card-footer">
-                        <span class="version">v${bot.metadata.version}</span>
+                        <span class="version">v${version}</span>
                         <span class="date">${new Date(bot.metadata.updated).toLocaleDateString()}</span>
                     </div>
                 </div>

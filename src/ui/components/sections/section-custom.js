@@ -121,9 +121,8 @@ class SectionCustom extends customElements.get('section-base') {
     }
 
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        // Use global security utility for consistency
+        return window.SecurityUtils.escapeHtml(text);
     }
 
     getData() {

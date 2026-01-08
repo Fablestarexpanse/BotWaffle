@@ -24,6 +24,16 @@ class SectionProfile extends customElements.get('section-base') {
         }
 
         const body = this.querySelector('.section-body');
+        
+        // Escape all user data to prevent XSS
+        const escapeHtml = window.SecurityUtils.escapeHtml;
+        const tagsValue = escapeHtml((data.tags || []).join(', '));
+        const nameValue = escapeHtml(data.name || '');
+        const displayNameValue = escapeHtml(data.displayName || '');
+        const categoryValue = escapeHtml(data.category || 'Character');
+        const descriptionValue = escapeHtml(data.description || '');
+        const categoryOptions = categories.map(cat => `<option value="${escapeHtml(cat)}"></option>`).join('');
+        
         body.innerHTML = `
             <div class="form-group" id="images-container">
                 <label>Character Images (Max 5) - First image is thumbnail for character card</label>
@@ -35,30 +45,30 @@ class SectionProfile extends customElements.get('section-base') {
 
             <div class="form-group">
                 <label>Tags (Comma separated)</label>
-                <input type="text" name="tags" class="input-field" value="${(data.tags || []).join(', ')}" placeholder="friendly, helper, v1">
+                <input type="text" name="tags" class="input-field" value="${tagsValue}" placeholder="friendly, helper, v1">
             </div>
 
             <div class="form-group">
                 <label>Internal Name (Required)</label>
-                <input type="text" name="name" class="input-field" value="${data.name || ''}" required placeholder="MyBot_v1">
+                <input type="text" name="name" class="input-field" value="${nameValue}" required placeholder="MyBot_v1">
             </div>
 
             <div class="form-group">
                 <label>Display Name</label>
-                <input type="text" name="displayName" class="input-field" value="${data.displayName || ''}" placeholder="Alex (The Helper)">
+                <input type="text" name="displayName" class="input-field" value="${displayNameValue}" placeholder="Alex (The Helper)">
             </div>
 
             <div class="form-group">
                 <label>Category</label>
-                <input type="text" name="category" class="input-field" value="${data.category || 'Character'}" list="category-options" placeholder="Select or type a category...">
+                <input type="text" name="category" class="input-field" value="${categoryValue}" list="category-options" placeholder="Select or type a category...">
                 <datalist id="category-options">
-                    ${categories.map(cat => `<option value="${cat}"></option>`).join('')}
+                    ${categoryOptions}
                 </datalist>
             </div>
 
             <div class="form-group">
                 <label>Description</label>
-                <textarea name="description" class="input-field" rows="3" placeholder="A brief elevator pitch...">${data.description || ''}</textarea>
+                <textarea name="description" class="input-field" rows="3" placeholder="A brief elevator pitch...">${descriptionValue}</textarea>
             </div>
         `;
 
@@ -89,9 +99,15 @@ class SectionProfile extends customElements.get('section-base') {
                 imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
             }
 
+            // Escape image paths to prevent XSS
+            const escapeHtml = window.SecurityUtils.escapeHtml;
+            const escapedImageSrc = escapeHtml(imageSrc);
+            const escapedImagePath = escapeHtml(imagePath || '');
+            const altText = escapeHtml(`Character image ${index + 1}`);
+            
             imageItem.innerHTML = `
                 <div class="image-preview-container">
-                    <img src="${imageSrc}" alt="Character image ${index + 1}" class="image-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <img src="${escapedImageSrc}" alt="${altText}" class="image-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                     <div class="image-error" style="display: none;">Failed to load image</div>
                     ${index === thumbnailIndex ? '<div class="thumbnail-badge">Thumbnail</div>' : ''}
                 </div>
@@ -101,7 +117,7 @@ class SectionProfile extends customElements.get('section-base') {
                     </button>
                     <button type="button" class="icon-btn remove-image-btn" data-index="${index}" title="Remove image">×</button>
                 </div>
-                <input type="hidden" class="image-path-input" value="${imagePath || ''}">
+                <input type="hidden" class="image-path-input" value="${escapedImagePath}">
             `;
 
             listContainer.appendChild(imageItem);

@@ -482,8 +482,13 @@ class ChatbotEditor extends HTMLElement {
                         <label>Select a template to load:</label>
                     </div>
                     <div id="templates-list" style="max-height: 400px; overflow-y: auto;">
-                        ${templates.map(template => `
-                            <div class="template-item" data-template-id="${template.id}" style="
+                        ${templates.map(template => {
+                            const escapeHtml = window.SecurityUtils.escapeHtml;
+                            const templateName = escapeHtml(template.name || 'Unnamed Template');
+                            const templateId = escapeHtml(template.id);
+                            const sectionCount = template.layout ? template.layout.length : 0;
+                            return `
+                            <div class="template-item" data-template-id="${templateId}" style="
                                 padding: 12px;
                                 margin-bottom: 8px;
                                 background: #1a1a1a;
@@ -492,13 +497,14 @@ class ChatbotEditor extends HTMLElement {
                                 cursor: pointer;
                                 transition: all 0.2s;
                             ">
-                                <div style="font-weight: 500; margin-bottom: 4px;">${template.name || 'Unnamed Template'}</div>
+                                <div style="font-weight: 500; margin-bottom: 4px;">${templateName}</div>
                                 <div style="font-size: 12px; color: #888;">
                                     Created: ${new Date(template.created).toLocaleDateString()}
-                                    ${template.layout ? ` • ${template.layout.length} section(s)` : ''}
+                                    ${sectionCount > 0 ? ` • ${sectionCount} section(s)` : ''}
                                 </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -684,10 +690,20 @@ class ChatbotEditor extends HTMLElement {
             }
         });
 
-        // Validation
+        // Client-side validation
         if (!fullData.name || !fullData.name.trim()) {
             alert('Error: Internal Name is required.');
             return;
+        }
+        
+        // Additional validation: sanitize input on client side
+        const sanitizeInput = window.SecurityUtils.sanitizeInput;
+        if (fullData.name) {
+            const sanitizedName = sanitizeInput(fullData.name, { maxLength: 100 });
+            if (sanitizedName.length === 0) {
+                alert('Error: Name contains invalid characters.');
+                return;
+            }
         }
 
         try {

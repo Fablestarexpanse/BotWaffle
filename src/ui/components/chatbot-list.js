@@ -8,9 +8,6 @@ class ChatbotList extends HTMLElement {
                         <span class="search-icon">🔍</span>
                         <input type="text" placeholder="Search bots..." id="search-input">
                     </div>
-                </div>
-                
-                <div class="toolbar-center">
                     <button id="create-btn" class="primary-btn">
                         <span class="icon">+</span> New Bot
                     </button>
@@ -38,11 +35,36 @@ class ChatbotList extends HTMLElement {
                 <!-- Cards injected here -->
                 <div class="loading">Loading chatbots...</div>
             </div>
+            
+            <div class="pagination-container" id="pagination-container" style="display: none;">
+                <div class="pagination-info">
+                    <span id="pagination-info-text">Showing 0 - 0 of 0</span>
+                </div>
+                <div class="pagination-controls">
+                    <button id="pagination-first" class="pagination-btn" title="First page">««</button>
+                    <button id="pagination-prev" class="pagination-btn" title="Previous page">‹</button>
+                    <div class="pagination-pages" id="pagination-pages"></div>
+                    <button id="pagination-next" class="pagination-btn" title="Next page">›</button>
+                    <button id="pagination-last" class="pagination-btn" title="Last page">»»</button>
+                </div>
+                <div class="pagination-page-size">
+                    <label for="page-size-select">Per page:</label>
+                    <select id="page-size-select" class="page-size-select">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+            </div>
         `;
 
         this.bots = []; // Store fetched bots
+        this.filteredBots = []; // Filtered bots (after search)
         this.sortBy = 'date-desc';
         this.viewMode = 'grid';
+        this.currentPage = 1;
+        this.botsPerPage = 50; // Render 50 bots per page for optimal performance
     }
 
     connectedCallback() {
@@ -60,11 +82,45 @@ class ChatbotList extends HTMLElement {
         });
 
         this.querySelector('#search-input').addEventListener('input', (e) => {
+            this.currentPage = 1; // Reset to first page on search
             this.filterBots(e.target.value);
         });
 
         this.querySelector('#sort-select').addEventListener('change', (e) => {
             this.sortBy = e.target.value;
+            this.currentPage = 1; // Reset to first page on sort
+            this.renderBots();
+        });
+        
+        // Pagination controls
+        this.querySelector('#pagination-prev').addEventListener('click', () => {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.renderBots();
+            }
+        });
+        
+        this.querySelector('#pagination-next').addEventListener('click', () => {
+            const maxPage = this.getMaxPage();
+            if (this.currentPage < maxPage) {
+                this.currentPage++;
+                this.renderBots();
+            }
+        });
+        
+        this.querySelector('#pagination-first').addEventListener('click', () => {
+            this.currentPage = 1;
+            this.renderBots();
+        });
+        
+        this.querySelector('#pagination-last').addEventListener('click', () => {
+            this.currentPage = this.getMaxPage();
+            this.renderBots();
+        });
+        
+        this.querySelector('#page-size-select').addEventListener('change', (e) => {
+            this.botsPerPage = parseInt(e.target.value, 10);
+            this.currentPage = 1; // Reset to first page when changing page size
             this.renderBots();
         });
 
@@ -84,6 +140,9 @@ class ChatbotList extends HTMLElement {
         } else {
             grid.classList.remove('list-view');
         }
+        
+        // Keep current page when switching views (no need to re-render)
+        // View mode is just CSS, cards are already rendered
     }
 
     async loadChatbots() {
@@ -109,62 +168,169 @@ class ChatbotList extends HTMLElement {
                     <p>No chatbots found. Create one to get started!</p>
                 </div>
             `;
+            this.updatePagination(0);
             return;
         }
 
-        // Sort bots
-        const sortedBots = [...this.bots].sort((a, b) => {
+        // Apply search filter first
+        const searchTerm = this.querySelector('#search-input').value.toLowerCase();
+        if (searchTerm) {
+            this.filteredBots = this.bots.filter(bot => {
+                const name = (bot.profile.displayName || bot.profile.name || '').toLowerCase();
+                const desc = (bot.profile.description || '').toLowerCase();
+                const category = (bot.profile.category || '').toLowerCase();
+                const tags = (bot.profile.tags || []).join(' ').toLowerCase();
+                return name.includes(searchTerm) || desc.includes(searchTerm) || 
+                       category.includes(searchTerm) || tags.includes(searchTerm);
+            });
+        } else {
+            this.filteredBots = [...this.bots];
+        }
+
+        // Sort filtered bots
+        const sortedBots = this.filteredBots.sort((a, b) => {
             switch (this.sortBy) {
                 case 'date-desc':
                     return new Date(b.metadata.updated) - new Date(a.metadata.updated);
                 case 'date-asc':
                     return new Date(a.metadata.updated) - new Date(b.metadata.updated);
                 case 'name-asc':
-                    return a.profile.name.localeCompare(b.profile.name);
+                    return (a.profile.displayName || a.profile.name || '').localeCompare(b.profile.displayName || b.profile.name || '');
                 case 'name-desc':
-                    return b.profile.name.localeCompare(a.profile.name);
+                    return (b.profile.displayName || b.profile.name || '').localeCompare(a.profile.displayName || a.profile.name || '');
                 default:
                     return 0;
             }
         });
 
-        // Filter provided by search (re-apply search if needed, but for now just render all sorted)
-        // Ideally we filter then sort. Let's incorporate search state if we want to be robust, 
-        // but for now I'll just render sorted and let the search listener hide/show. 
-        // Better: Apply filter here too.
+        // Calculate pagination
+        const totalBots = sortedBots.length;
+        const maxPage = Math.max(1, Math.ceil(totalBots / this.botsPerPage));
+        if (this.currentPage > maxPage && maxPage > 0) {
+            this.currentPage = maxPage;
+        }
+        
+        const startIndex = (this.currentPage - 1) * this.botsPerPage;
+        const endIndex = Math.min(startIndex + this.botsPerPage, totalBots);
+        const botsToRender = sortedBots.slice(startIndex, endIndex);
 
-        const searchTerm = this.querySelector('#search-input').value.toLowerCase();
-
-        sortedBots.forEach(bot => {
+        // Render only bots for current page
+        botsToRender.forEach(bot => {
             const card = document.createElement('chatbot-card');
             card.data = bot;
-
-            // Apply current filter
-            const name = (bot.profile.displayName || bot.profile.name).toLowerCase();
-            const desc = (bot.profile.description || '').toLowerCase();
-            if (searchTerm && !name.includes(searchTerm) && !desc.includes(searchTerm)) {
-                card.style.display = 'none';
-            }
-
             grid.appendChild(card);
         });
 
-        // Re-apply view mode class just in case interaction missed it
+        // Re-apply view mode class
         if (this.viewMode === 'list') grid.classList.add('list-view');
         else grid.classList.remove('list-view');
+        
+        // Update pagination UI
+        this.updatePagination(totalBots);
+        
+        // Scroll to top of grid when page changes
+        grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    getMaxPage() {
+        const totalBots = this.filteredBots.length;
+        return Math.max(1, Math.ceil(totalBots / this.botsPerPage));
+    }
+    
+    updatePagination(totalBots) {
+        const paginationContainer = this.querySelector('#pagination-container');
+        const maxPage = this.getMaxPage();
+        
+        if (totalBots === 0) {
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        paginationContainer.style.display = 'flex';
+        
+        // Update info text
+        const startIndex = (this.currentPage - 1) * this.botsPerPage + 1;
+        const endIndex = Math.min(this.currentPage * this.botsPerPage, totalBots);
+        const infoText = this.querySelector('#pagination-info-text');
+        infoText.textContent = `Showing ${startIndex} - ${endIndex} of ${totalBots} chatbot${totalBots !== 1 ? 's' : ''}`;
+        
+        // Update page buttons state
+        this.querySelector('#pagination-first').disabled = this.currentPage === 1;
+        this.querySelector('#pagination-prev').disabled = this.currentPage === 1;
+        this.querySelector('#pagination-next').disabled = this.currentPage >= maxPage;
+        this.querySelector('#pagination-last').disabled = this.currentPage >= maxPage;
+        
+        // Render page numbers
+        const pagesContainer = this.querySelector('#pagination-pages');
+        pagesContainer.innerHTML = '';
+        
+        // Show up to 7 page numbers (3 on each side of current + current)
+        const showPages = 7;
+        let startPage = Math.max(1, this.currentPage - Math.floor(showPages / 2));
+        let endPage = Math.min(maxPage, startPage + showPages - 1);
+        
+        // Adjust if we're near the end
+        if (endPage - startPage < showPages - 1) {
+            startPage = Math.max(1, endPage - showPages + 1);
+        }
+        
+        // First page + ellipsis if needed
+        if (startPage > 1) {
+            const firstBtn = document.createElement('button');
+            firstBtn.className = 'pagination-btn pagination-page-btn';
+            firstBtn.textContent = '1';
+            firstBtn.addEventListener('click', () => {
+                this.currentPage = 1;
+                this.renderBots();
+            });
+            pagesContainer.appendChild(firstBtn);
+            
+            if (startPage > 2) {
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.textContent = '...';
+                pagesContainer.appendChild(ellipsis);
+            }
+        }
+        
+        // Page number buttons
+        for (let i = startPage; i <= endPage; i++) {
+            const pageBtn = document.createElement('button');
+            pageBtn.className = 'pagination-btn pagination-page-btn';
+            if (i === this.currentPage) {
+                pageBtn.classList.add('active');
+            }
+            pageBtn.textContent = i.toString();
+            pageBtn.addEventListener('click', () => {
+                this.currentPage = i;
+                this.renderBots();
+            });
+            pagesContainer.appendChild(pageBtn);
+        }
+        
+        // Last page + ellipsis if needed
+        if (endPage < maxPage) {
+            if (endPage < maxPage - 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.textContent = '...';
+                pagesContainer.appendChild(ellipsis);
+            }
+            
+            const lastBtn = document.createElement('button');
+            lastBtn.className = 'pagination-btn pagination-page-btn';
+            lastBtn.textContent = maxPage.toString();
+            lastBtn.addEventListener('click', () => {
+                this.currentPage = maxPage;
+                this.renderBots();
+            });
+            pagesContainer.appendChild(lastBtn);
+        }
     }
 
     filterBots(query) {
-        // Just toggle visibility instead of re-rendering to keep it fast
-        const cards = this.querySelectorAll('chatbot-card');
-        const term = query.toLowerCase();
-
-        cards.forEach(card => {
-            const name = card.querySelector('h3').textContent.toLowerCase();
-            const desc = card.querySelector('.description').textContent.toLowerCase();
-            const match = name.includes(term) || desc.includes(term);
-            card.style.display = match ? 'block' : 'none';
-        });
+        // Re-render with filter applied (handles pagination correctly)
+        this.renderBots();
     }
 }
 

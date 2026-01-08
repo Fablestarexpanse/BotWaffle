@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { STORAGE_DIRS } = require('./constants');
 
 // Base data directory - will be set when initializeStorage is called
 // This allows app to be ready before we try to access app.getPath()
@@ -22,14 +23,8 @@ function getDataDir() {
     return DATA_DIR;
 }
 
-// Subdirectories to initialize
-const REQUIRED_DIRS = [
-    'chatbots',
-    'conversations',
-    'templates',
-    'config',
-    'assets'
-];
+// Subdirectories to initialize (from constants)
+const REQUIRED_DIRS = STORAGE_DIRS;
 
 /**
  * Ensures the data directory structure exists.

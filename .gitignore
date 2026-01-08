@@ -8,12 +8,17 @@ out/
 .vscode/
 *.log
 
-# Ignore working/temporary documentation files
-PROJECT_AUDIT.md
-PROJECT_AUDIT_REPORT.md
+# Ignore all .md files except essential ones
+*.md
+!README.md
+!SECURITY.md
+
+# Also ignore specific documentation directories
+docs/
+PHASE*.md
+*_COMPLETION.md
+*_AUDIT*.md
+*_REPORT.md
+IMPLEMENTATION_PLAN.md
 FIXES_APPLIED.md
 DEPENDENCIES.md
-
-# Keep essential docs:
-# README.md (not ignored)
-# SECURITY.md (not ignored)

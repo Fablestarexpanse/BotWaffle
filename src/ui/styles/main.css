@@ -190,16 +190,19 @@ h3 {
     border: 1px solid #334155;
 }
 
-.toolbar-left,
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0; /* Don't take extra space - just what's needed */
+}
+
 .toolbar-right {
     display: flex;
     align-items: center;
     gap: 12px;
     flex: 1;
-}
-
-.toolbar-center {
-    flex: 0;
+    justify-content: flex-end;
 }
 
 .toolbar-right {
@@ -654,6 +657,125 @@ section-personality {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: var(--spacing-md);
+    min-height: 400px; /* Ensure consistent height */
+}
+
+/* Pagination Styles */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+    background: var(--bg-secondary);
+    border: 1px solid #334155;
+    border-radius: var(--radius-md);
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.pagination-info {
+    color: var(--text-secondary);
+    font-size: 14px;
+    min-width: 150px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex: 1;
+    justify-content: center;
+}
+
+.pagination-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid #334155;
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    min-width: 36px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-page-btn {
+    min-width: 32px;
+    padding: 6px 8px;
+}
+
+.pagination-page-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 600;
+}
+
+.pagination-page-btn.active:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.pagination-ellipsis {
+    color: var(--text-secondary);
+    padding: 0 8px;
+    font-size: 14px;
+}
+
+.pagination-pages {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.pagination-page-size {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 120px;
+}
+
+.pagination-page-size label {
+    color: var(--text-secondary);
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.page-size-select {
+    background: var(--bg-tertiary);
+    border: 1px solid #334155;
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 60px;
+}
+
+.page-size-select:hover {
+    border-color: var(--accent);
+}
+
+.page-size-select:focus {
+    outline: none;
+    border-color: var(--accent-glow);
+    box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.2);
 }
 
 /* Image List - Profile Editor */

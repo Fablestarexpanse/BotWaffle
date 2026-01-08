@@ -66,5 +66,6 @@ BotWaffle 2.0 uses a **Hybrid WebView Architecture**:
 - `src/ui/`: User interface components (HTML/CSS/JS).
 - `src/core/`: Backend logic and storage management.
 - `src/core/prompt-waffle-handler.js`: Bridge logic for the embedded PromptWaffle tool.
-- `PromptWaffel/`: Source code for the embedded PromptWaffle application.
+- `src/tools/prompt-waffle/`: Source code for the embedded PromptWaffle application.
 - `data/`: Local storage for your chatbots and conversations (created on first run).
+

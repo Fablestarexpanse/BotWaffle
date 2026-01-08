@@ -1,48 +1,32 @@
 :root {
-  /* --- Modern Dark Theme System --- */
+  /* === UNIFIED BOTWAFFLE THEME === */
 
-  /* Backgrounds */
-  --bg-app: #0f1115;
-  /* Deepest background (Main App) */
-  --bg-sidebar: #181b21;
-  /* Sidebar background */
-  --bg-panel: #22262e;
-  /* Cards, Headers, Modals */
-  --bg-input: #2f343e;
-  /* Inputs, Search bars */
-  --bg-hover: #363b47;
-  /* Hover states */
-  --bg-active: #40444b;
-  /* Active states */
+  /* Backgrounds: Deep Navy Tech */
+  --bg-app: #0B1121;
+  --bg-sidebar: #151E32;
+  --bg-panel: #1E2945;
+  --bg-input: #0F172A;
+  --bg-hover: #1E2945;
+  --bg-active: #2D3B5E;
 
-  /* Accents */
-  --accent-primary: #6366f1;
-  /* Indigo/Blurple (Primary Action) */
-  --accent-hover: #4f46e5;
-  /* Darker Indigo */
-  --accent-success: #10b981;
-  /* Green */
-  --accent-danger: #ef4444;
-  /* Red */
-  --accent-warning: #f59e0b;
-  /* Amber */
-  --accent-info: #3b82f6;
-  /* Blue */
+  /* Accents: Gold & Cyan */
+  --accent-primary: #FFAB00;
+  --accent-hover: #FFC400;
+  --accent-success: #10B981;
+  --accent-danger: #EF4444;
+  --accent-warning: #F59E0B;
+  --accent-info: #00F5FF;
 
   /* Text */
-  --text-primary: #f3f4f6;
-  /* Main text */
-  --text-secondary: #9ca3af;
-  /* Subtitles, metadata */
-  --text-muted: #6b7280;
-  /* Disabled, placeholders */
-  --text-on-accent: #ffffff;
-  /* Text on primary accent */
+  --text-primary: #F0F4F8;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-on-accent: #000000;
 
   /* Borders & Effects */
-  --border-subtle: #2f343e;
-  --border-medium: #374151;
-  --border-focus: #6366f1;
+  --border-subtle: #334155;
+  --border-medium: #475569;
+  --border-focus: #00F5FF;
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);

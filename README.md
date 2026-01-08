@@ -1,42 +1,32 @@
 # BotWaffle (Chatbot Manager)
 
-A comprehensive desktop application for creating, storing, tracking, and managing AI chatbots and their associated prompts. This tool integrates PromptWaffle as a core component while adding chatbot-specific management features.
+A comprehensive desktop application for creating, storing, tracking, and managing AI chatbots and their associated prompts. This tool creates a unified workspace by integrating **PromptWaffle** natively into the BotWaffle Studio.
 
 ## Features
 
-- **Chatbot Management**: Create and manage detailed profiles for your AI chatbots.
-- **Prompt Building**: Integrated PromptWaffle workspace for crafting perfect prompts.
-- **Secure Configuration**: Encrypted storage for API keys and sensitive settings.
-- **Conversation Tracking**: Log and review history of your chats.
-- **Privacy First**: All data is stored locally on your machine.
+### 🤖 BotWaffle Studio
+- **Chatbot Management**: Create and manage detailed profiles (Personality, Scenario, Greetings).
+- **Secure Configuration**: Local, encrypted storage for API keys.
+- **Conversation Tracking**: History logging for all your chat sessions.
+- **Privacy First**: 100% local data storage.
 
-## Setup Instructions
+### 🧇 PromptWaffle (Integrated)
+- **Prompt Engineering**: Dedicated visual workspace for crafting complex prompts.
+- **Snippet Library**: manage and reuse prompt segments.
+- **Dual-View**: Seamlessly switch between Bot Manager and Prompt Builder with a single click.
 
-### Prerequisites
-- Node.js 18.x or higher
-- npm
+## Architecture & Integration
 
-### Installation
+BotWaffle 2.0 uses a **Hybrid WebView Architecture**:
+- **Core App**: Built with native HTML/CSS/JS for the Chatbot Manager.
+- **Embedded Tools**: PromptWaffle runs as a secure, integrated tool via Electron `<webview>`.
+- **Unified Theme**: Both tools share the sleek "Navy & Gold" design system.
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/Fablestarexpanse/BotWaffle.git
-    cd BotWaffle
-    ```
+### Development Structure
 
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-3.  Start the application:
-    ```bash
-    npm start
-    ```
-
-## Development Structure
-
-- `main.js`: Electron main process.
-- `src/ui/`: User interface components (HTML/CSS/JS).
-- `src/core/`: Backend logic and storage management.
-- `data/`: Local storage for your chatbots and conversations (created on first run).
+- `main.js`: Electron main process + IPC registration.
+- `src/ui/`: BotWaffle Renderer (Core UI).
+- `src/core/`: Backend logic (Asset Manager, Chatbot Data).
+- `src/core/prompt-waffle-handler.js`: Bridge logic for the embedded PromptWaffle tool.
+- `PromptWaffel/`: Source code for the embedded PromptWaffle application.
+- `data/`: Local storage (created on first run).

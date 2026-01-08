@@ -18,7 +18,7 @@
   "author": "Fablestar Expanse",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^39.2.7"
   },
   "dependencies": {
     "crc-32": "^1.2.2"

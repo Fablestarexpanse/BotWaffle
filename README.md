@@ -15,6 +15,31 @@ A comprehensive desktop application for creating, storing, tracking, and managin
 - **Snippet Library**: manage and reuse prompt segments.
 - **Dual-View**: Seamlessly switch between Bot Manager and Prompt Builder with a single click.
 
+## Setup Instructions
+
+### Prerequisites
+- Node.js 18.x or higher
+- npm
+
+### Installation
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/Fablestarexpanse/BotWaffle.git
+    cd BotWaffle
+    ```
+
+2.  Install all dependencies:
+    ```bash
+    npm install
+    ```
+    *Note: This will automatically install dependencies for the main app AND the embedded PromptWaffle tool via a postinstall script.*
+
+3.  Start the application:
+    ```bash
+    npm start
+    ```
+
 ## Architecture & Integration
 
 BotWaffle 2.0 uses a **Hybrid WebView Architecture**:
@@ -24,9 +49,9 @@ BotWaffle 2.0 uses a **Hybrid WebView Architecture**:
 
 ### Development Structure
 
-- `main.js`: Electron main process + IPC registration.
-- `src/ui/`: BotWaffle Renderer (Core UI).
-- `src/core/`: Backend logic (Asset Manager, Chatbot Data).
+- `main.js`: Electron main process.
+- `src/ui/`: User interface components (HTML/CSS/JS).
+- `src/core/`: Backend logic and storage management.
 - `src/core/prompt-waffle-handler.js`: Bridge logic for the embedded PromptWaffle tool.
 - `PromptWaffel/`: Source code for the embedded PromptWaffle application.
-- `data/`: Local storage (created on first run).
+- `data/`: Local storage for your chatbots and conversations (created on first run).

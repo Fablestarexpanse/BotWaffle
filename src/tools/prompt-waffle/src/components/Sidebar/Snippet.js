@@ -261,8 +261,6 @@ export function createSnippetElement({
           snippet
         };
         e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-        // Add text/plain for dragging into standard inputs (host app)
-        e.dataTransfer.setData('text/plain', snippet.text || '');
       } catch (error) {
         console.error('Error setting up drag data:', error);
         e.preventDefault();

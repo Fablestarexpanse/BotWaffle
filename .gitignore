@@ -7,3 +7,13 @@ out/
 .idea/
 .vscode/
 *.log
+
+# Ignore working/temporary documentation files
+PROJECT_AUDIT.md
+PROJECT_AUDIT_REPORT.md
+FIXES_APPLIED.md
+DEPENDENCIES.md
+
+# Keep essential docs:
+# README.md (not ignored)
+# SECURITY.md (not ignored)

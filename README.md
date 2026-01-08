@@ -43,6 +43,15 @@ Open your terminal (Command Prompt, PowerShell, or Terminal) and run these three
     npm start
     ```
 
+### 3. How to Run (Daily Use)
+Once you have installed it, you don't need to do the installation steps again!
+
+To run the app next time:
+1.  Open your terminal.
+2.  Navigate to the folder: `cd BotWaffle`
+3.  Type: `npm start`
+
+
 
 ## Architecture & Integration
 

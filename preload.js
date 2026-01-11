@@ -25,5 +25,6 @@ contextBridge.exposeInMainWorld('api', {
         verifyBackup: (zipPath) => ipcRenderer.invoke('data:verify-backup', zipPath),
         openBackupDialog: () => ipcRenderer.invoke('data:open-backup-dialog')
     },
-    openExternal: (url) => ipcRenderer.invoke('openExternal', url)
+    openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+    saveTextFile: (content, defaultFilename) => ipcRenderer.invoke('saveTextFile', content, defaultFilename)
 });

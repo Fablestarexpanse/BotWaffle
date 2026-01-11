@@ -5,11 +5,19 @@ class SectionCustom extends customElements.get('section-base') {
         this._fields = [];
     }
 
+    get category() {
+        return this._category || '';
+    }
+
     set category(value) {
         this._category = value || '';
         this._title = this._category || 'Custom Section';
         // Update header if it exists
         this.updateHeader();
+    }
+
+    get fields() {
+        return this._fields || [];
     }
 
     set fields(value) {

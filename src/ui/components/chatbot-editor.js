@@ -28,10 +28,11 @@ class ChatbotEditor extends HTMLElement {
         const isEdit = this._mode === 'edit';
 
         // Default layout if none exists
-        // Start minimal as requested by user ("don't start with pre-built")
-        // But need at least Profile to start
         this.layout = bot.layout || [
-            { type: 'profile', id: 'section-profile', minimized: false }
+            { type: 'profile', id: 'section-profile', minimized: false },
+            { type: 'scenario', id: 'section-scenario', minimized: false },
+            { type: 'initial-messages', id: 'section-initial-messages', minimized: false },
+            { type: 'example-dialogs', id: 'section-example-dialogs', minimized: false }
         ];
 
         this.innerHTML = `
@@ -47,14 +48,32 @@ class ChatbotEditor extends HTMLElement {
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
                         <button id="export-btn" class="secondary-btn">Export PNG</button>
+                        <button id="export-sheet-btn" class="secondary-btn">Export Character Sheet</button>
                         <button id="delete-btn" class="danger-btn">Delete</button>
                     ` : ''}
                     <button id="cancel-btn" class="secondary-btn">Cancel</button>
                 </div>
             </div>
 
-            <div class="editor-content" id="sections-container">
-                <!-- Sections injected here -->
+            <div id="other-sections-container">
+                <!-- Character Card Info section injected here first -->
+            </div>
+            <div class="character-sheet-wrapper">
+                <div class="character-sheet-header" id="character-sheet-header">
+                    <div class="sheet-header-left">
+                        <span class="sheet-toggle-icon">▼</span>
+                        <h3>Character Sheet</h3>
+                        <span class="sheet-token-summary" id="sheet-token-summary">Current Token Count: 0</span>
+                        <input type="number" id="max-token-input" class="max-token-input" placeholder="Max" min="0" value="">
+                        <span class="token-status" id="token-status"></span>
+                    </div>
+                </div>
+                <div class="editor-content" id="character-sheet-sections">
+                    <!-- Character Sheet sections (Personality, Custom) injected here -->
+                </div>
+            </div>
+            <div id="other-sections-after-container">
+                <!-- Scenario, Initial Messages, Example Dialogs sections injected here after Character Sheet -->
             </div>
         `;
 
@@ -63,10 +82,33 @@ class ChatbotEditor extends HTMLElement {
     }
 
     renderSections(botData) {
-        const container = this.querySelector('#sections-container');
-        container.innerHTML = '';
+        const charSheetContainer = this.querySelector('#character-sheet-sections');
+        const otherSectionsContainer = this.querySelector('#other-sections-container');
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        charSheetContainer.innerHTML = '';
+        otherSectionsContainer.innerHTML = '';
+        if (otherSectionsAfterContainer) otherSectionsAfterContainer.innerHTML = '';
 
-        this.layout.forEach(sectionConfig => {
+        // Sections that belong in Character Sheet
+        const characterSheetTypes = ['personality', 'custom'];
+        // Sections that appear after Character Sheet
+        const afterSheetTypes = ['scenario', 'initial-messages', 'example-dialogs'];
+
+        // Render profile section first in otherSectionsContainer
+        const profileSection = this.layout.find(s => s.type === 'profile');
+        if (profileSection) {
+            const tagName = 'section-profile';
+            const element = document.createElement(tagName);
+            if (profileSection.id) element.id = profileSection.id;
+            if (profileSection.minimized) element.setAttribute('minimized', 'true');
+            element.data = botData;
+            otherSectionsContainer.appendChild(element);
+        }
+
+        // Render character sheet sections (personality, custom) - exclude afterSheetTypes
+        const charSheetSections = this.layout.filter(s => characterSheetTypes.includes(s.type));
+        charSheetSections.forEach(sectionConfig => {
+            const container = charSheetContainer;
             let element;
 
             if (sectionConfig.type === 'custom') {
@@ -115,9 +157,129 @@ class ChatbotEditor extends HTMLElement {
 
             container.appendChild(element);
         });
+
+        // Render sections that appear after Character Sheet (scenario, initial-messages, example-dialogs)
+        const afterSheetSections = this.layout.filter(s => afterSheetTypes.includes(s.type));
+        afterSheetSections.forEach(sectionConfig => {
+            const container = otherSectionsAfterContainer || otherSectionsContainer; // Fallback to otherSectionsContainer if container doesn't exist
+            const tagName = `section-${sectionConfig.type}`;
+            if (!customElements.get(tagName)) {
+                console.warn(`Component ${tagName} not defined, skipping section.`);
+                return;
+            }
+            const element = document.createElement(tagName);
+            if (sectionConfig.id) element.id = sectionConfig.id;
+            if (sectionConfig.minimized) element.setAttribute('minimized', 'true');
+            element.data = botData;
+            container.appendChild(element);
+        });
+        
+        // Update token counts after rendering
+        this.updateTokenCounts();
+    }
+
+    updateTokenCounts() {
+        if (!window.TokenCounter) return;
+        
+        const charSheetContainer = this.querySelector('#character-sheet-sections');
+        const otherSectionsContainer = this.querySelector('#other-sections-container');
+        if (!charSheetContainer || !otherSectionsContainer) return;
+        
+        // Count tokens from all sections (character sheet + separate sections)
+        const allSections = [
+            ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
+            ...otherSectionsContainer.querySelectorAll('section-profile, section-scenario, section-initial-messages, section-example-dialogs')
+        ];
+        let totalTokens = 0;
+        
+        allSections.forEach(section => {
+            // Skip profile section - don't count or display tokens
+            if (section.tagName.toLowerCase() === 'section-profile') {
+                // Hide token count display if it exists
+                const tokenDisplay = section.querySelector('.token-count');
+                if (tokenDisplay) {
+                    tokenDisplay.remove();
+                }
+                return;
+            }
+            
+            const count = window.TokenCounter.getSectionTokenCount(section);
+            window.TokenCounter.updateTokenDisplay(section, count);
+            totalTokens += count;
+        });
+        
+        // Update summary (excluding profile)
+        const summaryEl = this.querySelector('#sheet-token-summary');
+        if (summaryEl) {
+            summaryEl.textContent = `Current Token Count: ${totalTokens}`;
+        }
+        
+        // Update token status (green/red based on max)
+        this.updateTokenStatus(totalTokens);
+    }
+
+    updateTokenStatus(currentCount) {
+        const maxInput = this.querySelector('#max-token-input');
+        const statusEl = this.querySelector('#token-status');
+        
+        if (!statusEl) return;
+        
+        const maxValue = maxInput ? parseInt(maxInput.value, 10) : null;
+        
+        if (maxValue !== null && !isNaN(maxValue) && maxValue > 0) {
+            if (currentCount <= maxValue) {
+                statusEl.textContent = '';
+                statusEl.className = 'token-status good';
+            } else {
+                const over = currentCount - maxValue;
+                statusEl.textContent = `Over by ${over}`;
+                statusEl.className = 'token-status over';
+            }
+        } else {
+            statusEl.textContent = '';
+            statusEl.className = 'token-status';
+        }
     }
 
     setupListeners() {
+        // Character sheet collapse/expand
+        const sheetHeader = this.querySelector('#character-sheet-header');
+        const sheetWrapper = this.querySelector('.character-sheet-wrapper');
+        if (sheetHeader && sheetWrapper) {
+            sheetHeader.addEventListener('click', (e) => {
+                // Don't toggle if clicking on input or status
+                if (e.target.closest('#max-token-input') || e.target.closest('#token-status')) {
+                    return;
+                }
+                sheetWrapper.classList.toggle('collapsed');
+            });
+        }
+
+        // Max token input handler
+        const maxTokenInput = this.querySelector('#max-token-input');
+        if (maxTokenInput) {
+            maxTokenInput.addEventListener('input', () => {
+                const charSheetContainer = this.querySelector('#character-sheet-sections');
+                const otherSectionsContainer = this.querySelector('#other-sections-container');
+                if (charSheetContainer && otherSectionsContainer) {
+                    const allSections = [
+                        ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
+                        ...otherSectionsContainer.querySelectorAll('section-profile, section-scenario, section-initial-messages, section-example-dialogs')
+                    ];
+                    let totalTokens = 0;
+                    allSections.forEach(section => {
+                        if (section.tagName.toLowerCase() !== 'section-profile') {
+                            const count = window.TokenCounter ? window.TokenCounter.getSectionTokenCount(section) : 0;
+                            totalTokens += count;
+                        }
+                    });
+                    this.updateTokenStatus(totalTokens);
+                }
+            });
+        }
+
+        // Set up token counting updates (container declared below for drag/drop)
+
         this.querySelector('#cancel-btn').addEventListener('click', () => {
             this.dispatchEvent(new CustomEvent('editor-cancel', { bubbles: true }));
         });
@@ -161,6 +323,13 @@ class ChatbotEditor extends HTMLElement {
             });
         }
 
+        const exportSheetBtn = this.querySelector('#export-sheet-btn');
+        if (exportSheetBtn) {
+            exportSheetBtn.addEventListener('click', async () => {
+                await this.exportCharacterSheet();
+            });
+        }
+
         // Load Template Logic
         this.querySelector('#load-template-btn').addEventListener('click', async () => {
             await window.EditorModals.showLoadTemplateModal(this);
@@ -174,45 +343,77 @@ class ChatbotEditor extends HTMLElement {
         // Listen for section events
         this.addEventListener('remove-section', (e) => {
             const section = e.target;
+            // Don't allow removing profile section
+            if (section.tagName.toLowerCase() === 'section-profile') {
+                return;
+            }
             const index = this.layout.findIndex(s => `section-${s.type}` === section.tagName.toLowerCase() && (section.id ? s.id === section.id : true));
             if (index > -1) {
                 this.layout.splice(index, 1);
                 section.remove();
+                this.updateTokenCounts();
             }
         });
 
         // DRAG AND DROP HANDLERS
-        const container = this.querySelector('#sections-container');
+        const charSheetContainer = this.querySelector('#character-sheet-sections');
+        const otherSectionsContainer = this.querySelector('#other-sections-container');
+        
+        // Set up event listeners for both containers
+        [charSheetContainer, otherSectionsContainer].forEach(container => {
+            if (!container) return;
+            
+            // Update tokens when content changes
+            container.addEventListener('input', () => {
+                setTimeout(() => this.updateTokenCounts(), 100);
+            });
+            container.addEventListener('change', () => {
+                setTimeout(() => this.updateTokenCounts(), 100);
+            });
+            
+            // Also update when sections are added/removed
+            const observer = new MutationObserver(() => {
+                setTimeout(() => this.updateTokenCounts(), 200);
+            });
+            observer.observe(container, { childList: true, subtree: true });
+        });
+        
         let draggedItem = null;
+        let targetContainer = null;
 
-        container.addEventListener('dragstart', (e) => {
-            if (e.target.getAttribute('draggable') === 'true') {
-                draggedItem = e.target;
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', e.target.id);
-                setTimeout(() => e.target.style.opacity = '0.5', 0);
-            }
-        });
-
-        container.addEventListener('dragend', (e) => {
-            if (e.target.getAttribute('draggable') === 'true') {
-                e.target.style.opacity = '1';
-                draggedItem = null;
-                this.updateLayoutFromDOM();
-            }
-        });
-
-        container.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const afterElement = getDragAfterElement(container, e.clientY);
-            if (draggedItem) {
-                if (afterElement == null) {
-                    container.appendChild(draggedItem);
-                } else {
-                    container.insertBefore(draggedItem, afterElement);
+        // Set up drag and drop for character sheet sections
+        if (charSheetContainer) {
+            charSheetContainer.addEventListener('dragstart', (e) => {
+                if (e.target.getAttribute('draggable') === 'true') {
+                    draggedItem = e.target;
+                    targetContainer = charSheetContainer;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', e.target.id);
+                    setTimeout(() => e.target.style.opacity = '0.5', 0);
                 }
-            }
-        });
+            });
+
+            charSheetContainer.addEventListener('dragend', (e) => {
+                if (e.target.getAttribute('draggable') === 'true') {
+                    e.target.style.opacity = '1';
+                    draggedItem = null;
+                    targetContainer = null;
+                    this.updateLayoutFromDOM();
+                }
+            });
+
+            charSheetContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (draggedItem && targetContainer === charSheetContainer) {
+                    const afterElement = getDragAfterElement(charSheetContainer, e.clientY);
+                    if (afterElement == null) {
+                        charSheetContainer.appendChild(draggedItem);
+                    } else {
+                        charSheetContainer.insertBefore(draggedItem, afterElement);
+                    }
+                }
+            });
+        }
 
         // Monitor changes from sections
         this.addEventListener('section-change', () => {
@@ -220,6 +421,8 @@ class ChatbotEditor extends HTMLElement {
             // Optional: visual indicator on Save button
             const saveBtn = this.querySelector('#save-btn');
             if (saveBtn) saveBtn.textContent = 'Save*';
+            // Update token counts when sections change
+            this.updateTokenCounts();
         });
 
         function getDragAfterElement(container, y) {
@@ -238,22 +441,38 @@ class ChatbotEditor extends HTMLElement {
 
     updateLayoutFromDOM() {
         const newLayout = [];
-        const sections = this.querySelectorAll('#sections-container > *');
-        sections.forEach(el => {
+        const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
+        const otherSections = this.querySelectorAll('#other-sections-container > *');
+        const allSections = [...charSheetSections, ...otherSections];
+        
+        allSections.forEach(el => {
             const typeHeader = el.tagName.toLowerCase().replace('section-', '');
             const existingConfig = this.layout.find(l => l.id === el.id) || {};
 
-            newLayout.push({
+            const config = {
                 type: typeHeader,
                 id: el.id,
                 minimized: el.getAttribute('minimized') === 'true'
-            });
+            };
+
+            // Preserve category and fields for custom sections
+            if (typeHeader === 'custom') {
+                // Try multiple ways to get the category and fields
+                const category = el._category || el.category || (existingConfig && existingConfig.category);
+                const fields = el._fields || el.fields || (existingConfig && existingConfig.fields);
+                if (category) config.category = category;
+                if (fields) config.fields = fields;
+            }
+
+            newLayout.push(config);
         });
         this.layout = newLayout;
     }
     async save() {
         // Collect data from all sections
-        const sections = this.querySelectorAll('#sections-container > *');
+        const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
+        const otherSections = this.querySelectorAll('#other-sections-container > *');
+        const sections = [...charSheetSections, ...otherSections];
         let fullData = {
             // Preserve existing data that might not be in sections (like ID)
             ...this._data,
@@ -291,6 +510,12 @@ class ChatbotEditor extends HTMLElement {
                     fullData.profile.thumbnailIndex = sectionData.thumbnailIndex;
                 } else if (tagName === 'section-personality') {
                     fullData.personality = sectionData;
+                } else if (tagName === 'section-scenario') {
+                    fullData.scenario = sectionData;
+                } else if (tagName === 'section-initial-messages') {
+                    fullData.initialMessages = sectionData;
+                } else if (tagName === 'section-example-dialogs') {
+                    fullData.exampleDialogs = sectionData;
                 } else if (tagName === 'section-custom') {
                     // Custom sections: store data by category name
                     const categoryName = section.category || 'custom';
@@ -339,7 +564,11 @@ class ChatbotEditor extends HTMLElement {
                 });
 
                 await window.api.chatbot.update(newBot.id, {
-                    personality: fullData.personality
+                    personality: fullData.personality,
+                    scenario: fullData.scenario,
+                    initialMessages: fullData.initialMessages,
+                    exampleDialogs: fullData.exampleDialogs,
+                    customSections: fullData.customSections
                 });
 
                 // Update state to 'edit' so subsequent saves don't create duplicates
@@ -371,6 +600,10 @@ class ChatbotEditor extends HTMLElement {
                         thumbnailIndex: fullData.thumbnailIndex
                     },
                     personality: fullData.personality,
+                    scenario: fullData.scenario,
+                    initialMessages: fullData.initialMessages,
+                    exampleDialogs: fullData.exampleDialogs,
+                    customSections: fullData.customSections,
                     layout: fullData.layout
                 });
                 // Feedback for update
@@ -384,6 +617,65 @@ class ChatbotEditor extends HTMLElement {
         } catch (error) {
             console.error('Save failed:', error);
             alert('Failed to save chatbot. Check console for details.');
+        }
+    }
+
+    /**
+     * Exports the character sheet as markdown .txt file
+     * Excludes the basic profile section
+     */
+    async exportCharacterSheet() {
+        try {
+            if (!window.MarkdownExporter) {
+                alert('Markdown exporter not loaded. Please refresh the page.');
+                return;
+            }
+
+            // Get current chatbot data
+            const botData = await window.api.chatbot.get(this.currentId);
+            if (!botData) {
+                alert('Failed to load chatbot data.');
+                return;
+            }
+
+            // Get the layout (sections configuration)
+            const layout = botData.layout || [];
+
+            // Convert to markdown (will export structure even if empty)
+            const markdown = window.MarkdownExporter.exportToMarkdown(botData, layout);
+
+            // Get chatbot name for filename
+            const chatbotName = botData.profile?.name || botData.name || 'character';
+            const sanitizedName = chatbotName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const filename = `${sanitizedName}_character_sheet_${timestamp}.txt`;
+
+            // Save file via IPC
+            if (window.api && window.api.saveTextFile) {
+                const result = await window.api.saveTextFile(markdown, filename);
+                if (result.success) {
+                    alert(`Character sheet exported successfully to:\n${result.filename}`);
+                } else if (result.cancelled) {
+                    // User cancelled, do nothing
+                } else {
+                    alert(`Export failed: ${result.error || 'Unknown error'}`);
+                }
+            } else {
+                // Fallback: create download link
+                const blob = new Blob([markdown], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                alert('Character sheet downloaded!');
+            }
+        } catch (error) {
+            console.error('Error exporting character sheet:', error);
+            alert(`Export error: ${error.message || 'Failed to export character sheet'}`);
         }
     }
 }

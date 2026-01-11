@@ -14,19 +14,44 @@
          * @param {ChatbotEditor} editor - The editor instance
          */
         showAddSectionModal: function(editor) {
+            // Check what sections already exist
+            const existingTypes = editor.layout.map(s => s.type);
+            const availableSections = [
+                { type: 'scenario', name: 'Scenario', description: 'Add scenario/setting description' },
+                { type: 'initial-messages', name: 'Initial Messages', description: 'Add initial greeting messages' },
+                { type: 'example-dialogs', name: 'Example Dialogs', description: 'Add example conversation dialogs' },
+                { type: 'personality', name: 'Personality Engine', description: 'Add personality builder section' }
+            ].filter(s => !existingTypes.includes(s.type));
+
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
             overlay.innerHTML = `
-                <div class="modal" style="max-width: 600px;">
+                <div class="modal" style="max-width: 700px;">
                     <div class="modal-header">
-                        <h3>Create Category & Sub-Sections</h3>
+                        <h3>Add Section</h3>
                         <button class="modal-close" type="button">&times;</button>
                     </div>
                     <div class="modal-body">
+                        ${availableSections.length > 0 ? `
+                            <div class="form-group">
+                                <label>Standard Sections</label>
+                                <div class="section-options">
+                                    ${availableSections.map(section => `
+                                        <div class="section-option" data-type="${section.type}">
+                                            <div class="section-option-header">
+                                                <strong>${section.name}</strong>
+                                            </div>
+                                            <div class="section-option-description">${section.description}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div style="margin: 20px 0; text-align: center; color: var(--text-secondary);">OR</div>
+                        ` : ''}
                         <div class="form-group">
-                            <label for="category-name-input">Category Name</label>
+                            <label for="category-name-input">Create Custom Category</label>
                             <input type="text" id="category-name-input" class="input-field" 
-                                   placeholder="e.g., Background, Personality, Goals">
+                                   placeholder="e.g., Background, Goals, Backstory">
                         </div>
                         
                         <div id="sub-sections-container">
@@ -39,31 +64,97 @@
                     </div>
                     <div class="modal-footer">
                         <button class="secondary-btn cancel-modal">Cancel</button>
-                        <button class="primary-btn create-category-btn">Create Category</button>
+                        <button class="primary-btn create-category-btn" style="display: none;">Create Category</button>
                     </div>
                 </div>
             `;
 
             const closeModal = () => overlay.remove();
             const fieldsList = overlay.querySelector('#fields-list');
+            const categoryInput = overlay.querySelector('#category-name-input');
+            const createCategoryBtn = overlay.querySelector('.create-category-btn');
+            const subSectionsContainer = overlay.querySelector('#sub-sections-container');
             let fields = [];
+            let selectedStandardSection = null;
 
-            // Add field button
-            overlay.querySelector('#add-field-btn').addEventListener('click', () => {
-                window.EditorModals.addFieldToModal(fieldsList, fields);
+            // Handle standard section selection
+            overlay.querySelectorAll('.section-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    overlay.querySelectorAll('.section-option').forEach(o => o.classList.remove('selected'));
+                    option.classList.add('selected');
+                    selectedStandardSection = option.getAttribute('data-type');
+                    if (categoryInput) categoryInput.disabled = true;
+                    if (subSectionsContainer) subSectionsContainer.style.display = 'none';
+                    if (createCategoryBtn) {
+                        createCategoryBtn.style.display = 'inline-block';
+                        createCategoryBtn.textContent = 'Add Section';
+                    }
+                });
             });
 
-            // Create category button
-            overlay.querySelector('.create-category-btn').addEventListener('click', () => {
-                const categoryName = overlay.querySelector('#category-name-input').value.trim();
-                if (!categoryName) {
-                    alert('Please enter a category name.');
-                    return;
-                }
-                if (fields.length === 0) {
-                    alert('Please add at least one field to this category.');
-                    return;
-                }
+            // Enable custom category when typing
+            if (categoryInput) {
+                categoryInput.addEventListener('input', () => {
+                    if (categoryInput.value.trim()) {
+                        overlay.querySelectorAll('.section-option').forEach(o => o.classList.remove('selected'));
+                        selectedStandardSection = null;
+                        categoryInput.disabled = false;
+                        if (subSectionsContainer) subSectionsContainer.style.display = 'block';
+                        if (createCategoryBtn) {
+                            createCategoryBtn.style.display = 'inline-block';
+                            createCategoryBtn.textContent = 'Create Category';
+                        }
+                    }
+                });
+            }
+
+            // Add field button
+            const addFieldBtn = overlay.querySelector('#add-field-btn');
+            if (addFieldBtn) {
+                addFieldBtn.addEventListener('click', () => {
+                    window.EditorModals.addFieldToModal(fieldsList, fields);
+                });
+            }
+
+            // Create category / Add section button
+            if (createCategoryBtn) {
+                createCategoryBtn.addEventListener('click', () => {
+                    // If a standard section is selected, add it directly
+                    if (selectedStandardSection) {
+                        const sectionIds = {
+                            'scenario': 'section-scenario',
+                            'initial-messages': 'section-initial-messages',
+                            'example-dialogs': 'section-example-dialogs',
+                            'personality': 'section-personality'
+                        };
+                        const sectionId = sectionIds[selectedStandardSection] || `section-${selectedStandardSection}`;
+                        
+                        // Check if section already exists
+                        if (editor.layout.some(s => s.type === selectedStandardSection)) {
+                            alert('This section already exists.');
+                            return;
+                        }
+                        
+                        editor.layout.push({
+                            type: selectedStandardSection,
+                            id: sectionId,
+                            minimized: false
+                        });
+                        editor.renderSections(editor._data);
+                        closeModal();
+                        return;
+                    }
+
+                    // Otherwise, create custom category
+                    const categoryName = categoryInput ? categoryInput.value.trim() : '';
+                    if (!categoryName) {
+                        alert('Please enter a category name or select a standard section.');
+                        return;
+                    }
+                    if (fields.length === 0) {
+                        alert('Please add at least one field to this category.');
+                        return;
+                    }
 
                 // Extract field data from DOM
                 const fieldData = [];
@@ -114,6 +205,7 @@
                 editor.renderSections(editor._data);
                 closeModal();
             });
+            }
 
             overlay.querySelector('.modal-close').addEventListener('click', closeModal);
             overlay.querySelector('.cancel-modal').addEventListener('click', closeModal);
@@ -143,8 +235,6 @@
                     categoryInput.focus();
                 }
             }, 100);
-
-            window.EditorModals.addFieldToModal(fieldsList, fields);
         },
 
         /**
@@ -530,7 +620,7 @@
             });
 
             // Import button
-            overlay.querySelector('.import-markdown-btn').addEventListener('click', () => {
+            overlay.querySelector('.import-markdown-btn').addEventListener('click', async () => {
                 const markdown = markdownInput.value.trim();
                 if (!markdown) {
                     alert('Please paste or upload markdown content first.');
@@ -551,17 +641,81 @@
                         return;
                     }
 
-                    // Add all sections to editor layout
+                    // Check if this character already has custom sections (indicating a previous import)
+                    const hasCustomSections = editor.layout.some(s => s.type === 'custom');
+                    const isEditMode = editor.currentId && editor._mode === 'edit';
+
+                    if (hasCustomSections || isEditMode) {
+                        // Ask for confirmation to replace
+                        const confirmMessage = hasCustomSections 
+                            ? `This character already has imported sections. Importing will REPLACE all existing custom sections with the new ones. Are you sure you want to continue?`
+                            : `Importing will REPLACE all existing custom sections. Are you sure you want to continue?`;
+                        
+                        if (!confirm(confirmMessage)) {
+                            return; // User cancelled
+                        }
+                    }
+
+                    // Remove all existing custom sections from layout
+                    editor.layout = editor.layout.filter(s => s.type !== 'custom');
+                    
+                    // Initialize _data if it doesn't exist
+                    if (!editor._data) {
+                        editor._data = {};
+                    }
+                    
+                    // Initialize custom sections data
+                    if (!editor._data.customSections) {
+                        editor._data.customSections = {};
+                    }
+                    
+                    // Populate customSections data with field values from the imported sections
+                    sections.forEach(section => {
+                        if (section.type === 'custom' && section.fields) {
+                            const sectionData = {};
+                            section.fields.forEach(field => {
+                                // Use defaultValue if it exists (from markdown import)
+                                if (field.defaultValue !== undefined) {
+                                    sectionData[field.name] = field.defaultValue;
+                                }
+                            });
+                            // Store the data under the category name
+                            editor._data.customSections[section.category] = sectionData;
+                        }
+                    });
+
+                    // Add all new sections to editor layout
                     sections.forEach(section => {
                         editor.layout.push(section);
                     });
 
                     // Re-render sections
                     editor.renderSections(editor._data);
+                    
+                    // Wait a bit for DOM to update before saving
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Auto-save to persist the imported sections (only if in edit mode)
+                    if (isEditMode) {
+                        try {
+                            await editor.save();
+                        } catch (error) {
+                            console.error('Error auto-saving after markdown import:', error);
+                            alert(`Sections imported but auto-save failed. Please save manually to persist changes. Error: ${error.message}`);
+                            closeModal();
+                            return;
+                        }
+                    } else {
+                        // In create mode, just mark as dirty so user knows to save
+                        editor._isDirty = true;
+                        const saveBtn = editor.querySelector('#save-btn');
+                        if (saveBtn) saveBtn.textContent = 'Save*';
+                    }
+                    
                     closeModal();
 
                     // Show success message
-                    alert(`Successfully imported ${sections.length} section(s)!`);
+                    alert(`Successfully imported ${sections.length} section(s) and saved!`);
                 } catch (error) {
                     alert('Error importing markdown: ' + error.message);
                     console.error('Markdown import error:', error);

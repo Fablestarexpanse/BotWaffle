@@ -8,19 +8,20 @@
 
     <!-- Content Security Policy -->
     <!-- Note: frame-ancestors only works in HTTP headers, not meta tags -->
-    <meta http-equiv="Content-Security-Policy" 
-          content="default-src 'self'; 
-                   script-src 'self' https://unpkg.com; 
-                   style-src 'self' 'unsafe-inline'; 
-                   img-src 'self' data: file:; 
-                   font-src 'self' data:;
-                   connect-src 'self';
-                   base-uri 'self';
-                   form-action 'self';
-                   frame-src 'self' file:;">
+        <meta http-equiv="Content-Security-Policy" 
+              content="default-src 'self'; 
+                       script-src 'self' https://unpkg.com; 
+                       style-src 'self' 'unsafe-inline'; 
+                       img-src 'self' data: file:; 
+                       font-src 'self' data:;
+                       connect-src 'self' https://unpkg.com;
+                       base-uri 'self';
+                       form-action 'self';
+                       frame-src 'self' file:;">
 
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/sidebar.css">
+    <link rel="stylesheet" href="styles/scenario-dialogs.css">
     <script src="https://unpkg.com/feather-icons"></script>
 </head>
 
@@ -100,7 +101,9 @@
     <!-- Scripts -->
     <!-- Security Utilities (must be loaded first) -->
     <script src="utils/security-global.js"></script>
+    <script src="utils/token-counter.js"></script>
     <script src="utils/markdown-parser.js"></script>
+    <script src="utils/markdown-exporter.js"></script>
     <script src="components/tool-switcher.js"></script>
     <script src="components/sidebar.js"></script>
     <script src="components/chatbot-card.js"></script>
@@ -110,6 +113,9 @@
     <script src="components/sections/section-profile.js"></script>
     <script src="components/sections/section-personality.js"></script>
     <script src="components/sections/section-custom.js"></script>
+    <script src="components/sections/section-scenario.js"></script>
+    <script src="components/sections/section-initial-messages.js"></script>
+    <script src="components/sections/section-example-dialogs.js"></script>
 
     <!-- Editor modals (loaded before chatbot-editor) -->
     <script src="components/editor-modals.js"></script>

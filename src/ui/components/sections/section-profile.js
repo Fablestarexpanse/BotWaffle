@@ -1,7 +1,69 @@
 class SectionProfile extends customElements.get('section-base') {
     constructor() {
         super();
-        this._title = 'Basic Profile';
+        this._title = 'Character Card Info';
+        // Initialize minimized state like base class
+        if (this._minimized === undefined) {
+            this._minimized = false;
+        }
+    }
+
+    renderFrame() {
+        // Override to make profile section non-draggable and non-removable
+        this.setAttribute('draggable', 'false');
+        this.innerHTML = `
+            <div class="section-container">
+                <div class="section-header">
+                    <div class="header-left">
+                        <span class="toggle-icon">▼</span>
+                        <h3 class="section-title">${this._title}</h3>
+                    </div>
+                    <div class="header-actions">
+                        <!-- No remove button for profile section -->
+                    </div>
+                </div>
+                <div class="section-body">
+                    <!-- Content injected here -->
+                </div>
+            </div>
+        `;
+
+        // Initialize minimized state if not already set
+        if (this._minimized === undefined) {
+            this._minimized = this.getAttribute('minimized') === 'true';
+        }
+
+        // Setup toggle functionality (from base class)
+        const header = this.querySelector('.section-header');
+        if (header) {
+            header.addEventListener('click', (e) => {
+                // Don't toggle if clicking on header actions
+                if (e.target.closest('.header-actions')) return;
+                this._minimized = !this._minimized;
+                this.toggleContent();
+                this.dispatchEvent(new CustomEvent('toggle-section', {
+                    detail: { minimized: this._minimized },
+                    bubbles: true
+                }));
+            });
+        }
+
+        // Apply initial minimized state
+        this.toggleContent();
+    }
+
+    toggleContent() {
+        const body = this.querySelector('.section-body');
+        const icon = this.querySelector('.toggle-icon');
+        if (!body || !icon) return;
+
+        if (this._minimized) {
+            body.style.display = 'none';
+            icon.style.transform = 'rotate(-90deg)';
+        } else {
+            body.style.display = 'block';
+            icon.style.transform = 'rotate(0deg)';
+        }
     }
 
     async renderContent() {
@@ -318,7 +380,16 @@ class SectionProfile extends customElements.get('section-base') {
 
     setThumbnail(index) {
         const currentImages = this.getImageData();
-        this.renderImageList(currentImages, index);
+        
+        // Move the selected image to the first position
+        if (index > 0 && index < currentImages.length) {
+            const selectedImage = currentImages[index];
+            currentImages.splice(index, 1); // Remove from current position
+            currentImages.unshift(selectedImage); // Add to beginning
+        }
+        
+        // Thumbnail is now at index 0
+        this.renderImageList(currentImages, 0);
         this.setupListeners();
         this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
     }
@@ -364,18 +435,39 @@ class SectionProfile extends customElements.get('section-base') {
 
     getData() {
         const body = this.querySelector('.section-body');
+        if (!body) {
+            // Section not rendered yet, return empty data
+            return {
+                name: '',
+                displayName: '',
+                category: '',
+                description: '',
+                image: '',
+                images: [],
+                thumbnailIndex: -1,
+                tags: []
+            };
+        }
+
         const images = this.getImageData();
         const thumbnailIndex = this.getThumbnailIndex();
 
+        // Safely get form values, with fallbacks if elements don't exist yet
+        const nameInput = body.querySelector('[name="name"]');
+        const displayNameInput = body.querySelector('[name="displayName"]');
+        const categoryInput = body.querySelector('[name="category"]');
+        const descriptionInput = body.querySelector('[name="description"]');
+        const tagsInput = body.querySelector('[name="tags"]');
+
         return {
-            name: body.querySelector('[name="name"]').value,
-            displayName: body.querySelector('[name="displayName"]').value,
-            category: body.querySelector('[name="category"]').value,
-            description: body.querySelector('[name="description"]').value,
+            name: nameInput ? nameInput.value : '',
+            displayName: displayNameInput ? displayNameInput.value : '',
+            category: categoryInput ? categoryInput.value : '',
+            description: descriptionInput ? descriptionInput.value : '',
             image: images.length > 0 ? images[0] : '', // Backward compat - first image
             images: images,
             thumbnailIndex: thumbnailIndex,
-            tags: body.querySelector('[name="tags"]').value.split(',').map(t => t.trim()).filter(t => t)
+            tags: tagsInput ? tagsInput.value.split(',').map(t => t.trim()).filter(t => t) : []
         };
     }
 }

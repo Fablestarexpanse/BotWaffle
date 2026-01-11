@@ -126,6 +126,18 @@ class ChatbotList extends HTMLElement {
 
         this.querySelector('#view-grid').addEventListener('click', () => this.setViewMode('grid'));
         this.querySelector('#view-list').addEventListener('click', () => this.setViewMode('list'));
+        
+        // Listen for tag filter events from cards
+        this.addEventListener('filter-by-tag', (e) => {
+            e.stopPropagation();
+            const tag = e.detail.tag;
+            const searchInput = this.querySelector('#search-input');
+            if (searchInput) {
+                searchInput.value = tag;
+                this.currentPage = 1;
+                this.filterBots(tag);
+            }
+        });
     }
 
     setViewMode(mode) {

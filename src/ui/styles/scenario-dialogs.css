@@ -1,0 +1,142 @@
+/* Scenario / Initial Messages Section Styles */
+.scenario-section {
+    padding: var(--spacing-md);
+}
+
+.initial-messages-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.messages-tabs {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap;
+    border-bottom: 1px solid #334155;
+    padding-bottom: var(--spacing-xs);
+}
+
+.message-tab {
+    background: var(--bg-tertiary);
+    border: 1px solid #334155;
+    border-bottom: none;
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.message-tab:hover {
+    background: #2D3B5E;
+    color: var(--text-primary);
+}
+
+.message-tab.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--accent-glow);
+    border-bottom-color: var(--bg-secondary);
+    margin-bottom: -1px;
+}
+
+.tab-close {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 4px;
+}
+
+.tab-close:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.messages-content {
+    position: relative;
+    min-height: 200px;
+}
+
+.message-panel {
+    display: none;
+}
+
+.message-panel.active {
+    display: block;
+}
+
+.message-textarea {
+    width: 100%;
+    min-height: 150px;
+    resize: vertical;
+}
+
+/* Example Dialogs Section Styles */
+.example-dialogs-section {
+    padding: var(--spacing-md);
+}
+
+.dialogs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.dialogs-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.dialog-item {
+    background: var(--bg-tertiary);
+    border: 1px solid #334155;
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
+}
+
+.dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid #334155;
+}
+
+.dialog-number {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95em;
+}
+
+.dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.dialog-user,
+.dialog-assistant {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+}

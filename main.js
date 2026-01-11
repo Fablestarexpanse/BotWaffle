@@ -267,6 +267,54 @@ app.whenReady().then(() => {
         return { cancelled: false, filePath: result.filePaths[0] };
     }, { errorReturn: { cancelled: true } });
 
+    // Save text file handler (for character sheet export)
+    registerIpcHandler(ipcMain, 'saveTextFile', async (event, content, defaultFilename) => {
+        try {
+            const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+            
+            // Validate content
+            if (typeof content !== 'string') {
+                throw new Error('Content must be a string');
+            }
+
+            // Validate filename
+            if (!defaultFilename || typeof defaultFilename !== 'string') {
+                defaultFilename = 'character_sheet.txt';
+            }
+
+            // Sanitize filename (remove path separators and other dangerous characters)
+            const sanitizedFilename = defaultFilename.replace(/[<>:"/\\|?*]/g, '_');
+
+            const result = await dialog.showSaveDialog(parentWindow, {
+                title: 'Export Character Sheet',
+                defaultPath: sanitizedFilename,
+                filters: [
+                    { name: 'Text Files', extensions: ['txt'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            if (result.canceled || !result.filePath) {
+                return { success: false, cancelled: true };
+            }
+
+            // Write file
+            const fs = require('fs').promises;
+            await fs.writeFile(result.filePath, content, 'utf8');
+
+            info('[Export] Character sheet exported', { filePath: result.filePath });
+
+            return {
+                success: true,
+                filePath: result.filePath,
+                filename: path.basename(result.filePath)
+            };
+        } catch (error) {
+            logError('[Export] Error saving text file', error);
+            throw error;
+        }
+    }, { rethrow: true });
+
     // PromptWaffle Integration
     const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');
     registerPromptWaffleHandlers();

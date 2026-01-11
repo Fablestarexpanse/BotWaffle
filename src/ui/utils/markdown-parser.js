@@ -22,18 +22,24 @@
             return text.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
         }
 
-        // Helper to extract label from list item or bold text
-        function extractLabel(line) {
+        // Helper to extract label and value from list item or bold text
+        function extractLabelAndValue(line) {
             // Remove list marker (-, *, +) and trim
             line = line.replace(/^[\s]*[-*+]\s*/, '').trim();
             
             // Remove bold markers (**text**)
             line = line.replace(/\*\*(.+?)\*\*/g, '$1').trim();
             
-            // Remove colon and trailing spaces
-            line = line.replace(/:\s*$/, '').trim();
+            // Split on colon to separate label and value
+            const colonIndex = line.indexOf(':');
+            if (colonIndex > -1) {
+                const label = line.substring(0, colonIndex).trim();
+                const value = line.substring(colonIndex + 1).trim();
+                return { label, value };
+            }
             
-            return line;
+            // No colon found, entire line is the label
+            return { label: line, value: '' };
         }
 
         // Helper to finalize current section
@@ -80,18 +86,25 @@
                     currentSection = 'General';
                 }
 
-                const label = extractLabel(line);
+                const { label, value } = extractLabelAndValue(line);
                 if (label) {
                     const fieldName = sanitizeFieldName(label);
-                    // Determine field type: if it ends with ":" and is short, likely text; if longer content, textarea
-                    const fieldType = label.length > 50 ? 'textarea' : 'text';
+                    // Determine field type: if value is long, use textarea
+                    const fieldType = value.length > 50 ? 'textarea' : 'text';
                     
-                    currentFields.push({
+                    const field = {
                         name: fieldName || `field_${currentFields.length + 1}`,
                         label: label,
                         type: fieldType,
                         placeholder: ''
-                    });
+                    };
+                    
+                    // Store the value as defaultValue so it can be populated in the form
+                    if (value) {
+                        field.defaultValue = value;
+                    }
+                    
+                    currentFields.push(field);
                 }
             } else if (line.match(/\*\*.+?\*\*/)) {
                 // Bold text on its own line = could be a field label
@@ -99,15 +112,22 @@
                     currentSection = 'General';
                 }
 
-                const label = extractLabel(line);
+                const { label, value } = extractLabelAndValue(line);
                 if (label) {
                     const fieldName = sanitizeFieldName(label);
-                    currentFields.push({
+                    const field = {
                         name: fieldName || `field_${currentFields.length + 1}`,
                         label: label,
                         type: 'textarea', // Bold labels often have longer content
                         placeholder: ''
-                    });
+                    };
+                    
+                    // Store the value as defaultValue so it can be populated in the form
+                    if (value) {
+                        field.defaultValue = value;
+                    }
+                    
+                    currentFields.push(field);
                 }
             }
             // Other lines are ignored (plain text without markers)

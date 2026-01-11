@@ -540,10 +540,21 @@ async function deleteFolder(path) {
     }
     removeFolder(window.sidebarTree, path);
     
-    // Refresh sidebar
+    // Preserve the current expanded state of folders before refreshing
+    const currentState = getSidebarState();
+    
+    // Refresh sidebar while preserving folder state
     const foldersContainer = document.getElementById('foldersContainer');
-    if (foldersContainer) {
+    if (foldersContainer && window.sidebarTree) {
       renderSidebar(window.sidebarTree, foldersContainer);
+      // Wait for feather icons to be replaced before restoring state
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+      // Restore the expanded state after rendering is complete
+      setTimeout(() => {
+        applySidebarState(currentState);
+      }, 0);
     }
     showToast('Folder and all contents deleted', 'success');
   } catch (error) {
@@ -1019,8 +1030,13 @@ export function renderSidebar(tree, container, depth = 0, parentPath = '') {
             // This can be implemented later if needed
           },
           filterByTag,
-          showBoardFileContextMenu: (e, board, path) => {
-            // Context menu functionality can be implemented later
+          showBoardFileContextMenu: async (e, board, path) => {
+            try {
+              const { showBoardFileContextMenu } = await import('../ui/menus/context.js');
+              showBoardFileContextMenu(e, board, path);
+            } catch (error) {
+              console.error('Error showing board context menu:', error);
+            }
           }
         }
       });
@@ -1055,10 +1071,20 @@ export function applySidebarState(state) {
     if (folderEl && folderEl.classList.contains('collapsed')) {
       folderEl.classList.remove('collapsed');
       const icon = folderEl.querySelector('.collapse-icon');
-      icon.setAttribute('data-feather', 'chevron-down');
+      if (icon) {
+        icon.setAttribute('data-feather', 'chevron-down');
+      }
+      // Also expand the folder content if it exists
+      const folderContent = folderEl.querySelector('.folder-content');
+      if (folderContent) {
+        folderContent.style.display = '';
+      }
     }
   });
-  feather.replace();
+  // Replace feather icons after expanding folders
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
 }
 let partialUpdateTimeout = null;
 export function schedulePartialSidebarUpdate(boardId) {
@@ -1242,8 +1268,14 @@ export async function deleteSnippetByPath(snippetPath) {
     const foldersContainer = document.getElementById('foldersContainer');
     if (foldersContainer && window.sidebarTree) {
       renderSidebar(window.sidebarTree, foldersContainer);
-      // Restore the expanded state
-      applySidebarState(currentState);
+      // Wait for feather icons to be replaced before restoring state
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+      // Restore the expanded state after rendering is complete
+      setTimeout(() => {
+        applySidebarState(currentState);
+      }, 0);
     }
     showToast('Snippet deleted successfully', 'success');
   } catch (error) {
@@ -1261,8 +1293,22 @@ export async function deleteBoardFileImmediate(board, boardPath) {
     // Preserve the current expanded state of folders
     const currentState = getSidebarState();
     // Delete the board file from disk
+    // Boards are stored in snippets/ directory (snippets/boards/ or snippets/folder/boards/)
+    // Use board.filePath if available (from when board was created), otherwise use boardPath from sidebar tree
+    let pathToDelete = board.filePath || boardPath;
+    
     if (window.electronAPI && window.electronAPI.rm) {
-      await window.electronAPI.rm(`boards/${boardPath}`);
+      // Ensure path includes 'snippets/' prefix
+      let deletePath = pathToDelete;
+      if (!deletePath.startsWith('snippets/')) {
+        deletePath = `snippets/${pathToDelete}`;
+      }
+      console.log('[Delete Board] Attempting to delete:', deletePath);
+      const result = await window.electronAPI.rm(deletePath);
+      if (!result) {
+        showToast('Failed to delete board file', 'error');
+        return;
+      }
     } else {
       showToast('Filesystem API not available', 'error');
       return;
@@ -1289,15 +1335,23 @@ export async function deleteBoardFileImmediate(board, boardPath) {
       }
       return null;
     }
+    // Use the same path format for removing from tree (should match what's in tree)
+    const treePath = board.filePath || boardPath;
     if (window.sidebarTree) {
-      removeBoardFromTree(window.sidebarTree, boardPath);
+      removeBoardFromTree(window.sidebarTree, treePath);
     }
     // Refresh sidebar while preserving folder state
     const foldersContainer = document.getElementById('foldersContainer');
     if (foldersContainer && window.sidebarTree) {
       renderSidebar(window.sidebarTree, foldersContainer);
-      // Restore the expanded state
-      applySidebarState(currentState);
+      // Wait for feather icons to be replaced before restoring state
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+      // Restore the expanded state after rendering is complete
+      setTimeout(() => {
+        applySidebarState(currentState);
+      }, 0);
     }
     // Update board selector if it exists
     const { renderBoardSelector } = await import('./boards.js');

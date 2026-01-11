@@ -724,6 +724,15 @@ export async function createNewBoard() {
         closeBoardModal();
         // Refresh the UI to show the new board
         try {
+          // Rebuild sidebar tree to include the new board
+          const { safeElectronAPICall } = await import('../utils/index.js');
+          const initialData = await safeElectronAPICall('getInitialData');
+          if (initialData && initialData.sidebarTree) {
+            window.sidebarTree = initialData.sidebarTree;
+            // Populate snippet cache (includes boards)
+            const { populateSnippetCache } = await import('./load-initial-data.js');
+            populateSnippetCache(initialData.sidebarTree);
+          }
           await refreshUI();
         } catch (refreshError) {
           console.error(

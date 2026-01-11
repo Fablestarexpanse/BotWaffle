@@ -56,7 +56,7 @@ class TemplateManager {
             templateCache.set(id, template);
             return template;
         } catch (error) {
-            console.error('Error saving template:', error);
+            logError('Error saving template', error);
             throw new Error(`Failed to save template: ${error.message}`);
         }
     }
@@ -95,7 +95,7 @@ class TemplateManager {
             if (error.code === 'ENOENT') {
                 return [];
             }
-            console.error('Error listing templates:', error);
+            logError('Error listing templates', error);
             return [];
         }
     }
@@ -132,10 +132,11 @@ class TemplateManager {
             if (error.message && (error.message.includes('Invalid') || error.message.includes('path'))) {
                 return null;
             }
-            console.error('Error getting template:', error);
+            logError('Error getting template', error);
             return null;
         }
     }
 }
 
-module.exports = new TemplateManager();
+// Export class for dependency injection
+module.exports = TemplateManager;

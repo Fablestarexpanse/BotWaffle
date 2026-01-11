@@ -1,5 +1,6 @@
 const { initializeStorage } = require('../src/core/storage');
-const chatbotManager = require('../src/core/chatbot-manager');
+const ChatbotManager = require('../src/core/chatbot-manager');
+const chatbotManager = new ChatbotManager();
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

@@ -13,12 +13,5 @@ out/
 !README.md
 !SECURITY.md
 
-# Also ignore specific documentation directories
+# Ignore documentation directory (internal docs)
 docs/
-PHASE*.md
-*_COMPLETION.md
-*_AUDIT*.md
-*_REPORT.md
-IMPLEMENTATION_PLAN.md
-FIXES_APPLIED.md
-DEPENDENCIES.md

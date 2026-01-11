@@ -3,7 +3,8 @@
  * Removes bots with "TestBot_" prefix or "stress-test" tag
  */
 
-const chatbotManager = require('../src/core/chatbot-manager');
+const ChatbotManager = require('../src/core/chatbot-manager');
+const chatbotManager = new ChatbotManager();
 const { initializeStorage } = require('../src/core/storage');
 const fs = require('fs');
 const path = require('path');

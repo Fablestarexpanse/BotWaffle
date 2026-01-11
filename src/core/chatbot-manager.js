@@ -304,4 +304,7 @@ class ChatbotManager {
 }
 
 
-module.exports = new ChatbotManager();
+// Export class for dependency injection
+// Also export singleton instance for backward compatibility
+// Export class for dependency injection
+module.exports = ChatbotManager;

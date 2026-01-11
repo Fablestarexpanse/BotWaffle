@@ -1,4 +1,5 @@
-const chatbotManager = require('../src/core/chatbot-manager');
+const ChatbotManager = require('../src/core/chatbot-manager');
+const chatbotManager = new ChatbotManager();
 const { initializeStorage } = require('../src/core/storage');
 
 console.log('Initializing storage...');

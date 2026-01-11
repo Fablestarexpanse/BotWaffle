@@ -7,7 +7,8 @@
 let chatbotManager, initializeStorage;
 try {
     // Try Electron context first (when app is ready)
-    chatbotManager = require('../src/core/chatbot-manager');
+    const ChatbotManager = require('../src/core/chatbot-manager');
+    chatbotManager = new ChatbotManager();
     initializeStorage = require('../src/core/storage').initializeStorage;
 } catch (e) {
     console.error('Error loading modules:', e);

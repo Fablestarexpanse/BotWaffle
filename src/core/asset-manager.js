@@ -2,6 +2,7 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
 const { getDataPath } = require('./storage');
+const { error: logError } = require('./utils/logger');
 
 class AssetManager {
     constructor() {
@@ -45,10 +46,11 @@ class AssetManager {
             // Absolute is safer for local app rendering right now.
             return destPath.replace(/\\/g, '/');
         } catch (error) {
-            console.error('Error saving asset:', error);
+            logError('Error saving asset', error);
             throw new Error(`Failed to save asset: ${error.message}`);
         }
     }
 }
 
-module.exports = new AssetManager();
+// Export class for dependency injection
+module.exports = AssetManager;

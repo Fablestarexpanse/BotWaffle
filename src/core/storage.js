@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { STORAGE_DIRS } = require('./constants');
+const { info: logInfo, error: logError } = require('./utils/logger');
 
 // Base data directory - will be set when initializeStorage is called
 // This allows app to be ready before we try to access app.getPath()
@@ -47,10 +48,10 @@ function initializeStorage() {
             }
         });
         
-        console.log('Storage initialized at:', dataDir);
+        logInfo('Storage initialized', { path: dataDir });
         return true;
     } catch (error) {
-        console.error('Failed to initialize storage:', error);
+        logError('Failed to initialize storage', error);
         return false;
     }
 }

@@ -586,3 +586,110 @@ export async function showCardContextMenu(e, cardId, snippetPath) {
     console.error('Error showing card context menu:', error);
   }
 }
+
+/**
+ * Show board context menu with delete option
+ * @param {MouseEvent} e - The mouse event
+ * @param {Object} board - The board object
+ * @param {string} path - The board file path
+ */
+export function showBoardFileContextMenu(e, board, path) {
+  try {
+    if (!e) {
+      console.error('No event provided to showBoardFileContextMenu');
+      return;
+    }
+    if (!board || typeof board !== 'object') {
+      console.error('Invalid board provided to showBoardFileContextMenu:', board);
+      return;
+    }
+    if (!path || typeof path !== 'string') {
+      console.error('Invalid path provided to showBoardFileContextMenu:', path);
+      return;
+    }
+    e.preventDefault();
+    
+    // Remove any existing context menu
+    safeElementOperation(
+      document.getElementById('boardContextMenu'),
+      existingMenu => {
+        existingMenu.remove();
+      }
+    );
+    
+    // Create context menu
+    const contextMenu = document.createElement('div');
+    contextMenu.id = 'boardContextMenu';
+    contextMenu.className = 'context-menu';
+    contextMenu.style.position = 'fixed';
+    contextMenu.style.left = `${e.clientX}px`;
+    contextMenu.style.top = `${e.clientY}px`;
+    contextMenu.style.zIndex = '999999';
+    
+    // Delete Board menu item
+    const deleteItem = document.createElement('div');
+    deleteItem.className = 'context-menu-item';
+    deleteItem.textContent = 'Delete Board';
+    // Add icon safely
+    const deleteIcon = document.createElement('i');
+    deleteIcon.setAttribute('data-feather', 'trash-2');
+    deleteItem.insertBefore(deleteIcon, deleteItem.firstChild);
+    deleteItem.onclick = async () => {
+      try {
+        contextMenu.remove();
+        const boardName = board.name || 'this board';
+        const confirmed = await showDeleteConfirmation(boardName, 'board');
+        
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+          const { deleteBoardFileImmediate } = await import('../../bootstrap/sidebar.js');
+          await deleteBoardFileImmediate(board, path);
+          // No need to call refreshUI here - deleteBoardFileImmediate already refreshes the sidebar
+        } catch (error) {
+          console.error('Error deleting board:', error);
+          showToast('Error deleting board', 'error');
+        }
+      } catch (error) {
+        console.error('Error in delete board menu item:', error);
+      }
+    };
+    
+    contextMenu.appendChild(deleteItem);
+    document.body.appendChild(contextMenu);
+    
+    // Replace feather icons
+    try {
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+    } catch (iconError) {
+      console.warn('Error replacing feather icons:', iconError);
+    }
+    
+    // Close menu when clicking elsewhere
+    const closeMenu = event => {
+      try {
+        if (event && contextMenu && !contextMenu.contains(event.target)) {
+          contextMenu.remove();
+          document.removeEventListener('click', closeMenu);
+        }
+      } catch (error) {
+        console.error('Error in board context menu close handler:', error);
+      }
+    };
+    
+    // Add slight delay to prevent immediate closing
+    setTimeout(() => {
+      try {
+        document.addEventListener('click', closeMenu);
+      } catch (error) {
+        console.error('Error adding board context menu close listener:', error);
+      }
+    }, 10);
+  } catch (error) {
+    console.error('Error showing board context menu:', error);
+  }
+}

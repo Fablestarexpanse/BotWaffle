@@ -303,6 +303,23 @@ export async function handleReferenceImageUpload() {
   }
 }
 // Render reference image thumbnails for the current board
+// Cache for image blob URLs to avoid reloading
+const imageBlobCache = new Map();
+
+// Clean up old blob URLs to prevent memory leaks
+function cleanupBlobCache() {
+  const MAX_CACHE_SIZE = 20; // Keep max 20 images in cache
+  if (imageBlobCache.size > MAX_CACHE_SIZE) {
+    const entries = Array.from(imageBlobCache.entries());
+    // Remove oldest entries (keep most recent)
+    const toRemove = entries.slice(0, imageBlobCache.size - MAX_CACHE_SIZE);
+    toRemove.forEach(([path, blobUrl]) => {
+      URL.revokeObjectURL(blobUrl);
+      imageBlobCache.delete(path);
+    });
+  }
+}
+
 export async function renderBoardImages() {
   const activeBoard = getActiveBoard();
   const container = document.getElementById('referenceImagesContainer');
@@ -324,8 +341,8 @@ export async function renderBoardImages() {
     const imagesGrid = document.createElement('div');
     imagesGrid.className = 'reference-images-grid';
     
-    // Show up to 6 images
-    for (const imageObj of activeBoard.images.slice(0, 6)) {
+    // Load thumbnails in parallel (much faster)
+    const imagePromises = activeBoard.images.slice(0, 6).map(async (imageObj) => {
       const thumbDiv = document.createElement('div');
       thumbDiv.className = 'reference-image-thumb';
       thumbDiv.title = imageObj.filename;
@@ -340,41 +357,71 @@ export async function renderBoardImages() {
       thumbDiv.style.borderRadius = '8px';
       
       const img = document.createElement('img');
+      img.loading = 'lazy'; // Enable lazy loading
+      
       // Handle both relative (new) and absolute (legacy) paths
       let imageSrc = '';
-      if (imageObj.path && imageObj.path.startsWith('snippets/')) {
-        // Relative path - load via IPC and create blob URL
-        try {
-          const imageData = await window.electronAPI.loadImage(imageObj.path);
-          if (imageData && Array.isArray(imageData) && imageData.length > 0) {
-            // Convert array to Uint8Array
-            const uint8Array = new Uint8Array(imageData);
-            // Determine MIME type from filename
-            const ext = imageObj.filename.split('.').pop()?.toLowerCase() || 'png';
-            const mimeTypes = {
-              'png': 'image/png',
-              'jpg': 'image/jpeg',
-              'jpeg': 'image/jpeg',
-              'gif': 'image/gif',
-              'webp': 'image/webp',
-              'bmp': 'image/bmp'
-            };
-            const mimeType = mimeTypes[ext] || 'image/png';
-            const blob = new Blob([uint8Array], { type: mimeType });
-            imageSrc = URL.createObjectURL(blob);
-          } else {
-            // Fallback: try file:// protocol (may not work for relative paths)
-            imageSrc = `file:///${imageObj.path.replace(/\\/g, '/')}`;
+      const imagePath = imageObj.path || imageObj.imagePath || '';
+      const cacheKey = imagePath;
+      
+      // Check cache first
+      if (imageBlobCache.has(cacheKey)) {
+        imageSrc = imageBlobCache.get(cacheKey);
+      } else if (imageObj.path && imageObj.path.startsWith('snippets/')) {
+        // Try thumbnail first for better performance
+        if (imageObj.thumbnailPath) {
+          try {
+            const thumbnailExists = await window.electronAPI.imageExists(imageObj.thumbnailPath);
+            if (thumbnailExists) {
+              const imageData = await window.electronAPI.loadImage(imageObj.thumbnailPath);
+              if (imageData && Array.isArray(imageData) && imageData.length > 0) {
+                const uint8Array = new Uint8Array(imageData);
+                const ext = imageObj.filename.split('.').pop()?.toLowerCase() || 'png';
+                const mimeTypes = {
+                  'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                  'gif': 'image/gif', 'webp': 'image/webp', 'bmp': 'image/bmp'
+                };
+                const mimeType = mimeTypes[ext] || 'image/png';
+                const blob = new Blob([uint8Array], { type: mimeType });
+                imageSrc = URL.createObjectURL(blob);
+                imageBlobCache.set(cacheKey, imageSrc);
+                cleanupBlobCache();
+              }
+            }
+          } catch (e) {
+            console.warn('Error loading thumbnail, trying full image:', e);
           }
-        } catch (e) {
-          console.warn('Error loading relative path image, trying fallback:', e);
-          // Fallback: try file:// protocol
+        }
+        
+        // Fallback to full image if thumbnail doesn't exist or failed
+        if (!imageSrc) {
+          try {
+            const imageData = await window.electronAPI.loadImage(imageObj.path);
+            if (imageData && Array.isArray(imageData) && imageData.length > 0) {
+              const uint8Array = new Uint8Array(imageData);
+              const ext = imageObj.filename.split('.').pop()?.toLowerCase() || 'png';
+              const mimeTypes = {
+                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'gif': 'image/gif', 'webp': 'image/webp', 'bmp': 'image/bmp'
+              };
+              const mimeType = mimeTypes[ext] || 'image/png';
+              const blob = new Blob([uint8Array], { type: mimeType });
+              imageSrc = URL.createObjectURL(blob);
+              imageBlobCache.set(cacheKey, imageSrc);
+              cleanupBlobCache();
+            }
+          } catch (e) {
+            console.warn('Error loading relative path image, trying fallback:', e);
+          }
+        }
+        
+        // Final fallback
+        if (!imageSrc) {
           imageSrc = `file:///${imageObj.path.replace(/\\/g, '/')}`;
         }
       } else {
         // Absolute path (legacy) - use as-is
-        const path = imageObj.path || imageObj.imagePath || '';
-        imageSrc = `file://${path.replace(/\\/g, '/')}`;
+        imageSrc = `file://${imagePath.replace(/\\/g, '/')}`;
       }
       // Set image styling to ensure it fits within the thumbnail container
       img.style.width = '100%';
@@ -410,6 +457,12 @@ export async function renderBoardImages() {
         e.stopPropagation();
         try {
           await removeReferenceImage(imageObj.id);
+          // Clean up cache for removed image
+          const removedPath = imageObj.path || imageObj.imagePath;
+          if (imageBlobCache.has(removedPath)) {
+            URL.revokeObjectURL(imageBlobCache.get(removedPath));
+            imageBlobCache.delete(removedPath);
+          }
           await renderBoardImages(); // Re-render to update the UI
           showToast(`Removed image: ${imageObj.filename}`, 'success');
         } catch (error) {
@@ -420,10 +473,22 @@ export async function renderBoardImages() {
       controlsOverlay.appendChild(expandBtn);
       controlsOverlay.appendChild(removeBtn);
       thumbDiv.appendChild(controlsOverlay);
+      return thumbDiv;
+    });
+    
+    // Wait for all images to load in parallel, then append to grid
+    const thumbElements = await Promise.all(imagePromises);
+    thumbElements.forEach(thumbDiv => {
       imagesGrid.appendChild(thumbDiv);
-    }
+    });
     
     // Add the grid to the container
+    container.appendChild(imagesGrid);
+    
+    // Replace feather icons after all elements are created (much faster than per-element)
+    if (typeof feather !== 'undefined') {
+      feather.replace();
+    }
     container.appendChild(imagesGrid);
   }
   // Add live preview thumbnail if monitoring a folder
@@ -921,6 +986,7 @@ export async function viewFullImage(imageId) {
   const activeBoard = getActiveBoard();
   const image = activeBoard.images?.find(img => img.id === imageId);
   if (!image) return;
+  
   // Create modal overlay
   const overlay = document.createElement('div');
   overlay.className = 'image-viewer-overlay';
@@ -934,22 +1000,28 @@ export async function viewFullImage(imageId) {
         </div>
         <div class="image-viewer-loading">Loading...</div>
         <div class="image-viewer-info">
-          Path: ${image.path}
+          Path: ${image.path || image.imagePath || 'N/A'}
         </div>
       </div>
     `;
   document.body.appendChild(overlay);
-  // Load image using the path property
+  feather.replace(); // Replace icons early
+  
+  // Load image - use cache if available
   let imageSrc = '';
   let blobUrl = null;
+  const imagePath = image.path || image.imagePath || '';
+  const cacheKey = imagePath;
+  
   try {
-    // Handle both relative (new) and absolute (legacy) paths
-    if (image.path && image.path.startsWith('snippets/')) {
-      // Relative path - load via IPC and create blob URL
+    // Check cache first
+    if (imageBlobCache.has(cacheKey)) {
+      imageSrc = imageBlobCache.get(cacheKey);
+    } else if (image.path && image.path.startsWith('snippets/')) {
+      // Relative path - load via IPC
       try {
         const imageData = await window.electronAPI.loadImage(image.path);
         if (imageData && Array.isArray(imageData) && imageData.length > 0) {
-          // Convert array to Uint8Array
           const uint8Array = new Uint8Array(imageData);
           const ext = image.filename.split('.').pop()?.toLowerCase() || 'png';
           const mimeTypes = {
@@ -960,6 +1032,9 @@ export async function viewFullImage(imageId) {
           const blob = new Blob([uint8Array], { type: mimeType });
           blobUrl = URL.createObjectURL(blob);
           imageSrc = blobUrl;
+          // Cache it for future use
+          imageBlobCache.set(cacheKey, imageSrc);
+          cleanupBlobCache();
         } else {
           imageSrc = `file:///${image.path.replace(/\\/g, '/')}`;
         }
@@ -969,25 +1044,30 @@ export async function viewFullImage(imageId) {
       }
     } else {
       // Absolute path (legacy) - use as-is
-      const path = image.path || image.imagePath || '';
-      imageSrc = `file://${path.replace(/\\/g, '/')}`;
+      imageSrc = `file://${imagePath.replace(/\\/g, '/')}`;
     }
-    // Test if the image loads successfully
-    const testImg = new Image();
-    testImg.onload = () => {
-      // Image loaded successfully, replace loading text
-      const loadingDiv = overlay.querySelector('.image-viewer-loading');
-      loadingDiv.innerHTML = `<img src="${imageSrc}" alt="${image.filename}" style="max-width: 100%; max-height: 70vh; object-fit: contain;">`;
+    
+    // Load image directly without test Image (faster)
+    const loadingDiv = overlay.querySelector('.image-viewer-loading');
+    const fullImg = document.createElement('img');
+    fullImg.src = imageSrc;
+    fullImg.alt = image.filename;
+    fullImg.style.maxWidth = '100%';
+    fullImg.style.maxHeight = '70vh';
+    fullImg.style.objectFit = 'contain';
+    fullImg.style.display = 'block';
+    fullImg.style.margin = '0 auto';
+    
+    fullImg.onload = () => {
+      loadingDiv.innerHTML = '';
+      loadingDiv.appendChild(fullImg);
     };
-    testImg.onerror = () => {
-      // Clean up blob URL if created
-      if (blobUrl) {
+    
+    fullImg.onerror = () => {
+      // Clean up blob URL if created (but don't remove from cache - might be temporary error)
+      if (blobUrl && !imageBlobCache.has(cacheKey)) {
         URL.revokeObjectURL(blobUrl);
-        blobUrl = null;
       }
-      // Image failed to load, show error
-      console.warn('Failed to load image:', image.path);
-      const loadingDiv = overlay.querySelector('.image-viewer-loading');
       loadingDiv.innerHTML = `
           <div style="display: flex; align-items: center; justify-content: center; height: 200px; color: #888; font-size: 16px;">
             <div style="text-align: center;">
@@ -998,19 +1078,6 @@ export async function viewFullImage(imageId) {
           </div>
         `;
     };
-    testImg.onload = () => {
-      // Image loaded successfully, replace loading text
-      const loadingDiv = overlay.querySelector('.image-viewer-loading');
-      loadingDiv.innerHTML = `<img src="${imageSrc}" alt="${image.filename}" style="max-width: 100%; max-height: 70vh; object-fit: contain;">`;
-    };
-    testImg.src = imageSrc;
-    
-    // Clean up blob URL when overlay is removed
-    overlay.addEventListener('remove', () => {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    });
   } catch (error) {
     console.warn('Error loading image for', image.filename, ':', error.message);
     const loadingDiv = overlay.querySelector('.image-viewer-loading');
@@ -1024,18 +1091,30 @@ export async function viewFullImage(imageId) {
         </div>
       `;
   }
+  
   // Add close button event listener
   const closeBtn = overlay.querySelector('[data-action="close"]');
-  closeBtn.onclick = () => {
+  const cleanup = () => {
+    // Don't revoke blob URL if it's in cache - other parts might use it
     overlay.remove();
   };
+  closeBtn.onclick = cleanup;
+  
   // Close on background click
   overlay.onclick = e => {
     if (e.target === overlay) {
-      overlay.remove();
+      cleanup();
     }
   };
-  feather.replace();
+  
+  // Close on Escape key
+  const escapeHandler = (e) => {
+    if (e.key === 'Escape') {
+      cleanup();
+      document.removeEventListener('keydown', escapeHandler);
+    }
+  };
+  document.addEventListener('keydown', escapeHandler);
 }
 export async function removeReferenceImage(imageId) {
   const activeBoard = getActiveBoard();
@@ -1116,106 +1195,93 @@ export async function showImagePreview(images, targetElement) {
   // Create preview container for horizontal layout
   const previewContainer = document.createElement('div');
   previewContainer.className = 'preview-images horizontal-preview';
-  // Load thumbnails for all images
-  for (const image of images) {
+  // Load thumbnails for all images in parallel (much faster)
+  const previewPromises = images.map(async (image) => {
     const imgWrapper = document.createElement('div');
     imgWrapper.className = 'preview-image-wrapper';
     const imgElement = document.createElement('img');
     imgElement.className = 'preview-thumbnail';
     imgElement.alt = image.filename;
     imgElement.title = `${image.filename} - Click to view full size`;
-    let imageLoaded = false;
+    imgElement.loading = 'lazy'; // Enable lazy loading
+    let imageSrc = '';
+    
     try {
-      // Try to load the full-size original image first for maximum quality
-      if (image.imagePath && !imageLoaded) {
-        try {
-          const originalExists = await window.electronAPI.imageExists(
-            image.imagePath
-          );
-          if (originalExists) {
-            try {
-              const imageBuffer = await window.electronAPI.loadImage(
-                image.imagePath
-              );
-              const blob = new Blob([imageBuffer], { type: image.type });
-              imgElement.src = URL.createObjectURL(blob);
-              imageLoaded = true;
-            } catch (loadError) {
-              console.warn(
-                'Failed to load original image for preview:',
-                image.filename
-              );
+      // Check cache first
+      const cacheKey = image.imagePath || image.path || image.thumbnailPath || '';
+      if (cacheKey && imageBlobCache.has(cacheKey)) {
+        imageSrc = imageBlobCache.get(cacheKey);
+      } else {
+        // Try thumbnail first for better performance
+        if (image.thumbnailPath) {
+          try {
+            const thumbnailExists = await window.electronAPI.imageExists(image.thumbnailPath);
+            if (thumbnailExists) {
+              const thumbnailBuffer = await window.electronAPI.loadImage(image.thumbnailPath);
+              if (thumbnailBuffer && Array.isArray(thumbnailBuffer) && thumbnailBuffer.length > 0) {
+                const blob = new Blob([thumbnailBuffer], { type: image.type || 'image/png' });
+                imageSrc = URL.createObjectURL(blob);
+                imageBlobCache.set(cacheKey, imageSrc);
+                cleanupBlobCache();
+              }
             }
+          } catch (e) {
+            console.warn('Error loading thumbnail for preview:', image.filename, e);
           }
-        } catch (checkError) {
-          console.warn(
-            'Could not check if original image exists for preview:',
-            image.filename
-          );
         }
-      }
-      // Fall back to thumbnail if original didn't load
-      if (image.thumbnailPath && !imageLoaded) {
-        try {
-          const thumbnailExists = await window.electronAPI.imageExists(
-            image.thumbnailPath
-          );
-          if (thumbnailExists) {
-            try {
-              const thumbnailBuffer = await window.electronAPI.loadImage(
-                image.thumbnailPath
-              );
-              const blob = new Blob([thumbnailBuffer], { type: image.type });
-              imgElement.src = URL.createObjectURL(blob);
-              imageLoaded = true;
-            } catch (loadError) {
-              console.warn(
-                'Failed to load thumbnail for preview:',
-                image.filename
-              );
+        
+        // Fall back to full-size image if thumbnail doesn't exist or failed
+        if (!imageSrc && image.imagePath) {
+          try {
+            const originalExists = await window.electronAPI.imageExists(image.imagePath);
+            if (originalExists) {
+              const imageBuffer = await window.electronAPI.loadImage(image.imagePath);
+              if (imageBuffer && Array.isArray(imageBuffer) && imageBuffer.length > 0) {
+                const blob = new Blob([imageBuffer], { type: image.type || 'image/png' });
+                imageSrc = URL.createObjectURL(blob);
+                imageBlobCache.set(cacheKey, imageSrc);
+                cleanupBlobCache();
+              }
             }
+          } catch (loadError) {
+            console.warn('Failed to load original image for preview:', image.filename, loadError);
           }
-        } catch (checkError) {
-          console.warn(
-            'Could not check if thumbnail exists for preview:',
-            image.filename
-          );
         }
-      }
-      // Fallback to old data URL format
-      if (image.thumbnail && !imageLoaded) {
-        imgElement.src = image.thumbnail;
-        imageLoaded = true;
-      }
-      // Final fallback to placeholder
-      if (!imageLoaded) {
-        console.warn(
-          'No valid image source found for preview:',
-          image.filename
-        );
-        imgElement.src =
-          'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjZGVlMmU2IiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIxMjUiIHk9IjEwNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZTwvdGV4dD48dGV4dCB4PSIxMjUiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Ob3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+        
+        // Fallback to old data URL format
+        if (!imageSrc && image.thumbnail) {
+          imageSrc = image.thumbnail;
+        }
+        
+        // Final fallback to placeholder
+        if (!imageSrc) {
+          console.warn('No valid image source found for preview:', image.filename);
+          imageSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjZGVlMmU2IiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIxMjUiIHk9IjEwNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZTwvdGV4dD48dGV4dCB4PSIxMjUiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Ob3QgRm91bmQ8L3RleHQ+PC9zdmc+';
+        }
       }
     } catch (error) {
-      console.warn(
-        'Unexpected error loading image for preview:',
-        image.filename,
-        ':',
-        error.message
-      );
-      imgElement.src =
-        'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iI2ZmZTZlNiIgc3Ryb2tlPSIjZmJiZGJkIiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIxMjUiIHk9IjEwNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjZDk1MzRmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5FcnJvcjwvdGV4dD48dGV4dCB4PSIxMjUiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjZDk1MzRmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Mb2FkaW5nPC90ZXh0Pjx0ZXh0IHg9IjEyNSIgeT0iMTU1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNkOTUzNGYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkltYWdlPC90ZXh0Pjwvc3ZnPic=';
+      console.warn('Unexpected error loading image for preview:', image.filename, ':', error.message);
+      imageSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjUwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iI2ZmZTZlNiIgc3Ryb2tlPSIjZmJiZGJkIiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIxMjUiIHk9IjEwNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjZDk1MzRmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5FcnJvcjwvdGV4dD48dGV4dCB4PSIxMjUiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSIjZDk1MzRmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Mb2FkaW5nPC90ZXh0Pjx0ZXh0IHg9IjEyNSIgeT0iMTU1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNkOTUzNGYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkltYWdlPC90ZXh0Pjwvc3ZnPic=';
     }
+    
+    imgElement.src = imageSrc;
+    
     // Add click handler to view full image
     imgElement.style.cursor = 'pointer';
     imgElement.addEventListener('click', e => {
       e.stopPropagation();
       hideImagePreview(); // Hide the preview first
-      viewFullImage(image.id); // Then show the full image
+      viewFullImage(image.id); // Then show the full image (uses cache)
     });
     imgWrapper.appendChild(imgElement);
-    previewContainer.appendChild(imgWrapper);
-  }
+    return imgWrapper;
+  });
+  
+  // Wait for all preview images to load in parallel
+  const previewWrappers = await Promise.all(previewPromises);
+  previewWrappers.forEach(wrapper => {
+    previewContainer.appendChild(wrapper);
+  });
   preview.appendChild(previewContainer);
   // Add image count info
   const imageInfo = document.createElement('div');

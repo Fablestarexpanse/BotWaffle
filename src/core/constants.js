@@ -95,7 +95,8 @@ const STORAGE_DIRS = [
     'conversations',
     'templates',
     'config',
-    'assets'
+    'assets',
+    'prompt-waffle'
 ];
 
 module.exports = {

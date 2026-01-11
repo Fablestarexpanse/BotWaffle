@@ -18,5 +18,12 @@ contextBridge.exposeInMainWorld('api', {
     assets: {
         select: (multiple = false) => ipcRenderer.invoke('assets:select', multiple),
         save: (path) => ipcRenderer.invoke('assets:save', path)
-    }
+    },
+    data: {
+        export: () => ipcRenderer.invoke('data:export'),
+        import: () => ipcRenderer.invoke('data:import'),
+        verifyBackup: (zipPath) => ipcRenderer.invoke('data:verify-backup', zipPath),
+        openBackupDialog: () => ipcRenderer.invoke('data:open-backup-dialog')
+    },
+    openExternal: (url) => ipcRenderer.invoke('openExternal', url)
 });

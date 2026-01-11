@@ -79,6 +79,194 @@ app.whenReady().then(() => {
 
     // Asset Handlers
 
+    // Data Management Handlers (Export/Import/Verify)
+    const { exportBotWaffleData, importBotWaffleData, verifyBotWaffleBackup } = require('./src/core/export-import');
+    
+    registerIpcHandler(ipcMain, 'data:export', async (event) => {
+        // Export handler needs to show save dialog
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+        const { dialog } = require('electron');
+        const AdmZip = require('adm-zip');
+        const fs = require('fs').promises;
+        const fsSync = require('fs');
+        const path = require('path');
+        const { getDataPath, getDataDir } = require('./src/core/storage');
+        const { info, error: logError } = require('./src/core/utils/logger');
+        const { app } = require('electron');
+        
+        try {
+            const zip = new AdmZip();
+            const dataDir = getDataDir();
+            const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const zipFilename = `BotWaffle_Backup_${timestamp}.zip`;
+
+            const foldersToExport = ['chatbots', 'conversations', 'templates', 'assets'];
+
+            for (const folder of foldersToExport) {
+                const folderPath = getDataPath(folder);
+                try {
+                    await fs.access(folderPath);
+                    zip.addLocalFolder(folderPath, folder);
+                    info(`[Export] Added folder: ${folder}`);
+                } catch (error) {
+                    info(`[Export] Skipping non-existent folder: ${folder}`);
+                }
+            }
+
+            const manifest = {
+                version: '1.0',
+                exportDate: new Date().toISOString(),
+                appVersion: app.getVersion(),
+                folders: []
+            };
+
+            for (const folder of foldersToExport) {
+                try {
+                    const folderPath = getDataPath(folder);
+                    await fs.access(folderPath);
+                    manifest.folders.push(folder);
+                } catch {}
+            }
+
+            zip.addFile('export_manifest.json', Buffer.from(JSON.stringify(manifest, null, 2)));
+
+            const saveResult = await dialog.showSaveDialog(parentWindow, {
+                title: 'Export BotWaffle Data',
+                defaultPath: zipFilename,
+                filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
+            });
+
+            if (saveResult.canceled) {
+                return { success: false, cancelled: true };
+            }
+
+            zip.writeZip(saveResult.filePath);
+            info(`[Export] Data exported to: ${saveResult.filePath}`);
+
+            return {
+                success: true,
+                filePath: saveResult.filePath,
+                filename: path.basename(saveResult.filePath)
+            };
+        } catch (error) {
+            logError('[Export] Error exporting data', error);
+            throw error;
+        }
+    }, { rethrow: true });
+    
+    registerIpcHandler(ipcMain, 'data:import', async (event) => {
+        // Import handler needs to show open dialog
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+        const { dialog } = require('electron');
+        const AdmZip = require('adm-zip');
+        const fs = require('fs').promises;
+        const fsSync = require('fs');
+        const path = require('path');
+        const { getDataPath, getDataDir } = require('./src/core/storage');
+        const { info, error: logError } = require('./src/core/utils/logger');
+        
+        // Helper to copy directory
+        const copyDirectory = async (src, dest) => {
+            try {
+                if (!fsSync.existsSync(dest)) {
+                    fsSync.mkdirSync(dest, { recursive: true });
+                }
+                const entries = await fs.readdir(src, { withFileTypes: true });
+                for (const entry of entries) {
+                    const srcPath = path.join(src, entry.name);
+                    const destPath = path.join(dest, entry.name);
+                    if (entry.isDirectory()) {
+                        await copyDirectory(srcPath, destPath);
+                    } else {
+                        await fs.copyFile(srcPath, destPath);
+                    }
+                }
+                return true;
+            } catch (error) {
+                logError('Error copying directory', error);
+                return false;
+            }
+        };
+        
+        try {
+            const openResult = await dialog.showOpenDialog(parentWindow, {
+                title: 'Import BotWaffle Data',
+                filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+                properties: ['openFile']
+            });
+
+            if (openResult.canceled || !openResult.filePaths || openResult.filePaths.length === 0) {
+                return { success: false, cancelled: true };
+            }
+
+            const zipPath = openResult.filePaths[0];
+            const zip = new AdmZip(zipPath);
+            const dataDir = getDataDir();
+
+            const zipEntries = zip.getEntries();
+            const manifestEntry = zipEntries.find(e => e.entryName === 'export_manifest.json');
+            if (manifestEntry) {
+                try {
+                    const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
+                    info('[Import] Importing backup from:', manifest.exportDate);
+                } catch (e) {
+                    info('[Import] Could not parse manifest:', e);
+                }
+            }
+
+            const backupDir = path.join(path.dirname(dataDir), 'backup_before_import_' + Date.now());
+            try {
+                if (!fsSync.existsSync(backupDir)) {
+                    fsSync.mkdirSync(backupDir, { recursive: true });
+                }
+                const foldersToBackup = ['chatbots', 'conversations', 'templates', 'assets'];
+                for (const folder of foldersToBackup) {
+                    const folderPath = getDataPath(folder);
+                    try {
+                        await fs.access(folderPath);
+                        await copyDirectory(folderPath, path.join(backupDir, folder));
+                        info(`[Import] Backed up: ${folder}`);
+                    } catch (e) {
+                        info(`[Import] Skipping non-existent folder: ${folder}`);
+                    }
+                }
+                info(`[Import] Current data backed up to: ${backupDir}`);
+            } catch (backupError) {
+                logError('[Import] Failed to backup current data', backupError);
+            }
+
+            zip.extractAllTo(dataDir, true);
+
+            info('[Import] Data imported successfully');
+
+            return {
+                success: true,
+                backupLocation: backupDir
+            };
+        } catch (error) {
+            logError('[Import] Error importing data', error);
+            throw error;
+        }
+    }, { rethrow: true });
+    
+    registerIpcHandler(ipcMain, 'data:verify-backup', (_, zipPath) => verifyBotWaffleBackup(zipPath), { rethrow: true });
+    
+    // Backup file dialog handler
+    registerIpcHandler(ipcMain, 'data:open-backup-dialog', async (event) => {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+        const result = await dialog.showOpenDialog(parentWindow, {
+            title: 'Select Backup ZIP File to Verify',
+            filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+            properties: ['openFile']
+        });
+        
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+            return { cancelled: true };
+        }
+        
+        return { cancelled: false, filePath: result.filePaths[0] };
+    }, { errorReturn: { cancelled: true } });
+
     // PromptWaffle Integration
     const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');
     registerPromptWaffleHandlers();
@@ -99,6 +287,13 @@ app.whenReady().then(() => {
     }, { errorReturn: null });
 
     registerIpcHandler(ipcMain, 'assets:save', (_, sourcePath) => assetManager.saveAsset(sourcePath), { rethrow: true });
+
+    // Open External URL handler
+    registerIpcHandler(ipcMain, 'openExternal', async (_, url) => {
+        const { shell } = require('electron');
+        await shell.openExternal(url);
+        return true;
+    }, { errorReturn: false });
 
     createWindow();
 

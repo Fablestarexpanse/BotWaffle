@@ -10,7 +10,7 @@
     <!-- Note: frame-ancestors only works in HTTP headers, not meta tags -->
     <meta http-equiv="Content-Security-Policy" 
           content="default-src 'self'; 
-                   script-src 'self'; 
+                   script-src 'self' https://unpkg.com; 
                    style-src 'self' 'unsafe-inline'; 
                    img-src 'self' data: file:; 
                    font-src 'self' data:;
@@ -21,6 +21,7 @@
 
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/sidebar.css">
+    <script src="https://unpkg.com/feather-icons"></script>
 </head>
 
 <body>
@@ -45,6 +46,31 @@
         <div id="workspace">
             <!-- Sidebar Shell -->
             <aside id="sidebar">
+                <div class="sidebar-top">
+                    <div class="sidebar-logo">
+                        <img src="../assets/logo.png" alt="BotWaffle Logo" />
+                        <p class="tagline">Build better chatbots</p>
+                        <p class="version">v<span id="currentVersion">1.1.0</span></p>
+                        <div class="data-management-buttons">
+                            <button id="exportDataBtn" class="data-btn" title="Export all data to ZIP file">
+                                <i data-feather="download"></i>
+                                Export Data
+                            </button>
+                            <button id="importDataBtn" class="data-btn" title="Import data from ZIP file">
+                                <i data-feather="upload"></i>
+                                Import Data
+                            </button>
+                            <button id="verifyBackupBtn" class="data-btn" title="Verify backup ZIP file">
+                                <i data-feather="check-circle"></i>
+                                Verify Backup
+                            </button>
+                        </div>
+                        <a href="#" id="kofiLink" class="kofi-link" title="Support BotWaffle development">
+                            <i data-feather="heart"></i>
+                            <span>Support on Ko-fi</span>
+                        </a>
+                    </div>
+                </div>
                 <ul class="nav-links">
                     <li class="nav-item">
                         <a href="#" class="nav-link active">My Library</a>
@@ -74,6 +100,7 @@
     <!-- Scripts -->
     <!-- Security Utilities (must be loaded first) -->
     <script src="utils/security-global.js"></script>
+    <script src="utils/markdown-parser.js"></script>
     <script src="components/tool-switcher.js"></script>
     <script src="components/sidebar.js"></script>
     <script src="components/chatbot-card.js"></script>
@@ -87,6 +114,9 @@
     <!-- Editor modals (loaded before chatbot-editor) -->
     <script src="components/editor-modals.js"></script>
     <script src="components/chatbot-editor.js"></script>
+
+    <!-- Data Management -->
+    <script src="components/data-management.js"></script>
 
     <!-- Application Router and State Manager -->
     <script src="app-router.js"></script>

@@ -410,6 +410,186 @@
                     nameInput.focus();
                 }
             }, 100);
+        },
+
+        /**
+         * Shows the "Import Markdown" modal for importing markdown outlines
+         * @param {ChatbotEditor} editor - The editor instance
+         */
+        showImportMarkdownModal: function(editor) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+                <div class="modal" style="max-width: 700px; max-height: 90vh;">
+                    <div class="modal-header">
+                        <h3>Import Markdown Outline</h3>
+                        <button class="modal-close" type="button">&times;</button>
+                    </div>
+                    <div class="modal-body" style="overflow-y: auto; max-height: 60vh;">
+                        <div class="form-group">
+                            <label for="markdown-input">Paste your markdown outline below:</label>
+                            <textarea id="markdown-input" class="input-field" rows="20" 
+                                      style="font-family: monospace; font-size: 12px;"
+                                      placeholder="# Category Name&#10;- Field 1:&#10;- Field 2:&#10;&#10;## Another Category&#10;- Field A:&#10;- Field B:"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="file" id="markdown-file-input" accept=".md,.txt" style="display: none;">
+                                <button type="button" class="secondary-btn" id="upload-file-btn">📁 Upload Markdown File</button>
+                                <span id="file-name" style="margin-left: 10px; color: var(--text-secondary);"></span>
+                            </label>
+                        </div>
+                        <div id="markdown-preview" style="margin-top: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 4px; display: none;">
+                            <h4 style="margin-top: 0;">Preview:</h4>
+                            <div id="preview-content"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="secondary-btn cancel-markdown-modal">Cancel</button>
+                        <button class="secondary-btn" id="preview-markdown-btn">Preview</button>
+                        <button class="primary-btn import-markdown-btn">Import Sections</button>
+                    </div>
+                </div>
+            `;
+
+            const closeModal = () => overlay.remove();
+            const markdownInput = overlay.querySelector('#markdown-input');
+            const fileInput = overlay.querySelector('#markdown-file-input');
+            const uploadBtn = overlay.querySelector('#upload-file-btn');
+            const fileName = overlay.querySelector('#file-name');
+            const previewDiv = overlay.querySelector('#markdown-preview');
+            const previewContent = overlay.querySelector('#preview-content');
+
+            // File upload handler
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    fileName.textContent = file.name;
+                    try {
+                        const text = await file.text();
+                        markdownInput.value = text;
+                        // Auto-preview after upload
+                        setTimeout(() => {
+                            overlay.querySelector('#preview-markdown-btn').click();
+                        }, 100);
+                    } catch (error) {
+                        alert('Error reading file: ' + error.message);
+                    }
+                }
+            });
+
+            // Preview button
+            overlay.querySelector('#preview-markdown-btn').addEventListener('click', () => {
+                const markdown = markdownInput.value.trim();
+                if (!markdown) {
+                    alert('Please paste or upload markdown content first.');
+                    return;
+                }
+
+                try {
+                    if (!window.MarkdownParser) {
+                        alert('Markdown parser not loaded. Please refresh the page.');
+                        return;
+                    }
+
+                    const sections = window.MarkdownParser.parseMarkdownToSections(markdown);
+                    const validation = window.MarkdownParser.validateParsedSections(sections);
+
+                    if (!validation.valid) {
+                        previewContent.innerHTML = `<div style="color: var(--danger);">
+                            <strong>Validation Errors:</strong><ul style="margin: 10px 0; padding-left: 20px;">
+                            ${validation.errors.map(err => `<li>${window.SecurityUtils.escapeHtml(err)}</li>`).join('')}
+                            </ul></div>`;
+                        previewDiv.style.display = 'block';
+                        return;
+                    }
+
+                    // Show preview
+                    let previewHtml = `<div style="color: var(--success); margin-bottom: 15px;">
+                        <strong>✓ Found ${sections.length} section(s):</strong></div>`;
+                    
+                    sections.forEach((section, index) => {
+                        previewHtml += `<div style="margin-bottom: 15px; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
+                            <strong style="color: var(--accent);">${window.SecurityUtils.escapeHtml(section.category)}</strong>
+                            <div style="margin-top: 8px; font-size: 0.9em; color: var(--text-secondary);">
+                                ${section.fields.length} field(s): ${section.fields.map(f => window.SecurityUtils.escapeHtml(f.label)).join(', ')}
+                            </div>
+                        </div>`;
+                    });
+
+                    previewContent.innerHTML = previewHtml;
+                    previewDiv.style.display = 'block';
+                } catch (error) {
+                    previewContent.innerHTML = `<div style="color: var(--danger);">
+                        <strong>Error:</strong> ${window.SecurityUtils.escapeHtml(error.message)}
+                    </div>`;
+                    previewDiv.style.display = 'block';
+                    console.error('Markdown parse error:', error);
+                }
+            });
+
+            // Import button
+            overlay.querySelector('.import-markdown-btn').addEventListener('click', () => {
+                const markdown = markdownInput.value.trim();
+                if (!markdown) {
+                    alert('Please paste or upload markdown content first.');
+                    return;
+                }
+
+                try {
+                    if (!window.MarkdownParser) {
+                        alert('Markdown parser not loaded. Please refresh the page.');
+                        return;
+                    }
+
+                    const sections = window.MarkdownParser.parseMarkdownToSections(markdown);
+                    const validation = window.MarkdownParser.validateParsedSections(sections);
+
+                    if (!validation.valid) {
+                        alert('Validation failed:\n' + validation.errors.join('\n'));
+                        return;
+                    }
+
+                    // Add all sections to editor layout
+                    sections.forEach(section => {
+                        editor.layout.push(section);
+                    });
+
+                    // Re-render sections
+                    editor.renderSections(editor._data);
+                    closeModal();
+
+                    // Show success message
+                    alert(`Successfully imported ${sections.length} section(s)!`);
+                } catch (error) {
+                    alert('Error importing markdown: ' + error.message);
+                    console.error('Markdown import error:', error);
+                }
+            });
+
+            // Close handlers
+            overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+            overlay.querySelector('.cancel-markdown-modal').addEventListener('click', closeModal);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeModal();
+            });
+
+            const modal = overlay.querySelector('.modal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+            }
+
+            document.body.appendChild(overlay);
+
+            // Focus textarea
+            setTimeout(() => {
+                if (markdownInput) {
+                    markdownInput.focus();
+                }
+            }, 100);
         }
     };
 })();

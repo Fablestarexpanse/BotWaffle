@@ -5,26 +5,7 @@
     "tags": [],
     "cards": [],
     "groups": [],
-    "images": [
-      {
-        "id": "img-1767854211237-pximnmfii",
-        "filename": "z-image_00645_.png",
-        "path": "snippets/boards/images/board-default/img-1767854211237-pximnmfii.png",
-        "addedAt": "2026-01-08T06:36:51.706Z"
-      },
-      {
-        "id": "img-1767854211706-j38g80173",
-        "filename": "2026-01-05-165039__0.png",
-        "path": "snippets/boards/images/board-default/img-1767854211706-j38g80173.png",
-        "addedAt": "2026-01-08T06:36:57.458Z"
-      },
-      {
-        "id": "img-1767854217459-k02fojznc",
-        "filename": "2026-01-05-163357__0.png",
-        "path": "snippets/boards/images/board-default/img-1767854217459-k02fojznc.png",
-        "addedAt": "2026-01-08T06:37:03.290Z"
-      }
-    ],
+    "images": [],
     "createdAt": "2025-12-24T02:15:05.248Z",
     "modifiedAt": "2025-12-24T02:15:05.248Z",
     "filePath": "Start Here\\default_board.json"

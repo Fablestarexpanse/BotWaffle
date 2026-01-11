@@ -21,6 +21,10 @@ const https = require('https');
 const { URL } = require('url');
 const WebSocket = require('ws');
 
+// PromptWaffle storage utilities
+const { initializePromptWaffleStorage, getPromptWaffleDataPath, resolvePromptWafflePath, validatePromptWafflePath } = require('./storage');
+const { migratePromptWaffleData } = require('./migration');
+
 // Production logging setup
 const electronLog = require('electron-log');
 const isDev = process.argv.includes('--dev');
@@ -192,16 +196,30 @@ function createImageViewerWindow() {
 
 console.log('[Main] Setting up app event listeners...');
 
-app.whenReady().then(() => {
-  console.log('[Main] App is ready, creating window...');
+app.whenReady().then(async () => {
+  console.log('[Main] App is ready, initializing storage...');
   try {
+    // Initialize PromptWaffle storage (creates directories in userData)
+    initializePromptWaffleStorage();
+    console.log('[Main] Storage initialized');
+
+    // Migrate existing files from __dirname to userData (if needed)
+    console.log('[Main] Checking for migration...');
+    const migrationResults = await migratePromptWaffleData(__dirname);
+    if (!migrationResults.alreadyMigrated && migrationResults.migrated.length > 0) {
+      console.log('[Main] Migration completed:', migrationResults.migrated);
+    } else if (migrationResults.alreadyMigrated) {
+      console.log('[Main] Data already in userData, no migration needed');
+    }
+
+    console.log('[Main] Creating window...');
     createWindow();
     console.log('[Main] Window created successfully');
 
     // Initialize auto-updater after app is ready
     initAutoUpdater();
   } catch (error) {
-    console.error('[Main] Failed to create window:', error);
+    console.error('[Main] Failed to initialize:', error);
   }
 }).catch(error => {
   console.error('[Main] App ready failed:', error);
@@ -235,9 +253,9 @@ app.on('will-quit', () => {
   console.log('[Main] Application will quit');
 });
 
-// Ensure snippets directory exists
+// Ensure snippets directory exists (uses userData now)
 async function ensureSnippetsDir() {
-  const snippetsDir = path.join(__dirname, 'snippets');
+  const snippetsDir = getPromptWaffleDataPath('snippets');
   try {
     await fs.access(snippetsDir);
   } catch {
@@ -291,13 +309,12 @@ ipcMain.handle('fs-rename', async (event, oldPath, newPath) => {
       throw new Error('Invalid file path');
     }
 
-    const fullOldPath = path.join(__dirname, sanitizedOldPath);
-    const fullNewPath = path.join(__dirname, sanitizedNewPath);
+    const fullOldPath = resolvePromptWafflePath(sanitizedOldPath);
+    const fullNewPath = resolvePromptWafflePath(sanitizedNewPath);
 
-    // Ensure paths are within app directory
-    const appDir = path.resolve(__dirname);
-    if (!fullOldPath.startsWith(appDir) || !fullNewPath.startsWith(appDir)) {
-      throw new Error('Access denied: Path outside application directory');
+    // Ensure paths are within PromptWaffle data directory
+    if (!validatePromptWafflePath(fullOldPath) || !validatePromptWafflePath(fullNewPath)) {
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
     }
 
     const newDir = path.dirname(fullNewPath);
@@ -336,7 +353,10 @@ ipcMain.handle('fs-exists', async (event, filePath) => {
     if (!sanitizedPath) {
       return false;
     }
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
+    if (!validatePromptWafflePath(fullPath)) {
+      return false;
+    }
     await fs.access(fullPath);
     return true;
   } catch {
@@ -351,7 +371,11 @@ ipcMain.handle('fs-mkdir', async (event, dirPath) => {
       logSecurityEvent('invalid_file_path', { dirPath, operation: 'fs-mkdir' });
       throw new Error('Invalid directory path');
     }
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
+    if (!validatePromptWafflePath(fullPath)) {
+      logSecurityEvent('path_traversal_attempt', { dirPath, operation: 'fs-mkdir' });
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
+    }
     await fs.mkdir(fullPath, { recursive: true });
     return true;
   } catch (error) {
@@ -367,7 +391,11 @@ ipcMain.handle('fs-rmdir', async (event, dirPath) => {
       logSecurityEvent('invalid_file_path', { dirPath, operation: 'fs-rmdir' });
       throw new Error('Invalid directory path');
     }
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
+    if (!validatePromptWafflePath(fullPath)) {
+      logSecurityEvent('path_traversal_attempt', { dirPath, operation: 'fs-rmdir' });
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
+    }
     await fs.rmdir(fullPath, { recursive: true });
     return true;
   } catch (error) {
@@ -396,10 +424,21 @@ ipcMain.handle('fs-readdir', async (event, dirPath) => {
 
 ipcMain.handle('fs-stat', async (event, filePath) => {
   try {
-    // Handle absolute paths correctly
-    const fullPath = path.isAbsolute(filePath)
-      ? filePath
-      : path.join(__dirname, filePath);
+    // Handle absolute paths - if absolute and within data dir, use it; otherwise resolve
+    let fullPath;
+    if (path.isAbsolute(filePath)) {
+      // Validate absolute path is within data directory
+      if (validatePromptWafflePath(filePath)) {
+        fullPath = filePath;
+      } else {
+        // Invalid absolute path
+        console.error('Error: Absolute path outside data directory:', filePath);
+        return null;
+      }
+    } else {
+      // Resolve relative path
+      fullPath = resolvePromptWafflePath(filePath);
+    }
     const stats = await fs.stat(fullPath);
     return {
       isFile: stats.isFile(),
@@ -416,7 +455,7 @@ ipcMain.handle('fs-stat', async (event, filePath) => {
 
 ipcMain.handle('open-data-path', async () => {
   try {
-    const dataPath = path.join(__dirname, 'snippets');
+    const dataPath = getPromptWaffleDataPath('snippets');
     await ensureSnippetsDir();
     return dataPath;
   } catch (error) {
@@ -445,8 +484,8 @@ ipcMain.handle('save-image', async (event, imageId, imageBuffer, filename) => {
   try {
     console.log('[Main] save-image called with:', { imageId, filename, bufferSize: imageBuffer.byteLength });
 
-    // Create the images directory if it doesn't exist
-    const imagesDir = path.join(__dirname, 'snippets', 'characters', 'images');
+    // Create the images directory if it doesn't exist (uses userData now)
+    const imagesDir = path.join(getPromptWaffleDataPath('snippets'), 'characters', 'images');
     console.log('[Main] Images directory path:', imagesDir);
 
     await fs.mkdir(imagesDir, { recursive: true });
@@ -481,8 +520,8 @@ ipcMain.handle('save-board-image', async (event, boardId, imageBuffer, filename)
     const buffer = Buffer.from(imageBuffer);
     logger.info('[Main] save-board-image called with:', { boardId, filename, bufferSize: buffer.length });
 
-    // Create the board images directory if it doesn't exist
-    const imagesDir = path.join(__dirname, 'snippets', 'boards', 'images', boardId);
+    // Create the board images directory if it doesn't exist (uses userData now)
+    const imagesDir = path.join(getPromptWaffleDataPath('snippets'), 'boards', 'images', boardId);
     logger.info('[Main] Board images directory path:', imagesDir);
 
     await fs.mkdir(imagesDir, { recursive: true });
@@ -508,10 +547,15 @@ ipcMain.handle('save-board-image', async (event, boardId, imageBuffer, filename)
 // Delete board image from app directory
 ipcMain.handle('delete-board-image', async (event, imagePath) => {
   try {
-    // Handle both relative and absolute paths
-    const fullPath = path.isAbsolute(imagePath)
+    // Resolve path using PromptWaffle storage (uses userData now)
+    const fullPath = path.isAbsolute(imagePath) && validatePromptWafflePath(imagePath)
       ? imagePath
-      : path.join(__dirname, imagePath);
+      : resolvePromptWafflePath(imagePath);
+    
+    if (!validatePromptWafflePath(fullPath)) {
+      logger.error('[Main] Invalid path for board image deletion:', imagePath);
+      return false;
+    }
     
     await fs.unlink(fullPath);
     logger.info('[Main] Board image deleted successfully:', fullPath);
@@ -537,8 +581,12 @@ ipcMain.handle('delete-board-image', async (event, imagePath) => {
 
 ipcMain.handle('load-image', async (event, imagePath) => {
   try {
-    // Create full path by joining with __dirname
-    const fullPath = path.join(__dirname, imagePath);
+    // Resolve path using PromptWaffle storage (uses userData now)
+    const fullPath = resolvePromptWafflePath(imagePath);
+    if (!validatePromptWafflePath(fullPath)) {
+      console.error('[Main] Invalid path for image load:', imagePath);
+      return null;
+    }
 
     // Read the image file
     const imageBuffer = await fs.readFile(fullPath);
@@ -552,7 +600,11 @@ ipcMain.handle('load-image', async (event, imagePath) => {
 // Handle delete image
 ipcMain.handle('delete-image', async (event, imagePath) => {
   try {
-    const fullPath = path.join(__dirname, imagePath);
+    const fullPath = resolvePromptWafflePath(imagePath);
+    if (!validatePromptWafflePath(fullPath)) {
+      console.error('[Main] Invalid path for image deletion:', imagePath);
+      return false;
+    }
     await fs.unlink(fullPath);
     console.log('[Main] Image deleted successfully:', fullPath);
     return true;
@@ -589,8 +641,12 @@ ipcMain.handle('image-exists', async (event, imagePath) => {
   try {
     console.log('[Main] image-exists called with path:', imagePath);
 
-    // Create full path by joining with __dirname
-    const fullPath = path.join(__dirname, imagePath);
+    // Resolve path using PromptWaffle storage (uses userData now)
+    const fullPath = resolvePromptWafflePath(imagePath);
+    if (!validatePromptWafflePath(fullPath)) {
+      console.log('[Main] Image path outside data directory:', imagePath);
+      return false;
+    }
     console.log('[Main] Full path for image-exists:', fullPath);
 
     // Check if file exists
@@ -604,9 +660,9 @@ ipcMain.handle('image-exists', async (event, imagePath) => {
   }
 });
 
-// Ensure boards directory exists
+// Ensure boards directory exists (uses userData now)
 async function ensureBoardsDir() {
-  const boardsDir = path.join(__dirname, 'boards');
+  const boardsDir = getPromptWaffleDataPath('boards');
   try {
     await fs.access(boardsDir);
   } catch {
@@ -614,9 +670,9 @@ async function ensureBoardsDir() {
   }
 }
 
-// Ensure exports directory exists
+// Ensure exports directory exists (uses userData now)
 async function ensureExportsDir() {
-  const exportsDir = path.join(__dirname, 'exports');
+  const exportsDir = getPromptWaffleDataPath('exports');
   try {
     await fs.access(exportsDir);
   } catch {
@@ -624,9 +680,9 @@ async function ensureExportsDir() {
   }
 }
 
-// Ensure characters directory exists
+// Ensure characters directory exists (uses userData now)
 async function ensureCharactersDir() {
-  const charactersDir = path.join(__dirname, 'snippets', 'characters');
+  const charactersDir = path.join(getPromptWaffleDataPath('snippets'), 'characters');
   try {
     await fs.access(charactersDir);
   } catch {
@@ -643,7 +699,12 @@ ipcMain.handle('fs-readFile', async (event, filePath) => {
       throw new Error('Invalid file path');
     }
 
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
+    if (!validatePromptWafflePath(fullPath)) {
+      logSecurityEvent('path_traversal_attempt', { filePath, operation: 'fs-readFile' });
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
+    }
+    
     const content = await fs.readFile(fullPath, 'utf8');
     return content;
   } catch (error) {
@@ -693,7 +754,12 @@ ipcMain.handle('fs-writeFile', async (event, filePath, content) => {
       await ensureExportsDir();
     }
 
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
+    if (!validatePromptWafflePath(fullPath)) {
+      logSecurityEvent('path_traversal_attempt', { filePath: sanitizedPath, operation: 'fs-writeFile' });
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
+    }
+    
     const dir = path.dirname(fullPath);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(fullPath, content, 'utf8');
@@ -710,7 +776,7 @@ ipcMain.handle('get-initial-data', async () => {
     console.log('[Main] get-initial-data handler called');
     await ensureSnippetsDir();
 
-    const snippetsDir = path.join(__dirname, 'snippets');
+    const snippetsDir = getPromptWaffleDataPath('snippets');
     const sidebarTree = await buildSidebarTree(snippetsDir);
 
     return {

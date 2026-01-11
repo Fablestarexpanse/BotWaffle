@@ -42,6 +42,7 @@ class ChatbotEditor extends HTMLElement {
                 </div>
                 <div class="actions">
                     <button id="add-section-btn" class="secondary-btn">+ Add Section</button>
+                    <button id="import-markdown-btn" class="secondary-btn">Import Markdown</button>
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
@@ -128,6 +129,11 @@ class ChatbotEditor extends HTMLElement {
         // Add Section Logic: Show Modal
         this.querySelector('#add-section-btn').addEventListener('click', () => {
             window.EditorModals.showAddSectionModal(this);
+        });
+
+        // Import Markdown Logic: Show Modal
+        this.querySelector('#import-markdown-btn').addEventListener('click', () => {
+            window.EditorModals.showImportMarkdownModal(this);
         });
 
         const deleteBtn = this.querySelector('#delete-btn');

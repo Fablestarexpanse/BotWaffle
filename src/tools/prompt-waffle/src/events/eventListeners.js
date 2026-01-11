@@ -544,39 +544,6 @@ export function setupEventListeners() {
           showToast('Failed to verify backup', 'error');
         }
       },
-      checkForUpdatesBtn: async () => {
-        const btn = document.getElementById('checkForUpdatesBtn');
-        if (btn) {
-          btn.classList.add('loading');
-          btn.disabled = true;
-        }
-        try {
-          const { versionChecker } = await import(
-            '../utils/version-checker.js'
-          );
-          const { updateUI } = await import('../utils/update-ui.js');
-          const updateInfo = await versionChecker.checkForUpdates();
-          versionChecker.displayUpdateNotification(updateInfo);
-          if (updateInfo.success && updateInfo.isOutdated) {
-            updateUI.showUpdateModal(updateInfo);
-          } else if (updateInfo.success && !updateInfo.isOutdated) {
-            const { showToast } = await import('../utils/index.js');
-            showToast('You are running the latest version!', 'success');
-          } else if (!updateInfo.success) {
-            const { showToast } = await import('../utils/index.js');
-            showToast(`Update check failed: ${updateInfo.error}`, 'error');
-          }
-        } catch (error) {
-          console.error('Error checking for updates:', error);
-          const { showToast } = await import('../utils/index.js');
-          showToast('Error checking for updates', 'error');
-        } finally {
-          if (btn) {
-            btn.classList.remove('loading');
-            btn.disabled = false;
-          }
-        }
-      },
       toggleColorBtn: bootstrap.toggleCompiledColors,
       toggleCardColorsBtn: bootstrap.toggleCardColors,
       toggleSnippetColorsBtn: bootstrap.toggleCardColors,

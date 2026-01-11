@@ -234,3 +234,10 @@
     });
 
 })();
+
+// Initialize Feather icons after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+        feather.replace();
+    }
+});

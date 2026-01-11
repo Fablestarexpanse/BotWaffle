@@ -6,6 +6,9 @@ A comprehensive desktop application for creating, storing, tracking, and managin
 
 ### 🤖 BotWaffle Studio
 - **Chatbot Management**: Create and manage detailed profiles (Personality, Scenario, Greetings).
+- **Markdown Import**: Import markdown outlines (like character sheets) to automatically create sections and fields.
+- **Custom Sections**: Add custom fields and sections to organize character information.
+- **Data Management**: Export, import, and verify backups of all your chatbot data.
 - **Secure Configuration**: Local, encrypted storage for API keys.
 - **Conversation Tracking**: History logging for all your chat sessions.
 - **Privacy First**: 100% local data storage.

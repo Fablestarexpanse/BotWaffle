@@ -63,9 +63,6 @@ class ChatbotEditor extends HTMLElement {
                     <div class="sheet-header-left">
                         <span class="sheet-toggle-icon">▼</span>
                         <h3>Character Sheet</h3>
-                        <span class="sheet-token-summary" id="sheet-token-summary">Current Token Count: 0</span>
-                        <input type="number" id="max-token-input" class="max-token-input" placeholder="Max" min="0" value="">
-                        <span class="token-status" id="token-status"></span>
                     </div>
                 </div>
                 <div class="editor-content" id="character-sheet-sections">
@@ -221,11 +218,8 @@ class ChatbotEditor extends HTMLElement {
             }
         });
         
-        // Update summary (excluding profile)
-        const summaryEl = this.querySelector('#sheet-token-summary');
-        if (summaryEl) {
-            summaryEl.textContent = `Current Token Count: ${totalTokens}`;
-        }
+        // Update token display in Character Card Info section
+        this.updateProfileTokenDisplay();
         
         // Update token status (green/red based on max)
         this.updateTokenStatus(totalTokens);
@@ -258,9 +252,112 @@ class ChatbotEditor extends HTMLElement {
         }
     }
 
+    updateProfileTokenDisplay() {
+        if (!window.TokenCounter) return;
+        
+        const profileSection = this.querySelector('section-profile');
+        if (!profileSection) return;
+        
+        const charSheetContainer = this.querySelector('#character-sheet-sections');
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        
+        // Calculate token counts for each section
+        const sectionTokens = {
+            personality: 0,
+            scenario: 0,
+            initialMessages: 0,
+            exampleDialogs: 0,
+            customSections: 0
+        };
+        
+        const estimate = window.TokenCounter.estimateTokens || (() => 0);
+        const countObject = window.TokenCounter.countTokensInObject || (() => 0);
+        
+        // Count personality and custom sections from character sheet
+        if (charSheetContainer) {
+            const personalitySection = charSheetContainer.querySelector('section-personality');
+            if (personalitySection) {
+                sectionTokens.personality = window.TokenCounter.getSectionTokenCount(personalitySection) || 0;
+            }
+            
+            const customSections = charSheetContainer.querySelectorAll('section-custom');
+            customSections.forEach(section => {
+                sectionTokens.customSections += window.TokenCounter.getSectionTokenCount(section) || 0;
+            });
+        }
+        
+        // Count scenario, initial messages, and example dialogs
+        if (otherSectionsAfterContainer) {
+            const scenarioSection = otherSectionsAfterContainer.querySelector('section-scenario');
+            if (scenarioSection) {
+                sectionTokens.scenario = window.TokenCounter.getSectionTokenCount(scenarioSection) || 0;
+            }
+            
+            const initialMessagesSection = otherSectionsAfterContainer.querySelector('section-initial-messages');
+            if (initialMessagesSection) {
+                sectionTokens.initialMessages = window.TokenCounter.getSectionTokenCount(initialMessagesSection) || 0;
+            }
+            
+            const exampleDialogsSection = otherSectionsAfterContainer.querySelector('section-example-dialogs');
+            if (exampleDialogsSection) {
+                sectionTokens.exampleDialogs = window.TokenCounter.getSectionTokenCount(exampleDialogsSection) || 0;
+            }
+        }
+        
+        const totalTokens = sectionTokens.personality + sectionTokens.customSections + 
+                           sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs;
+        
+        // Update the token display in profile section
+        const tokenDisplay = profileSection.querySelector('.profile-token-display');
+        if (tokenDisplay) {
+            tokenDisplay.innerHTML = `
+                <div class="token-breakdown-card">
+                    <div class="token-grid">
+                        <div class="token-item-card token-character-sheet">
+                            <span class="token-label">Character Sheet</span>
+                            <span class="token-value">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
+                        </div>
+                        <div class="token-item-card token-scenario">
+                            <span class="token-label">Scenario</span>
+                            <span class="token-value">${sectionTokens.scenario} tokens</span>
+                        </div>
+                        <div class="token-item-card token-initial-messages">
+                            <span class="token-label">Initial Messages</span>
+                            <span class="token-value">${sectionTokens.initialMessages} tokens</span>
+                        </div>
+                        <div class="token-item-card token-example-dialogs">
+                            <span class="token-label">Example Dialogs</span>
+                            <span class="token-value">${sectionTokens.exampleDialogs} tokens</span>
+                        </div>
+                    </div>
+                    <div class="token-totals">
+                        <div class="token-total-item">
+                            <span class="token-total-label">Total Permanent</span>
+                            <span class="token-total-value token-permanent">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
+                        </div>
+                        <div class="token-total-item">
+                            <span class="token-total-label">Total Temp</span>
+                            <span class="token-total-value token-temp">${sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs} tokens</span>
+                        </div>
+                        <div class="token-total-item">
+                            <span class="token-total-label">Grand Total</span>
+                            <span class="token-total-value token-grand">${totalTokens} tokens</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Update token status
+        this.updateTokenStatus(totalTokens);
+    }
+
     updateTokenStatus(currentCount) {
-        const maxInput = this.querySelector('#max-token-input');
-        const statusEl = this.querySelector('#token-status');
+        const profileSection = this.querySelector('section-profile');
+        if (!profileSection) return;
+        
+        const maxInput = profileSection.querySelector('#max-token-input');
+        const statusEl = profileSection.querySelector('#token-status');
         
         if (!statusEl) return;
         
@@ -272,7 +369,7 @@ class ChatbotEditor extends HTMLElement {
                 statusEl.className = 'token-status good';
             } else {
                 const over = currentCount - maxValue;
-                statusEl.textContent = `Over by ${over}`;
+                statusEl.textContent = `Over by ${over} tokens`;
                 statusEl.className = 'token-status over';
             }
         } else {
@@ -286,11 +383,7 @@ class ChatbotEditor extends HTMLElement {
         const sheetHeader = this.querySelector('#character-sheet-header');
         const sheetWrapper = this.querySelector('.character-sheet-wrapper');
         if (sheetHeader && sheetWrapper) {
-            sheetHeader.addEventListener('click', (e) => {
-                // Don't toggle if clicking on input or status
-                if (e.target.closest('#max-token-input') || e.target.closest('#token-status')) {
-                    return;
-                }
+            sheetHeader.addEventListener('click', () => {
                 sheetWrapper.classList.toggle('collapsed');
             });
         }
@@ -482,8 +575,7 @@ class ChatbotEditor extends HTMLElement {
                     } else {
                         this._data.metadata = { status: e.detail.status };
                     }
-                    // Notify that status was updated (triggers card refresh in list view)
-                    this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
+                    // Status is updated but don't navigate away - user stays in editor
                 } catch (error) {
                     console.error('Failed to update status:', error);
                     alert('Failed to update status. Please try again.');

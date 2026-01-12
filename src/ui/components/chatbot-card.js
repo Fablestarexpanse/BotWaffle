@@ -97,10 +97,10 @@ class ChatbotCard extends HTMLElement {
         const displayName = escapeHtml(bot.profile.displayName || bot.profile.name);
         const name = escapeHtml(bot.profile.name);
         const category = escapeHtml(bot.profile.category || '');
-        // Limit description to 200 characters
+        // Limit description to 150 characters
         let descriptionText = bot.profile.description || 'No description provided.';
-        if (descriptionText.length > 200) {
-            descriptionText = descriptionText.substring(0, 200).trim() + '...';
+        if (descriptionText.length > 150) {
+            descriptionText = descriptionText.substring(0, 150).trim() + '...';
         }
         const description = escapeHtml(descriptionText);
         const statusValue = bot.metadata.status || 'draft';

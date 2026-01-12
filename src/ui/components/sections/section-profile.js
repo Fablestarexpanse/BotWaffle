@@ -141,12 +141,31 @@ class SectionProfile extends customElements.get('section-base') {
         }).join('');
         
         body.innerHTML = `
-            <div class="form-group" id="images-container">
-                <label>Character Images (Max 5) - First image is thumbnail for character card</label>
-                <div class="image-list" id="image-list">
-                    <!-- Images injected here -->
+            <div class="profile-main-layout">
+                <div class="profile-left">
+                    <div class="form-group" id="images-container">
+                        <label>Character Images (Max 5) - First image is thumbnail for character card</label>
+                        <div class="image-list" id="image-list">
+                            <!-- Images injected here -->
+                        </div>
+                        <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image from Computer</button>
+                    </div>
                 </div>
-                <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image from Computer</button>
+                <div class="profile-right">
+                    <div class="form-group">
+                        <label>Token Tracking</label>
+                        <div class="profile-token-display">
+                            <!-- Token breakdown will be injected here -->
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <input type="number" id="max-token-input" class="max-token-input" placeholder="Max tokens" min="0" value="" style="flex: 1;">
+                                <span class="token-status" id="token-status"></span>
+                            </div>
+                            <div class="token-help-text">Set maximum token limit to track if you exceed it</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="form-group">

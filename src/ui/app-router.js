@@ -227,6 +227,11 @@
         showList();
     });
 
+    // Listen for 'editor-save' to refresh list and return to it
+    document.addEventListener('editor-save', () => {
+        showList();
+    });
+
     // Listen for sidebar navigation (Library / Settings)
     document.addEventListener('navigate-library', () => {
         if (checkUnsavedChanges()) return;

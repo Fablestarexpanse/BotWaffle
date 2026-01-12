@@ -11,12 +11,26 @@ class SectionProfile extends customElements.get('section-base') {
     renderFrame() {
         // Override to make profile section non-draggable and non-removable
         this.setAttribute('draggable', 'false');
+        
+        // Get status value for the dropdown
+        const statusValue = this._data.metadata?.status || 'draft';
+        const statusOptions = ['draft', 'published', 'archived', 'to-delete'].map(status => {
+            const displayText = status === 'to-delete' ? 'To Delete' : status.charAt(0).toUpperCase() + status.slice(1);
+            return `<option value="${status}" ${status === statusValue ? 'selected' : ''}>${displayText}</option>`;
+        }).join('');
+        
+        // Add status class to the section element for border coloring
+        this.className = `section-profile status-${statusValue}`;
+        
         this.innerHTML = `
             <div class="section-container">
                 <div class="section-header">
                     <div class="header-left">
                         <span class="toggle-icon">▼</span>
                         <h3 class="section-title">${this._title}</h3>
+                        <select name="status" class="status-select-header">
+                            ${statusOptions}
+                        </select>
                     </div>
                     <div class="header-actions">
                         <!-- No remove button for profile section -->
@@ -37,14 +51,39 @@ class SectionProfile extends customElements.get('section-base') {
         const header = this.querySelector('.section-header');
         if (header) {
             header.addEventListener('click', (e) => {
-                // Don't toggle if clicking on header actions
-                if (e.target.closest('.header-actions')) return;
+                // Don't toggle if clicking on header actions or status select
+                if (e.target.closest('.header-actions') || e.target.closest('.status-select-header')) return;
                 this._minimized = !this._minimized;
                 this.toggleContent();
                 this.dispatchEvent(new CustomEvent('toggle-section', {
                     detail: { minimized: this._minimized },
                     bubbles: true
                 }));
+            });
+        }
+
+        // Add change listener for status select
+        const statusSelect = this.querySelector('.status-select-header');
+        if (statusSelect) {
+            // Update dropdown border color based on initial status
+            this.updateStatusSelectColor(statusSelect, statusSelect.value);
+            
+            statusSelect.addEventListener('change', async (e) => {
+                const newStatus = e.target.value;
+                // Update the class on the section element to reflect status change immediately
+                this.className = `section-profile status-${newStatus}`;
+                // Update dropdown border color
+                this.updateStatusSelectColor(statusSelect, newStatus);
+                
+                // Save status change immediately without requiring full save
+                this.dispatchEvent(new CustomEvent('status-change', { 
+                    detail: { status: newStatus },
+                    bubbles: true 
+                }));
+            });
+            // Prevent status select from toggling section
+            statusSelect.addEventListener('click', (e) => {
+                e.stopPropagation();
             });
         }
 
@@ -95,6 +134,11 @@ class SectionProfile extends customElements.get('section-base') {
         const categoryValue = escapeHtml(data.category || 'Character');
         const descriptionValue = escapeHtml(data.description || '');
         const categoryOptions = categories.map(cat => `<option value="${escapeHtml(cat)}"></option>`).join('');
+        const statusValue = this._data.metadata?.status || 'draft';
+        const statusOptions = ['draft', 'published', 'archived', 'to-delete'].map(status => {
+            const displayText = status === 'to-delete' ? 'To Delete' : status.charAt(0).toUpperCase() + status.slice(1);
+            return `<option value="${escapeHtml(status)}" ${status === statusValue ? 'selected' : ''}>${escapeHtml(displayText)}</option>`;
+        }).join('');
         
         body.innerHTML = `
             <div class="form-group" id="images-container">
@@ -126,6 +170,13 @@ class SectionProfile extends customElements.get('section-base') {
                 <datalist id="category-options">
                     ${categoryOptions}
                 </datalist>
+            </div>
+
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status" class="input-field">
+                    ${statusOptions}
+                </select>
             </div>
 
             <div class="form-group">
@@ -433,6 +484,13 @@ class SectionProfile extends customElements.get('section-base') {
         return images.length > 0 ? 0 : -1;
     }
 
+    updateStatusSelectColor(selectElement, status) {
+        // Remove existing status classes
+        selectElement.classList.remove('status-draft', 'status-published', 'status-archived', 'status-to-delete');
+        // Add new status class
+        selectElement.classList.add(`status-${status}`);
+    }
+
     getData() {
         const body = this.querySelector('.section-body');
         if (!body) {
@@ -445,7 +503,8 @@ class SectionProfile extends customElements.get('section-base') {
                 image: '',
                 images: [],
                 thumbnailIndex: -1,
-                tags: []
+                tags: [],
+                status: 'draft'
             };
         }
 
@@ -458,6 +517,8 @@ class SectionProfile extends customElements.get('section-base') {
         const categoryInput = body.querySelector('[name="category"]');
         const descriptionInput = body.querySelector('[name="description"]');
         const tagsInput = body.querySelector('[name="tags"]');
+        // Status is now in the header, not the body
+        const statusInput = this.querySelector('.status-select-header');
 
         return {
             name: nameInput ? nameInput.value : '',
@@ -467,7 +528,8 @@ class SectionProfile extends customElements.get('section-base') {
             image: images.length > 0 ? images[0] : '', // Backward compat - first image
             images: images,
             thumbnailIndex: thumbnailIndex,
-            tags: tagsInput ? tagsInput.value.split(',').map(t => t.trim()).filter(t => t) : []
+            tags: tagsInput ? tagsInput.value.split(',').map(t => t.trim()).filter(t => t) : [],
+            status: statusInput ? statusInput.value : 'draft'
         };
     }
 }

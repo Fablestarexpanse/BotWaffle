@@ -41,12 +41,15 @@ class SectionInitialMessages extends customElements.get('section-base') {
                         <button type="button" id="add-message-btn" class="secondary-btn small">+ Add Message</button>
                     </div>
                     <div class="messages-tabs" id="messages-tabs">
-                        ${this._messages.map((msg, index) => `
+                        ${this._messages.map((msg, index) => {
+                            const tokenCount = window.TokenCounter ? window.TokenCounter.estimateTokens(msg.text || '') : 0;
+                            return `
                             <button type="button" class="message-tab ${index === 0 ? 'active' : ''}" data-index="${index}">
-                                Message ${index + 1}
+                                Message ${index + 1} (${tokenCount} tokens)
                                 ${this._messages.length > 1 ? `<span class="tab-close" data-index="${index}">×</span>` : ''}
                             </button>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                     <div class="messages-content" id="messages-content">
                         ${this._messages.map((msg, index) => `
@@ -75,6 +78,7 @@ class SectionInitialMessages extends customElements.get('section-base') {
         tabs.forEach(tab => {
             tab.addEventListener('click', (e) => {
                 if (e.target.classList.contains('tab-close')) {
+                    e.stopPropagation();
                     const index = parseInt(e.target.getAttribute('data-index'), 10);
                     this._removeMessage(index);
                     return;
@@ -92,7 +96,7 @@ class SectionInitialMessages extends customElements.get('section-base') {
             });
         }
 
-        // Save content on input
+        // Save content on input and update token counts
         panels.forEach(panel => {
             const textarea = panel.querySelector('.message-textarea');
             if (textarea) {
@@ -101,9 +105,20 @@ class SectionInitialMessages extends customElements.get('section-base') {
                     if (this._messages[index]) {
                         this._messages[index].text = textarea.value;
                     }
+                    // Update token count for this message
+                    this._updateMessageTokenCount(index);
+                    // Trigger editor to update all token counts
+                    this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
                 });
             }
         });
+        
+        // Initial token count update
+        setTimeout(() => {
+            panels.forEach((panel, index) => {
+                this._updateMessageTokenCount(index);
+            });
+        }, 100);
     }
 
     _switchTab(index) {
@@ -115,6 +130,9 @@ class SectionInitialMessages extends customElements.get('section-base') {
         
         if (tabs[index]) tabs[index].classList.add('active');
         if (panels[index]) panels[index].classList.add('active');
+        
+        // Update token count when switching tabs (in case content changed)
+        this._updateMessageTokenCount(index);
     }
 
     _addMessage() {
@@ -143,6 +161,48 @@ class SectionInitialMessages extends customElements.get('section-base') {
         } else {
             this._switchTab(index);
         }
+    }
+    
+    _updateMessageTokenCount(index) {
+        if (!window.TokenCounter) return;
+        
+        const tab = this.querySelector(`.message-tab[data-index="${index}"]`);
+        const panel = this.querySelector(`.message-panel[data-index="${index}"]`);
+        
+        if (!tab || !panel) return;
+        
+        const textarea = panel.querySelector('.message-textarea');
+        if (!textarea) return;
+        
+        const tokenCount = window.TokenCounter.estimateTokens(textarea.value);
+        // Extract base text (Message X) and preserve close button
+        const closeBtn = tab.querySelector('.tab-close');
+        const hasCloseBtn = closeBtn !== null;
+        // Get the base text by removing token count and close button text
+        let baseText = tab.textContent.replace(/\s*\(\d+\s*tokens?\)\s*/i, '').replace(/\s*×\s*$/, '').trim();
+        if (!baseText.match(/^Message\s+\d+$/)) {
+            // Fallback: just use "Message X"
+            baseText = `Message ${index + 1}`;
+        }
+        
+        // Update tab text, preserving close button structure
+        if (hasCloseBtn && this._messages.length > 1) {
+            tab.innerHTML = `${baseText} (${tokenCount} tokens)<span class="tab-close" data-index="${index}">×</span>`;
+        } else {
+            tab.innerHTML = `${baseText} (${tokenCount} tokens)`;
+        }
+        
+        // Re-setup listeners for this tab after innerHTML change
+        tab.addEventListener('click', (e) => {
+            if (e.target.classList.contains('tab-close')) {
+                e.stopPropagation();
+                const idx = parseInt(e.target.getAttribute('data-index'), 10);
+                this._removeMessage(idx);
+                return;
+            }
+            const idx = parseInt(tab.getAttribute('data-index'), 10);
+            this._switchTab(idx);
+        });
     }
 
     getData() {

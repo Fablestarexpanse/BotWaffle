@@ -183,18 +183,22 @@ class ChatbotEditor extends HTMLElement {
         
         const charSheetContainer = this.querySelector('#character-sheet-sections');
         const otherSectionsContainer = this.querySelector('#other-sections-container');
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
         if (!charSheetContainer || !otherSectionsContainer) return;
         
         // Count tokens from all sections (character sheet + separate sections)
         const allSections = [
             ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
-            ...otherSectionsContainer.querySelectorAll('section-profile, section-scenario, section-initial-messages, section-example-dialogs')
+            ...otherSectionsContainer.querySelectorAll('section-profile'),
+            ...(otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [])
         ];
         let totalTokens = 0;
         
         allSections.forEach(section => {
+            const tagName = section.tagName.toLowerCase();
+            
             // Skip profile section - don't count or display tokens
-            if (section.tagName.toLowerCase() === 'section-profile') {
+            if (tagName === 'section-profile') {
                 // Hide token count display if it exists
                 const tokenDisplay = section.querySelector('.token-count');
                 if (tokenDisplay) {
@@ -203,9 +207,18 @@ class ChatbotEditor extends HTMLElement {
                 return;
             }
             
-            const count = window.TokenCounter.getSectionTokenCount(section);
-            window.TokenCounter.updateTokenDisplay(section, count);
-            totalTokens += count;
+            // Handle Initial Messages separately - show per-message tokens
+            if (tagName === 'section-initial-messages') {
+                this.updateInitialMessagesTokenCounts(section);
+                const count = window.TokenCounter.getSectionTokenCount(section);
+                window.TokenCounter.updateTokenDisplay(section, count);
+                totalTokens += count;
+            } else {
+                // Standard token counting for other sections
+                const count = window.TokenCounter.getSectionTokenCount(section);
+                window.TokenCounter.updateTokenDisplay(section, count);
+                totalTokens += count;
+            }
         });
         
         // Update summary (excluding profile)
@@ -216,6 +229,33 @@ class ChatbotEditor extends HTMLElement {
         
         // Update token status (green/red based on max)
         this.updateTokenStatus(totalTokens);
+    }
+    
+    updateInitialMessagesTokenCounts(section) {
+        // Trigger section's own token count update for all messages
+        // The section handles per-message token displays in tabs
+        if (section && typeof section._updateAllMessageTokenCounts === 'function') {
+            section._updateAllMessageTokenCounts();
+        } else {
+            // Fallback: update all tabs directly
+            if (!window.TokenCounter) return;
+            const tabs = section.querySelectorAll('.message-tab');
+            const panels = section.querySelectorAll('.message-panel');
+            tabs.forEach((tab, index) => {
+                const panel = panels[index];
+                if (!panel) return;
+                const textarea = panel.querySelector('.message-textarea');
+                if (!textarea) return;
+                const tokenCount = window.TokenCounter.estimateTokens(textarea.value);
+                const baseText = `Message ${index + 1}`;
+                const closeBtn = tab.querySelector('.tab-close');
+                if (closeBtn && section._messages && section._messages.length > 1) {
+                    tab.innerHTML = `${baseText} (${tokenCount} tokens)<span class="tab-close" data-index="${index}">×</span>`;
+                } else {
+                    tab.innerHTML = `${baseText} (${tokenCount} tokens)`;
+                }
+            });
+        }
     }
 
     updateTokenStatus(currentCount) {
@@ -261,10 +301,12 @@ class ChatbotEditor extends HTMLElement {
             maxTokenInput.addEventListener('input', () => {
                 const charSheetContainer = this.querySelector('#character-sheet-sections');
                 const otherSectionsContainer = this.querySelector('#other-sections-container');
+                const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
                 if (charSheetContainer && otherSectionsContainer) {
                     const allSections = [
                         ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
-                        ...otherSectionsContainer.querySelectorAll('section-profile, section-scenario, section-initial-messages, section-example-dialogs')
+                        ...otherSectionsContainer.querySelectorAll('section-profile'),
+                        ...(otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [])
                     ];
                     let totalTokens = 0;
                     allSections.forEach(section => {
@@ -425,6 +467,30 @@ class ChatbotEditor extends HTMLElement {
             this.updateTokenCounts();
         });
 
+        // Handle status changes - save immediately without requiring full save
+        this.addEventListener('status-change', async (e) => {
+            if (this._mode === 'edit' && this.currentId && e.detail.status) {
+                try {
+                    await window.api.chatbot.update(this.currentId, {
+                        metadata: {
+                            status: e.detail.status
+                        }
+                    });
+                    // Update local data to reflect the change
+                    if (this._data.metadata) {
+                        this._data.metadata.status = e.detail.status;
+                    } else {
+                        this._data.metadata = { status: e.detail.status };
+                    }
+                    // Notify that status was updated (triggers card refresh in list view)
+                    this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
+                } catch (error) {
+                    console.error('Failed to update status:', error);
+                    alert('Failed to update status. Please try again.');
+                }
+            }
+        });
+
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('[draggable="true"]:not([style*="opacity: 0.5"])')];
             return draggableElements.reduce((closest, child) => {
@@ -472,7 +538,9 @@ class ChatbotEditor extends HTMLElement {
         // Collect data from all sections
         const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
         const otherSections = this.querySelectorAll('#other-sections-container > *');
-        const sections = [...charSheetSections, ...otherSections];
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [];
+        const sections = [...charSheetSections, ...otherSections, ...afterSections];
         let fullData = {
             // Preserve existing data that might not be in sections (like ID)
             ...this._data,
@@ -497,6 +565,7 @@ class ChatbotEditor extends HTMLElement {
                     fullData.image = sectionData.image;
                     fullData.images = sectionData.images;
                     fullData.thumbnailIndex = sectionData.thumbnailIndex;
+                    fullData.status = sectionData.status;
 
                     // Also store in profile object for consistency
                     if (!fullData.profile) fullData.profile = {};
@@ -568,7 +637,10 @@ class ChatbotEditor extends HTMLElement {
                     scenario: fullData.scenario,
                     initialMessages: fullData.initialMessages,
                     exampleDialogs: fullData.exampleDialogs,
-                    customSections: fullData.customSections
+                    customSections: fullData.customSections,
+                    metadata: {
+                        status: fullData.status || 'draft'
+                    }
                 });
 
                 // Update state to 'edit' so subsequent saves don't create duplicates
@@ -588,6 +660,16 @@ class ChatbotEditor extends HTMLElement {
                 alert('Chatbot created successfully!');
 
             } else {
+                // Increment version number (semantic versioning - increment patch version)
+                const currentVersion = this._data.metadata?.version || '1.0.0';
+                const versionParts = currentVersion.split('.').map(v => parseInt(v, 10));
+                if (versionParts.length === 3 && !isNaN(versionParts[2])) {
+                    versionParts[2] += 1; // Increment patch version
+                } else {
+                    versionParts[2] = 1; // Default to 1.0.1 if version format is invalid
+                }
+                const newVersion = versionParts.join('.');
+
                 await window.api.chatbot.update(this.currentId, {
                     profile: {
                         name: fullData.name,
@@ -604,7 +686,11 @@ class ChatbotEditor extends HTMLElement {
                     initialMessages: fullData.initialMessages,
                     exampleDialogs: fullData.exampleDialogs,
                     customSections: fullData.customSections,
-                    layout: fullData.layout
+                    layout: fullData.layout,
+                    metadata: {
+                        status: fullData.status || 'draft',
+                        version: newVersion
+                    }
                 });
                 // Feedback for update
                 // alert('Saved!'); // Optional, maybe too annoying? Button text change is enough.

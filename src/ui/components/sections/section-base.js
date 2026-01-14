@@ -67,19 +67,57 @@ class SectionBase extends HTMLElement {
     }
 
     setupBaseListeners() {
-        this.querySelector('.section-header').addEventListener('click', (e) => {
-            if (e.target.closest('.remove-btn')) return;
-            this._minimized = !this._minimized;
-            this.toggleContent();
-            this.dispatchEvent(new CustomEvent('toggle-section', {
-                detail: { minimized: this._minimized },
-                bubbles: true
-            }));
-        });
+        const header = this.querySelector('.section-header');
+        if (header) {
+            // Only toggle when clicking on the toggle icon or header title
+            const toggleIcon = header.querySelector('.toggle-icon');
+            const headerTitle = header.querySelector('.section-title');
+            const headerLeft = header.querySelector('.header-left');
+            
+            const toggleHandler = (e) => {
+                const target = e.target;
+                
+                // Quick check: if clicking on interactive elements, don't toggle
+                if (target.tagName === 'INPUT' || 
+                    target.tagName === 'SELECT' || 
+                    target.tagName === 'TEXTAREA' ||
+                    target.tagName === 'BUTTON' ||
+                    target.closest('.remove-btn') || 
+                    target.closest('.header-actions') ||
+                    target.closest('input, select, textarea, button')) {
+                    return;
+                }
+                
+                // Only toggle if clicking on toggle icon, title, or empty space in header-left
+                const clickedToggleIcon = toggleIcon && (target === toggleIcon || toggleIcon.contains(target));
+                const clickedTitle = headerTitle && (target === headerTitle || headerTitle.contains(target));
+                const clickedHeaderLeft = headerLeft && (target === headerLeft || (headerLeft.contains(target) && !target.closest('input, select, textarea, button, .remove-btn, .header-actions')));
+                
+                if (clickedToggleIcon || clickedTitle || clickedHeaderLeft) {
+                    this._minimized = !this._minimized;
+                    this.toggleContent();
+                    this.dispatchEvent(new CustomEvent('toggle-section', {
+                        detail: { minimized: this._minimized },
+                        bubbles: true
+                    }));
+                }
+            };
+            
+            // Use normal bubbling phase for better performance
+            if (headerLeft) {
+                headerLeft.addEventListener('click', toggleHandler);
+            } else {
+                header.addEventListener('click', toggleHandler);
+            }
+        }
 
-        this.querySelector('.remove-btn').addEventListener('click', () => {
-            this.dispatchEvent(new CustomEvent('remove-section', { bubbles: true }));
-        });
+        const removeBtn = this.querySelector('.remove-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.dispatchEvent(new CustomEvent('remove-section', { bubbles: true }));
+            });
+        }
     }
 
     toggleContent() {

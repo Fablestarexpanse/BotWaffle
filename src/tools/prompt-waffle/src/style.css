@@ -199,9 +199,10 @@
 }
 
 .sidebar-logo img {
-  max-width: 80px;
-  height: auto;
+  width: 120px;
+  height: 120px;
   transition: var(--transition-fast);
+  object-fit: contain;
 }
 
 .sidebar-logo img:hover {
@@ -377,10 +378,11 @@ body {
 }
 
 .sidebar-logo img {
-  max-width: 140px;
-  height: auto;
+  width: 120px;
+  height: 120px;
   margin-bottom: 0.5rem;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  object-fit: contain;
 }
 
 .sidebar-logo .tagline {

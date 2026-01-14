@@ -100,6 +100,13 @@ class SectionInitialMessages extends customElements.get('section-base') {
         panels.forEach(panel => {
             const textarea = panel.querySelector('.message-textarea');
             if (textarea) {
+                // Prevent header click from interfering
+                textarea.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                textarea.addEventListener('focus', (e) => {
+                    e.stopPropagation();
+                });
                 textarea.addEventListener('input', () => {
                     const index = parseInt(panel.getAttribute('data-index'), 10);
                     if (this._messages[index]) {

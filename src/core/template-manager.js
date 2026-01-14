@@ -5,6 +5,7 @@ const { getDataPath } = require('./storage');
 const { validatePath } = require('./utils/security');
 const { validateTemplate } = require('./utils/validation');
 const { templateCache } = require('./cache');
+const { error: logError } = require('./utils/logger');
 
 class TemplateManager {
     constructor() {
@@ -134,6 +135,31 @@ class TemplateManager {
             }
             logError('Error getting template', error);
             return null;
+        }
+    }
+
+    async deleteTemplate(id) {
+        try {
+            // Validate path before deleting
+            const fileName = `${id}.json`;
+            const validatedPath = validatePath(fileName, this.basePath);
+            if (!validatedPath) {
+                throw new Error('Invalid template ID: potential directory traversal detected');
+            }
+
+            // Remove from cache
+            templateCache.delete(id);
+
+            // Delete the file
+            await fsPromises.unlink(validatedPath);
+            return true;
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                // File doesn't exist, but that's okay - consider it deleted
+                return true;
+            }
+            logError('Error deleting template', error);
+            throw new Error(`Failed to delete template: ${error.message}`);
         }
     }
 }

@@ -75,8 +75,7 @@
                 finalizeSection();
                 currentSection = h1Match[1].trim();
             } else if (h2Match) {
-                // H2 header = could be a new category or sub-section
-                // For now, treat as new category (user can merge manually if needed)
+                // H2 header = new category
                 finalizeSection();
                 currentSection = h2Match[1].trim();
             } else if (line.match(/^[-*+]\s+/)) {
@@ -158,11 +157,16 @@
         }
 
         sections.forEach((section, index) => {
-            if (!section.category || typeof section.category !== 'string') {
-                errors.push(`Section ${index + 1}: Missing or invalid category name`);
-            }
-            if (!Array.isArray(section.fields) || section.fields.length === 0) {
-                errors.push(`Section "${section.category || index + 1}": Must have at least one field`);
+            // All sections should be custom type
+            if (section.type === 'custom') {
+                if (!section.category || typeof section.category !== 'string') {
+                    errors.push(`Section ${index + 1}: Missing or invalid category name`);
+                }
+                if (!Array.isArray(section.fields) || section.fields.length === 0) {
+                    errors.push(`Section "${section.category || index + 1}": Must have at least one field`);
+                }
+            } else {
+                errors.push(`Section ${index + 1}: Unknown section type "${section.type}"`);
             }
         });
 

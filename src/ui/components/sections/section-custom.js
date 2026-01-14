@@ -52,6 +52,36 @@ class SectionCustom extends customElements.get('section-base') {
                 }).join('')}
             </div>
         `;
+        
+        // Set up event listeners for input fields to prevent header click interference
+        this.setupInputListeners();
+    }
+
+    setupInputListeners() {
+        const body = this.querySelector('.section-body');
+        if (!body) return;
+        
+        // Add event listeners to all input fields to prevent header click from interfering
+        // Use simple bubbling phase - no need for capture phase which can cause delays
+        body.querySelectorAll('.input-field, input, textarea, select').forEach(input => {
+            // Only stop propagation on click and focus - the essential ones
+            input.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            input.addEventListener('focus', (e) => {
+                e.stopPropagation();
+            });
+            input.addEventListener('input', () => {
+                this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+            });
+        });
+        
+        // Also stop propagation on labels
+        body.querySelectorAll('label').forEach(label => {
+            label.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
     }
 
     renderField(field, value, index) {

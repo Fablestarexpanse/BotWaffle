@@ -112,16 +112,15 @@
             if (header) {
                 tokenDisplay = document.createElement('span');
                 tokenDisplay.className = 'token-count';
-                tokenDisplay.style.cssText = 'margin-right: 8px; font-size: 0.85em; color: var(--text-secondary);';
                 header.insertBefore(tokenDisplay, header.firstChild);
             }
         }
         
         if (tokenDisplay) {
             if (max !== null) {
-                tokenDisplay.textContent = `Section Token Count: ${count}:${max}`;
+                tokenDisplay.textContent = `${count} / ${max} tokens`;
             } else {
-                tokenDisplay.textContent = `Section Token Count: ${count}`;
+                tokenDisplay.textContent = `${count} tokens`;
             }
         }
     }

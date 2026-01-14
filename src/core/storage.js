@@ -70,5 +70,6 @@ function getDataPath(subdir) {
 
 module.exports = {
     initializeStorage,
-    getDataPath
+    getDataPath,
+    getDataDir
 };

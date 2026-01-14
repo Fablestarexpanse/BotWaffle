@@ -76,6 +76,7 @@ app.whenReady().then(() => {
     registerIpcHandler(ipcMain, 'template:list', () => templateManager.listTemplates(), { errorReturn: [] });
     registerIpcHandler(ipcMain, 'template:save', (_, name, layout) => templateManager.saveTemplate(name, layout), { rethrow: true });
     registerIpcHandler(ipcMain, 'template:get', (_, id) => templateManager.getTemplate(id), { errorReturn: null });
+    registerIpcHandler(ipcMain, 'template:delete', (_, id) => templateManager.deleteTemplate(id), { rethrow: true });
 
     // Asset Handlers
 
@@ -100,17 +101,30 @@ app.whenReady().then(() => {
             const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
             const zipFilename = `BotWaffle_Backup_${timestamp}.zip`;
 
-            const foldersToExport = ['chatbots', 'conversations', 'templates', 'assets'];
+            // Export all BotWaffle data folders
+            const foldersToExport = ['chatbots', 'conversations', 'templates', 'assets', 'config'];
+            let exportedCount = 0;
 
             for (const folder of foldersToExport) {
                 const folderPath = getDataPath(folder);
                 try {
                     await fs.access(folderPath);
-                    zip.addLocalFolder(folderPath, folder);
-                    info(`[Export] Added folder: ${folder}`);
+                    // Check if folder has any files
+                    const files = await fs.readdir(folderPath);
+                    if (files.length > 0) {
+                        zip.addLocalFolder(folderPath, folder);
+                        info(`[Export] Added folder: ${folder} (${files.length} items)`);
+                        exportedCount++;
+                    } else {
+                        info(`[Export] Skipping empty folder: ${folder}`);
+                    }
                 } catch (error) {
                     info(`[Export] Skipping non-existent folder: ${folder}`);
                 }
+            }
+
+            if (exportedCount === 0) {
+                throw new Error('No data folders found to export');
             }
 
             const manifest = {
@@ -235,7 +249,14 @@ app.whenReady().then(() => {
                 logError('[Import] Failed to backup current data', backupError);
             }
 
+            // Extract ZIP to data directory (overwrite existing files)
             zip.extractAllTo(dataDir, true);
+            
+            // Clear caches to force reload of imported data
+            const { chatbotCache } = require('./src/core/cache');
+            chatbotCache.clear();
+            const { templateCache } = require('./src/core/cache');
+            templateCache.clear();
 
             info('[Import] Data imported successfully');
 

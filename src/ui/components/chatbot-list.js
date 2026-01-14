@@ -22,11 +22,6 @@ class ChatbotList extends HTMLElement {
                         </select>
                     </div>
                     
-                    <div class="view-toggles">
-                        <button id="view-grid" class="icon-btn active" title="Grid View">⊞</button>
-                        <button id="view-list" class="icon-btn" title="List View">☰</button>
-                    </div>
-                    
                     <button id="refresh-btn" class="icon-btn" title="Refresh">↻</button>
                 </div>
             </div>
@@ -62,7 +57,6 @@ class ChatbotList extends HTMLElement {
         this.bots = []; // Store fetched bots
         this.filteredBots = []; // Filtered bots (after search)
         this.sortBy = 'date-desc';
-        this.viewMode = 'grid';
         this.currentPage = 1;
         this.botsPerPage = 50; // Render 50 bots per page for optimal performance
     }
@@ -124,9 +118,6 @@ class ChatbotList extends HTMLElement {
             this.renderBots();
         });
 
-        this.querySelector('#view-grid').addEventListener('click', () => this.setViewMode('grid'));
-        this.querySelector('#view-list').addEventListener('click', () => this.setViewMode('list'));
-        
         // Listen for tag filter events from cards
         this.addEventListener('filter-by-tag', (e) => {
             e.stopPropagation();
@@ -138,23 +129,6 @@ class ChatbotList extends HTMLElement {
                 this.filterBots(tag);
             }
         });
-    }
-
-    setViewMode(mode) {
-        this.viewMode = mode;
-        const grid = this.querySelector('#bot-grid');
-
-        this.querySelector('#view-grid').classList.toggle('active', mode === 'grid');
-        this.querySelector('#view-list').classList.toggle('active', mode === 'list');
-
-        if (mode === 'list') {
-            grid.classList.add('list-view');
-        } else {
-            grid.classList.remove('list-view');
-        }
-        
-        // Keep current page when switching views (no need to re-render)
-        // View mode is just CSS, cards are already rendered
     }
 
     async loadChatbots() {
@@ -233,10 +207,6 @@ class ChatbotList extends HTMLElement {
             grid.appendChild(card);
         });
 
-        // Re-apply view mode class
-        if (this.viewMode === 'list') grid.classList.add('list-view');
-        else grid.classList.remove('list-view');
-        
         // Update pagination UI
         this.updatePagination(totalBots);
         

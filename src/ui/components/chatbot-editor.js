@@ -28,12 +28,32 @@ class ChatbotEditor extends HTMLElement {
         const isEdit = this._mode === 'edit';
 
         // Default layout if none exists
-        this.layout = bot.layout || [
+        const defaultLayout = [
             { type: 'profile', id: 'section-profile', minimized: false },
             { type: 'scenario', id: 'section-scenario', minimized: false },
             { type: 'initial-messages', id: 'section-initial-messages', minimized: false },
             { type: 'example-dialogs', id: 'section-example-dialogs', minimized: false }
         ];
+        
+        this.layout = bot.layout || defaultLayout;
+        
+        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        const requiredSections = [
+            { type: 'scenario', id: 'section-scenario' },
+            { type: 'initial-messages', id: 'section-initial-messages' },
+            { type: 'example-dialogs', id: 'section-example-dialogs' }
+        ];
+        
+        requiredSections.forEach(required => {
+            const exists = this.layout.some(l => l.type === required.type);
+            if (!exists) {
+                this.layout.push({
+                    type: required.type,
+                    id: required.id,
+                    minimized: false
+                });
+            }
+        });
 
         this.innerHTML = `
             <div class="editor-header">
@@ -47,11 +67,9 @@ class ChatbotEditor extends HTMLElement {
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
-                        <button id="export-btn" class="secondary-btn">Export PNG</button>
                         <button id="export-sheet-btn" class="secondary-btn">Export Character Sheet</button>
                         <button id="delete-btn" class="danger-btn">Delete</button>
                     ` : ''}
-                    <button id="cancel-btn" class="secondary-btn">Cancel</button>
                 </div>
             </div>
 
@@ -63,6 +81,7 @@ class ChatbotEditor extends HTMLElement {
                     <div class="sheet-header-left">
                         <span class="sheet-toggle-icon">▼</span>
                         <h3>Character Sheet</h3>
+                        <span class="token-count" id="character-sheet-token-count">0 tokens</span>
                     </div>
                 </div>
                 <div class="editor-content" id="character-sheet-sections">
@@ -171,8 +190,8 @@ class ChatbotEditor extends HTMLElement {
             container.appendChild(element);
         });
         
-        // Update token counts after rendering
-        this.updateTokenCounts();
+        // Update token counts after rendering (defer to allow sections to be interactive immediately)
+        setTimeout(() => this.updateTokenCounts(), 0);
     }
 
     updateTokenCounts() {
@@ -221,8 +240,32 @@ class ChatbotEditor extends HTMLElement {
         // Update token display in Character Card Info section
         this.updateProfileTokenDisplay();
         
+        // Update character sheet token count
+        this.updateCharacterSheetTokenCount();
+        
         // Update token status (green/red based on max)
         this.updateTokenStatus(totalTokens);
+    }
+
+    updateCharacterSheetTokenCount() {
+        if (!window.TokenCounter) return;
+        
+        const charSheetContainer = this.querySelector('#character-sheet-sections');
+        const tokenCountElement = this.querySelector('#character-sheet-token-count');
+        
+        if (!charSheetContainer || !tokenCountElement) return;
+        
+        // Get all sections within the character sheet (personality and custom)
+        const charSheetSections = charSheetContainer.querySelectorAll('section-personality, section-custom');
+        let totalTokens = 0;
+        
+        charSheetSections.forEach(section => {
+            const count = window.TokenCounter.getSectionTokenCount(section) || 0;
+            totalTokens += count;
+        });
+        
+        // Update the display
+        tokenCountElement.textContent = `${totalTokens} token${totalTokens !== 1 ? 's' : ''}`;
     }
     
     updateInitialMessagesTokenCounts(section) {
@@ -415,10 +458,6 @@ class ChatbotEditor extends HTMLElement {
 
         // Set up token counting updates (container declared below for drag/drop)
 
-        this.querySelector('#cancel-btn').addEventListener('click', () => {
-            this.dispatchEvent(new CustomEvent('editor-cancel', { bubbles: true }));
-        });
-
         this.querySelector('#save-btn').addEventListener('click', async () => {
             await this.save();
         });
@@ -435,26 +474,9 @@ class ChatbotEditor extends HTMLElement {
 
         const deleteBtn = this.querySelector('#delete-btn');
         if (deleteBtn) {
-            deleteBtn.addEventListener('click', async () => {
-                if (confirm('Are you sure you want to delete this chatbot?')) {
-                    await window.api.chatbot.delete(this.currentId);
-                    this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
-                }
-            });
-        }
-
-        const exportBtn = this.querySelector('#export-btn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', async () => {
-                try {
-                    const success = await window.api.chatbot.export(this.currentId);
-                    if (success) {
-                        alert('Chatbot exported successfully!');
-                    }
-                } catch (e) {
-                    console.error(e);
-                    alert('Export failed');
-                }
+            deleteBtn.addEventListener('click', () => {
+                const chatbotName = this._data?.name || this._data?.profile?.name || 'this chatbot';
+                window.EditorModals.showDeleteConfirmationModal(this, chatbotName);
             });
         }
 
@@ -601,7 +623,9 @@ class ChatbotEditor extends HTMLElement {
         const newLayout = [];
         const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
         const otherSections = this.querySelectorAll('#other-sections-container > *');
-        const allSections = [...charSheetSections, ...otherSections];
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [];
+        const allSections = [...charSheetSections, ...otherSections, ...afterSections];
         
         allSections.forEach(el => {
             const typeHeader = el.tagName.toLowerCase().replace('section-', '');
@@ -624,9 +648,48 @@ class ChatbotEditor extends HTMLElement {
 
             newLayout.push(config);
         });
+        
+        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        const requiredSections = [
+            { type: 'scenario', id: 'section-scenario' },
+            { type: 'initial-messages', id: 'section-initial-messages' },
+            { type: 'example-dialogs', id: 'section-example-dialogs' }
+        ];
+        
+        requiredSections.forEach(required => {
+            const exists = newLayout.some(l => l.type === required.type);
+            if (!exists) {
+                // Find existing config to preserve minimized state
+                const existing = this.layout.find(l => l.type === required.type);
+                newLayout.push({
+                    type: required.type,
+                    id: required.id,
+                    minimized: existing?.minimized || false
+                });
+            }
+        });
+        
         this.layout = newLayout;
     }
     async save() {
+        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        const requiredSections = [
+            { type: 'scenario', id: 'section-scenario' },
+            { type: 'initial-messages', id: 'section-initial-messages' },
+            { type: 'example-dialogs', id: 'section-example-dialogs' }
+        ];
+        
+        requiredSections.forEach(required => {
+            const exists = this.layout.some(l => l.type === required.type);
+            if (!exists) {
+                this.layout.push({
+                    type: required.type,
+                    id: required.id,
+                    minimized: false
+                });
+            }
+        });
+        
         // Collect data from all sections
         const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
         const otherSections = this.querySelectorAll('#other-sections-container > *');

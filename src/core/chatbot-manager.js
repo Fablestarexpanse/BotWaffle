@@ -29,23 +29,77 @@ class ChatbotManager {
     }
 
     /**
-     * Gets a secure file path for a chatbot ID
+     * Gets a secure file path for a chatbot
      * @private
-     * @param {string} id - Chatbot ID
+     * @param {Object} chatbot - Chatbot object with id and profile.name
      * @returns {string} - Secure file path
      * @throws {Error} If path is invalid
      */
-    _getChatbotFilePath(id) {
-        const sanitizedId = this._validateId(id);
-        const filePath = path.join(this.basePath, `${sanitizedId}.json`);
+    _getChatbotFilePath(chatbot) {
+        if (!chatbot || !chatbot.id) {
+            throw new Error('Chatbot object with ID is required');
+        }
+        
+        // Use bot name for filename (readable), with short ID for uniqueness
+        const botName = chatbot.profile?.name || 'unnamed';
+        const shortId = chatbot.id.substring(0, 8); // First 8 chars of UUID
+        
+        // Sanitize name for filesystem (lowercase, replace spaces with hyphens, remove invalid chars)
+        let sanitizedName = botName.toLowerCase()
+            .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with hyphens
+            .replace(/-+/g, '-') // Replace multiple hyphens with single
+            .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+        
+        // Ensure name is not empty
+        if (!sanitizedName || sanitizedName.length === 0) {
+            sanitizedName = 'unnamed';
+        }
+        
+        // Limit length to prevent issues
+        if (sanitizedName.length > 100) {
+            sanitizedName = sanitizedName.substring(0, 100);
+        }
+        
+        const filename = `${sanitizedName}-${shortId}.json`;
         
         // Ensure path is within basePath (prevent directory traversal)
-        const validatedPath = validatePath(`${sanitizedId}.json`, this.basePath);
+        const validatedPath = validatePath(filename, this.basePath);
         if (!validatedPath) {
             throw new Error('Invalid file path: potential directory traversal detected');
         }
         
         return validatedPath;
+    }
+    
+    /**
+     * Gets file path for a chatbot by ID (for backward compatibility and lookups)
+     * @private
+     * @param {string} id - Chatbot ID
+     * @returns {Promise<string|null>} - File path or null if not found
+     */
+    async _findChatbotFilePathById(id) {
+        try {
+            const files = await fsPromises.readdir(this.basePath);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+            
+            // Search through files to find the one with matching ID
+            for (const file of jsonFiles) {
+                const filePath = path.join(this.basePath, file);
+                try {
+                    const data = await fsPromises.readFile(filePath, 'utf8');
+                    const chatbot = JSON.parse(data);
+                    if (chatbot.id === id) {
+                        return filePath;
+                    }
+                } catch (error) {
+                    // Skip corrupted files
+                    continue;
+                }
+            }
+            return null;
+        } catch (error) {
+            return null;
+        }
     }
 
     /**
@@ -153,7 +207,11 @@ class ChatbotManager {
      * @throws {Error} If ID is invalid
      */
     async deleteChatbot(id) {
-        const filePath = this._getChatbotFilePath(id);
+        const filePath = await this._findChatbotFilePathById(id);
+        if (!filePath) {
+            return false;
+        }
+        
         try {
             await fsPromises.unlink(filePath);
             // Remove from cache
@@ -181,23 +239,10 @@ class ChatbotManager {
                 return cached;
             }
 
-            let filePath;
-            if (skipValidation) {
-                // For reading existing files, be more lenient - just sanitize the ID
-                // Don't throw if it doesn't pass strict validation
-                const sanitized = id.replace(/[^a-zA-Z0-9_.-]/g, '').substring(0, 200);
-                if (!sanitized || sanitized.length === 0) {
-                    return null;
-                }
-                filePath = path.join(this.basePath, `${sanitized}.json`);
-                // Still validate path to prevent traversal
-                const validatedPath = validatePath(`${sanitized}.json`, this.basePath);
-                if (!validatedPath) {
-                    return null;
-                }
-                filePath = validatedPath;
-            } else {
-                filePath = this._getChatbotFilePath(id);
+            // Find file by searching through all files and matching ID
+            const filePath = await this._findChatbotFilePathById(id);
+            if (!filePath) {
+                return null;
             }
             
             try {
@@ -213,10 +258,6 @@ class ChatbotManager {
                 throw error;
             }
         } catch (error) {
-            // Return null for invalid IDs instead of throwing (for backward compatibility)
-            if (error.message && (error.message.includes('Invalid') || error.message.includes('path'))) {
-                return null;
-            }
             console.error(`Error reading chatbot ${id}:`, error);
             return null;
         }
@@ -234,14 +275,24 @@ class ChatbotManager {
             // Load all chatbots in parallel for better performance
             const chatbots = await Promise.all(
                 jsonFiles.map(async (file) => {
-                    const id = file.replace('.json', '');
-                    // Use skipValidation=true when reading existing files to be backward compatible
-                    return await this.getChatbot(id, true);
+                    const filePath = path.join(this.basePath, file);
+                    try {
+                        const data = await fsPromises.readFile(filePath, 'utf8');
+                        const chatbot = JSON.parse(data);
+                        // Cache the result
+                        if (chatbot.id) {
+                            chatbotCache.set(chatbot.id, chatbot);
+                        }
+                        return chatbot;
+                    } catch (error) {
+                        // Skip corrupted files
+                        return null;
+                    }
                 })
             );
             
             return chatbots
-                .filter(bot => bot !== null)
+                .filter(bot => bot !== null && bot.id)
                 .sort((a, b) => new Date(b.metadata.updated) - new Date(a.metadata.updated));
         } catch (error) {
             console.error('Error listing chatbots:', error);
@@ -263,8 +314,19 @@ class ChatbotManager {
                 throw new Error('Chatbot ID is required');
             }
             
-            const filePath = this._getChatbotFilePath(chatbot.id);
-            await fsPromises.writeFile(filePath, JSON.stringify(chatbot, null, 2), 'utf8');
+            const newFilePath = this._getChatbotFilePath(chatbot);
+            
+            // If this is an update, check if file path changed (name changed) and delete old file
+            const oldFilePath = await this._findChatbotFilePathById(chatbot.id);
+            if (oldFilePath && oldFilePath !== newFilePath) {
+                try {
+                    await fsPromises.unlink(oldFilePath);
+                } catch (error) {
+                    // Ignore if old file doesn't exist
+                }
+            }
+            
+            await fsPromises.writeFile(newFilePath, JSON.stringify(chatbot, null, 2), 'utf8');
         } catch (error) {
             console.error(`Error saving chatbot ${chatbot.id}:`, error);
             throw new Error(`Failed to save chatbot: ${error.message}`);

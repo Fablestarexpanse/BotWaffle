@@ -50,16 +50,47 @@ class SectionProfile extends customElements.get('section-base') {
         // Setup toggle functionality (from base class)
         const header = this.querySelector('.section-header');
         if (header) {
-            header.addEventListener('click', (e) => {
-                // Don't toggle if clicking on header actions or status select
-                if (e.target.closest('.header-actions') || e.target.closest('.status-select-header')) return;
-                this._minimized = !this._minimized;
-                this.toggleContent();
-                this.dispatchEvent(new CustomEvent('toggle-section', {
-                    detail: { minimized: this._minimized },
-                    bubbles: true
-                }));
-            });
+            // Only toggle when clicking on the toggle icon or header title, not the entire header
+            const toggleIcon = header.querySelector('.toggle-icon');
+            const headerTitle = header.querySelector('.section-title');
+            const headerLeft = header.querySelector('.header-left');
+            
+            const toggleHandler = (e) => {
+                const target = e.target;
+                
+                // Only toggle if clicking on toggle icon, title, or empty space in header-left
+                const clickedToggleIcon = target === toggleIcon || target.closest('.toggle-icon');
+                const clickedTitle = target === headerTitle || target.closest('.section-title');
+                const clickedHeaderLeft = target === headerLeft || (headerLeft && headerLeft.contains(target) && !target.closest('input, select, textarea, button, .status-select-header, .header-actions'));
+                
+                if (clickedToggleIcon || clickedTitle || clickedHeaderLeft) {
+                    // Make sure we're not clicking on interactive elements
+                    if (target.tagName === 'INPUT' || 
+                        target.tagName === 'SELECT' || 
+                        target.tagName === 'TEXTAREA' ||
+                        target.tagName === 'BUTTON' ||
+                        target.closest('.status-select-header') ||
+                        target.closest('.remove-btn') || 
+                        target.closest('.header-actions')) {
+                        return;
+                    }
+                    
+                    this._minimized = !this._minimized;
+                    this.toggleContent();
+                    this.dispatchEvent(new CustomEvent('toggle-section', {
+                        detail: { minimized: this._minimized },
+                        bubbles: true
+                    }));
+                }
+            };
+            
+            // Use capture phase to catch events early, but only on header-left area
+            if (headerLeft) {
+                headerLeft.addEventListener('click', toggleHandler);
+            } else {
+                // Fallback to header if header-left doesn't exist
+                header.addEventListener('click', toggleHandler);
+            }
         }
 
         // Add change listener for status select
@@ -192,15 +223,9 @@ class SectionProfile extends customElements.get('section-base') {
             </div>
 
             <div class="form-group">
-                <label>Status</label>
-                <select name="status" class="input-field">
-                    ${statusOptions}
-                </select>
-            </div>
-
-            <div class="form-group">
                 <label>Description</label>
-                <textarea name="description" class="input-field" rows="3" placeholder="A brief elevator pitch...">${descriptionValue}</textarea>
+                <textarea name="description" class="input-field" rows="3" maxlength="200" placeholder="A brief elevator pitch...">${descriptionValue}</textarea>
+                <div class="field-hint">Maximum 200 characters</div>
             </div>
         `;
 
@@ -262,11 +287,27 @@ class SectionProfile extends customElements.get('section-base') {
 
     setupListeners() {
         const body = this.querySelector('.section-body');
+        if (!body) return;
 
         // General Input Change
-        body.querySelectorAll('.input-field').forEach(input => {
+        body.querySelectorAll('.input-field, input, textarea, select').forEach(input => {
+            // Stop propagation to prevent header click handler from interfering
+            // Use simple bubbling phase for better performance
+            input.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            input.addEventListener('focus', (e) => {
+                e.stopPropagation();
+            });
             input.addEventListener('input', () => {
                 this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+            });
+        });
+        
+        // Also stop propagation on labels
+        body.querySelectorAll('label').forEach(label => {
+            label.addEventListener('click', (e) => {
+                e.stopPropagation();
             });
         });
 

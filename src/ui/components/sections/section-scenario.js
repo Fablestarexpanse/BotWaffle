@@ -23,6 +23,20 @@ class SectionScenario extends customElements.get('section-base') {
                 </div>
             </div>
         `;
+        
+        // Setup listeners to prevent header click from interfering
+        const textarea = body.querySelector('#scenario-text');
+        if (textarea) {
+            textarea.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            textarea.addEventListener('focus', (e) => {
+                e.stopPropagation();
+            });
+            textarea.addEventListener('input', () => {
+                this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+            });
+        }
     }
 
     getData() {

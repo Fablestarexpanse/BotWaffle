@@ -364,12 +364,28 @@
                                     border-radius: 4px;
                                     cursor: pointer;
                                     transition: all 0.2s;
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
                                 ">
-                                    <div style="font-weight: 500; margin-bottom: 4px;">${templateName}</div>
-                                    <div style="font-size: 12px; color: #888;">
-                                        Created: ${new Date(template.created).toLocaleDateString()}
-                                        ${sectionCount > 0 ? ` • ${sectionCount} section(s)` : ''}
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 500; margin-bottom: 4px;">${templateName}</div>
+                                        <div style="font-size: 12px; color: #888;">
+                                            Created: ${new Date(template.created).toLocaleDateString()}
+                                            ${sectionCount > 0 ? ` • ${sectionCount} section(s)` : ''}
+                                        </div>
                                     </div>
+                                    <button class="template-delete-btn" data-template-id="${templateId}" style="
+                                        background: rgba(239, 68, 68, 0.1);
+                                        border: 1px solid rgba(239, 68, 68, 0.3);
+                                        color: var(--danger);
+                                        padding: 6px 12px;
+                                        border-radius: 4px;
+                                        cursor: pointer;
+                                        font-size: 12px;
+                                        margin-left: 12px;
+                                        transition: all 0.2s;
+                                    " title="Delete template">Delete</button>
                                 </div>
                             `;
                             }).join('')}
@@ -396,8 +412,54 @@
                 });
             }
 
+            // Handle delete buttons
+            overlay.querySelectorAll('.template-delete-btn').forEach(deleteBtn => {
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // Prevent triggering the load action
+                    const templateId = deleteBtn.dataset.templateId;
+                    const templateItem = deleteBtn.closest('.template-item');
+                    const templateName = templateItem.querySelector('div').textContent.trim();
+                    
+                    if (confirm(`Are you sure you want to delete template "${templateName}"? This action cannot be undone.`)) {
+                        try {
+                            await window.api.templates.delete(templateId);
+                            // Remove the template item from the list
+                            templateItem.remove();
+                            
+                            // If no templates left, close modal
+                            const remainingTemplates = overlay.querySelectorAll('.template-item');
+                            if (remainingTemplates.length === 0) {
+                                alert('All templates deleted.');
+                                closeModal();
+                            }
+                        } catch (error) {
+                            console.error('Error deleting template:', error);
+                            alert('Failed to delete template. Check console for details.');
+                        }
+                    }
+                });
+                
+                deleteBtn.addEventListener('mouseenter', () => {
+                    deleteBtn.style.background = 'var(--danger)';
+                    deleteBtn.style.color = 'white';
+                    deleteBtn.style.borderColor = 'var(--danger)';
+                });
+                
+                deleteBtn.addEventListener('mouseleave', () => {
+                    deleteBtn.style.background = 'rgba(239, 68, 68, 0.1)';
+                    deleteBtn.style.color = 'var(--danger)';
+                    deleteBtn.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                });
+            });
+
+            // Handle template item clicks (load template)
             overlay.querySelectorAll('.template-item').forEach(item => {
-                item.addEventListener('click', async () => {
+                item.addEventListener('click', async (e) => {
+                    // Don't load if clicking on delete button
+                    if (e.target.closest('.template-delete-btn')) {
+                        return;
+                    }
+                    
                     const templateId = item.dataset.templateId;
                     try {
                         const template = await window.api.templates.get(templateId);
@@ -417,8 +479,10 @@
                 });
 
                 item.addEventListener('mouseenter', () => {
-                    item.style.background = '#333';
-                    item.style.borderColor = 'var(--accent)';
+                    if (!item.querySelector('.template-delete-btn:hover')) {
+                        item.style.background = '#333';
+                        item.style.borderColor = 'var(--accent)';
+                    }
                 });
 
                 item.addEventListener('mouseleave', () => {
@@ -471,6 +535,25 @@
             const modal = overlay.querySelector('.modal');
             if (modal) {
                 modal.addEventListener('click', (e) => {
+                    // Don't stop propagation for interactive elements - they need to handle their own events
+                    if (e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'TEXTAREA' || 
+                        e.target.tagName === 'SELECT' ||
+                        e.target.tagName === 'BUTTON' ||
+                        e.target.closest('input, textarea, select, button')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                });
+            }
+
+            // Ensure input field can receive clicks and focus without interference
+            const nameInput = overlay.querySelector('#template-name-input');
+            if (nameInput) {
+                nameInput.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                nameInput.addEventListener('focus', (e) => {
                     e.stopPropagation();
                 });
             }
@@ -498,6 +581,108 @@
                 const nameInput = overlay.querySelector('#template-name-input');
                 if (nameInput) {
                     nameInput.focus();
+                }
+            }, 100);
+        },
+
+        /**
+         * Shows the "Delete Chatbot" confirmation modal
+         * @param {ChatbotEditor} editor - The editor instance
+         * @param {string} chatbotName - The name of the chatbot to delete
+         */
+        showDeleteConfirmationModal: function(editor, chatbotName) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+                <div class="modal" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3>Delete Chatbot</h3>
+                        <button class="modal-close" type="button">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; color: var(--danger);">
+                            <strong>Warning:</strong> This action cannot be undone. This will permanently delete the chatbot.
+                        </div>
+                        <div class="form-group">
+                            <label for="delete-confirm-input">Type the chatbot name to confirm deletion:</label>
+                            <div style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-radius: 4px; font-weight: 600; color: var(--text-primary);">
+                                ${chatbotName}
+                            </div>
+                            <input type="text" id="delete-confirm-input" class="input-field" 
+                                   placeholder="Type the chatbot name here">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="secondary-btn cancel-delete-modal">Cancel</button>
+                        <button class="danger-btn confirm-delete-btn" disabled>Delete</button>
+                    </div>
+                </div>
+            `;
+
+            const closeModal = () => overlay.remove();
+
+            overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+            overlay.querySelector('.cancel-delete-modal').addEventListener('click', closeModal);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeModal();
+            });
+
+            const modal = overlay.querySelector('.modal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'TEXTAREA' || 
+                        e.target.tagName === 'SELECT' ||
+                        e.target.tagName === 'BUTTON' ||
+                        e.target.closest('input, textarea, select, button')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                });
+            }
+
+            const confirmInput = overlay.querySelector('#delete-confirm-input');
+            const confirmBtn = overlay.querySelector('.confirm-delete-btn');
+
+            if (confirmInput) {
+                confirmInput.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                confirmInput.addEventListener('focus', (e) => {
+                    e.stopPropagation();
+                });
+                confirmInput.addEventListener('input', (e) => {
+                    const inputValue = e.target.value.trim();
+                    if (inputValue === chatbotName) {
+                        confirmBtn.disabled = false;
+                    } else {
+                        confirmBtn.disabled = true;
+                    }
+                });
+            }
+
+            confirmBtn.addEventListener('click', async () => {
+                const inputValue = confirmInput.value.trim();
+                if (inputValue !== chatbotName) {
+                    alert('The name you typed does not match the chatbot name.');
+                    return;
+                }
+
+                try {
+                    await window.api.chatbot.delete(editor.currentId);
+                    closeModal();
+                    editor.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
+                } catch (error) {
+                    console.error('Error deleting chatbot:', error);
+                    alert('Failed to delete chatbot. Check console for details.');
+                }
+            });
+
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+                if (confirmInput) {
+                    confirmInput.focus();
                 }
             }, 100);
         },
@@ -669,7 +854,7 @@
                         editor._data.customSections = {};
                     }
                     
-                    // Populate customSections data with field values from the imported sections
+                    // Populate section data from imported content (all sections are custom)
                     sections.forEach(section => {
                         if (section.type === 'custom' && section.fields) {
                             const sectionData = {};
@@ -681,19 +866,16 @@
                             });
                             // Store the data under the category name
                             editor._data.customSections[section.category] = sectionData;
+                            // Add section to layout (custom sections can have multiple)
+                            editor.layout.push(section);
                         }
-                    });
-
-                    // Add all new sections to editor layout
-                    sections.forEach(section => {
-                        editor.layout.push(section);
                     });
 
                     // Re-render sections
                     editor.renderSections(editor._data);
                     
                     // Wait a bit for DOM to update before saving
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 50));
                     
                     // Auto-save to persist the imported sections (only if in edit mode)
                     if (isEditMode) {

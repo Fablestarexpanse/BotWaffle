@@ -118,84 +118,75 @@ class ChatbotCard extends HTMLElement {
             : '';
 
         this.innerHTML = `
-        <div class="chatbot-card status-${statusValue}">
-                <div class="card-visual">
-                    ${imageSrc
-                ? `<img src="${escapeHtml(imageSrc)}" alt="${altText}" class="bot-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                   <div class="avatar-placeholder" style="display: none;">${firstChar}</div>`
-                : `<div class="avatar-placeholder">${firstChar}</div>`
-            }
-                    ${tagsHtml}
-                </div>
-                <div class="card-content">
-                    <div class="card-header">
-                        <h3>${displayName}</h3>
+            <div class="chatbot-card status-${statusValue}">
+                <div class="card-header-section">
+                    <div class="card-header-top">
+                        <div class="card-title-group">
+                            <h3>${displayName}</h3>
+                            <div class="category">${category}</div>
+                        </div>
                         <div class="status-badge ${statusValue}">${escapeHtml(statusDisplay)}</div>
                     </div>
-                    <div class="category">${category}</div>
                     <p class="description">${description}</p>
-                <div class="card-footer">
-                    <div class="card-footer-main">
-                        <div class="token-breakdown-card">
-                            <div class="token-grid">
-                                <div class="token-item-card token-character-sheet">
-                                    <span class="token-label">Character Sheet</span>
-                                    <span class="token-value">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
-                                </div>
-                                <div class="token-item-card token-scenario">
-                                    <span class="token-label">Scenario</span>
-                                    <span class="token-value">${sectionTokens.scenario} tokens</span>
-                                </div>
-                                <div class="token-item-card token-initial-messages">
-                                    <span class="token-label">Initial Messages</span>
-                                    <span class="token-value">${sectionTokens.initialMessages} tokens</span>
-                                </div>
-                                <div class="token-item-card token-example-dialogs">
-                                    <span class="token-label">Example Dialogs</span>
-                                    <span class="token-value">${sectionTokens.exampleDialogs} tokens</span>
-                                </div>
-                            </div>
-                            <div class="token-totals">
-                                <div class="token-total-item">
-                                    <span class="token-total-label">Total Permanent</span>
-                                    <span class="token-total-value token-permanent">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
-                                </div>
-                                <div class="token-total-item">
-                                    <span class="token-total-label">Total Temp</span>
-                                    <span class="token-total-value token-temp">${sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs} tokens</span>
-                                </div>
-                                <div class="token-total-item">
-                                    <span class="token-total-label">Grand Total</span>
-                                    <span class="token-total-value token-grand">${tokenCount} tokens</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-assets">
-                            <button class="asset-button asset-images" data-type="images" title="View Images">
-                                <span class="asset-icon">🖼️</span>
-                                <span class="asset-label">Images</span>
-                                <span class="asset-count">${(bot.profile.images && bot.profile.images.length) || 0}</span>
-                            </button>
-                            <button class="asset-button asset-scripts" data-type="scripts" title="View Scripts">
-                                <span class="asset-icon">📜</span>
-                                <span class="asset-label">Scripts</span>
-                                <span class="asset-count">${(bot.scripts && bot.scripts.length) || 0}</span>
-                            </button>
-                            <button class="asset-button asset-prompts" data-type="prompts" title="View Image Prompts">
-                                <span class="asset-icon">✨</span>
-                                <span class="asset-label">Prompts</span>
-                                <span class="asset-count">${(bot.imagePrompts && bot.imagePrompts.length) || 0}</span>
-                            </button>
+                </div>
+                <div class="card-body-section">
+                    <div class="card-visual-compact">
+                        ${imageSrc
+                ? `<img src="${escapeHtml(imageSrc)}" alt="${altText}" class="bot-image-compact" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                   <div class="avatar-placeholder-compact" style="display: none;">${firstChar}</div>`
+                : `<div class="avatar-placeholder-compact">${firstChar}</div>`
+            }
+                        <div class="card-tags-compact">
+                            ${tags.map(tag => `<span class="tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`).join('')}
                         </div>
                     </div>
-                    <div class="card-meta">
-                        <span class="version">v${version}</span>
-                        <div class="card-dates">
-                            ${bot.metadata.created ? `<span class="date-item"><span class="date-label">Created:</span> <span class="date-value">${new Date(bot.metadata.created).toLocaleString()}</span></span>` : ''}
-                            ${bot.metadata.updated ? `<span class="date-item"><span class="date-label">Edited:</span> <span class="date-value">${new Date(bot.metadata.updated).toLocaleString()}</span></span>` : ''}
+                    <div class="card-data-section">
+                        <div class="token-breakdown-compact">
+                            <div class="token-row">
+                                <span class="token-label-compact">Sheet:</span>
+                                <span class="token-value-compact token-character-sheet">${sectionTokens.customSections + sectionTokens.personality}</span>
+                                <span class="token-label-compact">Scenario:</span>
+                                <span class="token-value-compact token-scenario">${sectionTokens.scenario}</span>
+                            </div>
+                            <div class="token-row">
+                                <span class="token-label-compact">Initial:</span>
+                                <span class="token-value-compact token-initial-messages">${sectionTokens.initialMessages}</span>
+                                <span class="token-label-compact">Examples:</span>
+                                <span class="token-value-compact token-example-dialogs">${sectionTokens.exampleDialogs}</span>
+                            </div>
+                            <div class="token-totals-compact">
+                                <div class="token-total-row">
+                                    <span class="token-total-label-compact">Perm:</span>
+                                    <span class="token-total-value-compact token-permanent">${sectionTokens.customSections + sectionTokens.personality}</span>
+                                    <span class="token-total-label-compact">Temp:</span>
+                                    <span class="token-total-value-compact token-temp">${sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs}</span>
+                                    <span class="token-total-label-compact">Total:</span>
+                                    <span class="token-total-value-compact token-grand">${tokenCount}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-assets-compact">
+                            <button class="asset-button-compact asset-images" data-type="images" title="View Images">
+                                <span class="asset-icon-compact">🖼️</span>
+                                <span class="asset-count-compact">${(bot.profile.images && bot.profile.images.length) || 0}</span>
+                            </button>
+                            <button class="asset-button-compact asset-scripts" data-type="scripts" title="View Scripts">
+                                <span class="asset-icon-compact">📜</span>
+                                <span class="asset-count-compact">${(bot.scripts && bot.scripts.length) || 0}</span>
+                            </button>
+                            <button class="asset-button-compact asset-prompts" data-type="prompts" title="View Image Prompts">
+                                <span class="asset-icon-compact">✨</span>
+                                <span class="asset-count-compact">${(bot.imagePrompts && bot.imagePrompts.length) || 0}</span>
+                            </button>
                         </div>
                     </div>
                 </div>
+                <div class="card-footer-compact">
+                    <span class="version-compact">v${version}</span>
+                    <div class="card-dates-compact">
+                        ${bot.metadata.created ? `<span class="date-item-compact"><span class="date-label-compact">Created:</span> <span class="date-value-compact">${new Date(bot.metadata.created).toLocaleDateString()}</span></span>` : ''}
+                        ${bot.metadata.updated ? `<span class="date-item-compact"><span class="date-label-compact">Edited:</span> <span class="date-value-compact">${new Date(bot.metadata.updated).toLocaleDateString()}</span></span>` : ''}
+                    </div>
                 </div>
             </div>
         `;

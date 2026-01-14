@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld('api', {
     templates: {
         list: () => ipcRenderer.invoke('template:list'),
         save: (name, layout) => ipcRenderer.invoke('template:save', name, layout),
-        get: (id) => ipcRenderer.invoke('template:get', id)
+        get: (id) => ipcRenderer.invoke('template:get', id),
+        delete: (id) => ipcRenderer.invoke('template:delete', id)
     },
     assets: {
         select: (multiple = false) => ipcRenderer.invoke('assets:select', multiple),

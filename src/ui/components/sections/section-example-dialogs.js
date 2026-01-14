@@ -98,6 +98,13 @@ class SectionExampleDialogs extends customElements.get('section-base') {
             const assistantTextarea = item.querySelector('.dialog-assistant');
             
             if (userTextarea) {
+                // Prevent header click from interfering
+                userTextarea.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                userTextarea.addEventListener('focus', (e) => {
+                    e.stopPropagation();
+                });
                 userTextarea.addEventListener('input', () => {
                     if (this._dialogs[index]) {
                         this._dialogs[index].user = userTextarea.value;
@@ -106,6 +113,13 @@ class SectionExampleDialogs extends customElements.get('section-base') {
             }
             
             if (assistantTextarea) {
+                // Prevent header click from interfering
+                assistantTextarea.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                assistantTextarea.addEventListener('focus', (e) => {
+                    e.stopPropagation();
+                });
                 assistantTextarea.addEventListener('input', () => {
                     if (this._dialogs[index]) {
                         this._dialogs[index].assistant = assistantTextarea.value;

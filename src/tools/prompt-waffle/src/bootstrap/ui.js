@@ -201,57 +201,83 @@ export async function handleReferenceImageUpload() {
     );
     return;
   }
+  // Create loading indicators for all images upfront
+  const container = document.getElementById('referenceImagesContainer');
+  const loadingThumbs = new Map(); // Map filePath -> loadingThumb element
+  
+  if (container) {
+    // Get or create the grid
+    let imagesGrid = container.querySelector('.reference-images-grid');
+    if (!imagesGrid) {
+      imagesGrid = document.createElement('div');
+      imagesGrid.className = 'reference-images-grid';
+      container.appendChild(imagesGrid);
+    }
+    
+    // Create a loading indicator for each image immediately
+    result.filePaths.forEach((filePath, index) => {
+      const originalFilename = filePath.split(/[/\\]/).pop();
+      const loadingThumb = document.createElement('div');
+      loadingThumb.className = 'reference-image-thumb loading-thumb';
+      loadingThumb.dataset.filePath = filePath; // Store file path for later lookup
+      loadingThumb.style.width = '120px';
+      loadingThumb.style.height = '120px';
+      loadingThumb.style.minWidth = '120px';
+      loadingThumb.style.minHeight = '120px';
+      loadingThumb.style.maxWidth = '120px';
+      loadingThumb.style.maxHeight = '120px';
+      loadingThumb.style.overflow = 'hidden';
+      loadingThumb.style.borderRadius = '8px';
+      loadingThumb.style.display = 'flex';
+      loadingThumb.style.alignItems = 'center';
+      loadingThumb.style.justifyContent = 'center';
+      loadingThumb.style.background = 'var(--bg-input)';
+      loadingThumb.style.border = '1px solid var(--border-subtle)';
+      loadingThumb.innerHTML = `
+        <div style="text-align: center; color: var(--text-secondary);">
+          <div style="width: 32px; height: 32px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 8px;"></div>
+          <div style="font-size: 11px;">Loading ${index + 1}/${result.filePaths.length}...</div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${originalFilename}</div>
+        </div>
+      `;
+      
+      imagesGrid.appendChild(loadingThumb);
+      loadingThumbs.set(filePath, loadingThumb);
+    });
+  }
+  
   // Process each selected image
-  for (const filePath of result.filePaths) {
-    let loadingThumb = null;
+  for (let i = 0; i < result.filePaths.length; i++) {
+    const filePath = result.filePaths[i];
+    const loadingThumb = loadingThumbs.get(filePath);
+    
     try {
       const imageId = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const originalFilename = filePath.split(/[/\\]/).pop();
       
-      // Show loading indicator in the UI
-      const container = document.getElementById('referenceImagesContainer');
-      if (container) {
-        loadingThumb = document.createElement('div');
-        loadingThumb.className = 'reference-image-thumb loading-thumb';
-        loadingThumb.style.width = '120px';
-        loadingThumb.style.height = '120px';
-        loadingThumb.style.minWidth = '120px';
-        loadingThumb.style.minHeight = '120px';
-        loadingThumb.style.maxWidth = '120px';
-        loadingThumb.style.maxHeight = '120px';
-        loadingThumb.style.overflow = 'hidden';
-        loadingThumb.style.borderRadius = '8px';
-        loadingThumb.style.display = 'flex';
-        loadingThumb.style.alignItems = 'center';
-        loadingThumb.style.justifyContent = 'center';
-        loadingThumb.style.background = 'var(--bg-input)';
-        loadingThumb.style.border = '1px solid var(--border-subtle)';
+      // Update loading indicator to show current status
+      if (loadingThumb) {
         loadingThumb.innerHTML = `
           <div style="text-align: center; color: var(--text-secondary);">
             <div style="width: 32px; height: 32px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 8px;"></div>
-            <div style="font-size: 11px;">Loading...</div>
+            <div style="font-size: 11px;">Processing ${i + 1}/${result.filePaths.length}...</div>
             <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${originalFilename}</div>
           </div>
         `;
-        
-        // Add to grid if it exists, otherwise append directly
-        const imagesGrid = container.querySelector('.reference-images-grid');
-        if (imagesGrid) {
-          imagesGrid.appendChild(loadingThumb);
-        } else {
-          // Create grid if it doesn't exist
-          const grid = document.createElement('div');
-          grid.className = 'reference-images-grid';
-          grid.appendChild(loadingThumb);
-          container.appendChild(grid);
-        }
       }
       
       // Read the image file
-      showToast(`Processing image: ${originalFilename}...`, 'info');
       const imageBuffer = await window.electronAPI.loadImageFile(filePath);
       if (!imageBuffer) {
-        if (loadingThumb) loadingThumb.remove();
+        if (loadingThumb) {
+          loadingThumb.innerHTML = `
+            <div style="text-align: center; color: var(--danger);">
+              <div style="font-size: 24px; margin-bottom: 4px;">✕</div>
+              <div style="font-size: 10px; color: var(--text-muted); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Failed</div>
+            </div>
+          `;
+          setTimeout(() => loadingThumb.remove(), 2000);
+        }
         showToast(`Failed to read image: ${originalFilename}`, 'error');
         continue;
       }
@@ -260,8 +286,18 @@ export async function handleReferenceImageUpload() {
       const extension = originalFilename.split('.').pop() || 'png';
       const newFilename = `${imageId}.${extension}`;
       
+      // Update loading indicator
+      if (loadingThumb) {
+        loadingThumb.innerHTML = `
+          <div style="text-align: center; color: var(--text-secondary);">
+            <div style="width: 32px; height: 32px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 8px;"></div>
+            <div style="font-size: 11px;">Saving ${i + 1}/${result.filePaths.length}...</div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${originalFilename}</div>
+          </div>
+        `;
+      }
+      
       // Copy image to app directory for portability
-      showToast(`Saving image: ${originalFilename}...`, 'info');
       const saveResult = await window.electronAPI.saveBoardImage(
         activeBoard.id,
         Array.from(new Uint8Array(imageBuffer)),
@@ -269,7 +305,15 @@ export async function handleReferenceImageUpload() {
       );
       
       if (!saveResult || !saveResult.success) {
-        if (loadingThumb) loadingThumb.remove();
+        if (loadingThumb) {
+          loadingThumb.innerHTML = `
+            <div style="text-align: center; color: var(--danger);">
+              <div style="font-size: 24px; margin-bottom: 4px;">✕</div>
+              <div style="font-size: 10px; color: var(--text-muted); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Save Failed</div>
+            </div>
+          `;
+          setTimeout(() => loadingThumb.remove(), 2000);
+        }
         showToast(`Failed to save image: ${originalFilename}`, 'error');
         continue;
       }
@@ -286,12 +330,19 @@ export async function handleReferenceImageUpload() {
       
       // Remove loading indicator - the image will appear when renderBoardImages is called
       if (loadingThumb) loadingThumb.remove();
-      showToast(`Added reference image: ${originalFilename}`, 'success');
     } catch (error) {
       console.error('Error processing image:', error);
+      const loadingThumb = loadingThumbs.get(filePath);
+      if (loadingThumb) {
+        loadingThumb.innerHTML = `
+          <div style="text-align: center; color: var(--danger);">
+            <div style="font-size: 24px; margin-bottom: 4px;">✕</div>
+            <div style="font-size: 10px; color: var(--text-muted); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Error</div>
+          </div>
+        `;
+        setTimeout(() => loadingThumb.remove(), 2000);
+      }
       showToast(`Error adding image: ${error.message}`, 'error');
-      // Remove loading indicator on error
-      if (loadingThumb) loadingThumb.remove();
     }
   }
   await saveBoards();
@@ -305,6 +356,9 @@ export async function handleReferenceImageUpload() {
 // Render reference image thumbnails for the current board
 // Cache for image blob URLs to avoid reloading
 const imageBlobCache = new Map();
+
+// Rendering lock to prevent concurrent execution
+let isRenderingImages = false;
 
 // Clean up old blob URLs to prevent memory leaks
 function cleanupBlobCache() {
@@ -321,28 +375,103 @@ function cleanupBlobCache() {
 }
 
 export async function renderBoardImages() {
-  const activeBoard = getActiveBoard();
-  const container = document.getElementById('referenceImagesContainer');
-  if (!container) return;
-  container.innerHTML = '';
-  
-  // Validate and cleanup missing images before rendering
-  if (activeBoard && activeBoard.images && activeBoard.images.length > 0) {
-    await validateAndCleanupImages(activeBoard);
+  // Prevent concurrent execution
+  if (isRenderingImages) {
+    console.log('[renderBoardImages] Already rendering, skipping duplicate call');
+    return;
   }
   
-  // Show board images if any exist
-  if (
-    activeBoard &&
-    Array.isArray(activeBoard.images) &&
-    activeBoard.images.length > 0
-  ) {
+  isRenderingImages = true;
+  console.log('[renderBoardImages] Starting render...');
+  
+  try {
+    const activeBoard = getActiveBoard();
+    const container = document.getElementById('referenceImagesContainer');
+    if (!container) {
+      console.warn('[renderBoardImages] Container not found');
+      isRenderingImages = false;
+      return;
+    }
+    
+    console.log('[renderBoardImages] Container found, clearing...');
+    
+    // Clear container completely - remove all existing grids and content
+    // This prevents duplication if function is called multiple times
+    // First, remove all grids (they might be nested or have event listeners)
+    const existingGrids = container.querySelectorAll('.reference-images-grid');
+    existingGrids.forEach(grid => {
+      // Remove all children from grid first to clean up event listeners
+      while (grid.firstChild) {
+        grid.removeChild(grid.firstChild);
+      }
+      grid.remove();
+    });
+    
+    // Also remove any image thumbnails that might be direct children
+    const existingThumbs = container.querySelectorAll('.reference-image-thumb');
+    existingThumbs.forEach(thumb => thumb.remove());
+    
+    // Finally, clear any remaining content
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+    
+    // Double-check: container should be empty now
+    if (container.children.length > 0) {
+      console.warn('[renderBoardImages] Container still has children after clearing:', container.children.length);
+      container.innerHTML = ''; // Force clear as last resort
+    }
+    
+    // Validate and cleanup missing images before rendering
+    if (activeBoard && activeBoard.images && activeBoard.images.length > 0) {
+      await validateAndCleanupImages(activeBoard);
+      
+      // Deduplicate images by ID to prevent rendering duplicates
+      const originalLength = activeBoard.images.length;
+      const seenIds = new Set();
+      activeBoard.images = activeBoard.images.filter(img => {
+        if (!img || !img.id) return false;
+        if (seenIds.has(img.id)) {
+          console.warn('[renderBoardImages] Found duplicate image ID, removing:', img.id);
+          return false;
+        }
+        seenIds.add(img.id);
+        return true;
+      });
+      
+      // If duplicates were found and removed, save the cleaned board data
+      if (activeBoard.images.length < originalLength) {
+        console.log(`[renderBoardImages] Removed ${originalLength - activeBoard.images.length} duplicate image(s), saving board`);
+        const { saveBoards } = await import('./boards.js');
+        await saveBoards();
+      }
+    }
+    
+    // Show board images if any exist
+    if (
+      activeBoard &&
+      Array.isArray(activeBoard.images) &&
+      activeBoard.images.length > 0
+    ) {
     // Create grid container for images
     const imagesGrid = document.createElement('div');
     imagesGrid.className = 'reference-images-grid';
     
-    // Load thumbnails in parallel (much faster)
-    const imagePromises = activeBoard.images.slice(0, 6).map(async (imageObj) => {
+    // Additional deduplication by path to prevent visual duplicates
+    const seenPaths = new Set();
+    const uniqueImages = activeBoard.images.filter(img => {
+      if (!img) return false;
+      const path = img.path || img.imagePath || '';
+      if (path && seenPaths.has(path)) {
+        console.warn('[renderBoardImages] Found duplicate image path, removing:', path);
+        return false;
+      }
+      if (path) seenPaths.add(path);
+      return true;
+    });
+    
+    // Load thumbnails in parallel (much faster) - limit to 6 images
+    const imagePromises = uniqueImages.slice(0, 6).map(async (imageObj) => {
       const thumbDiv = document.createElement('div');
       thumbDiv.className = 'reference-image-thumb';
       thumbDiv.title = imageObj.filename;
@@ -482,14 +611,21 @@ export async function renderBoardImages() {
       imagesGrid.appendChild(thumbDiv);
     });
     
-    // Add the grid to the container
+    // Add the grid to the container (only once)
+    // Verify container is still empty before appending
+    if (container.children.length > 0) {
+      console.warn('[renderBoardImages] Container not empty before appending grid, clearing again');
+      container.innerHTML = '';
+    }
     container.appendChild(imagesGrid);
+    console.log(`[renderBoardImages] Rendered ${uniqueImages.length} unique image(s)`);
     
     // Replace feather icons after all elements are created (much faster than per-element)
     if (typeof feather !== 'undefined') {
       feather.replace();
     }
-    container.appendChild(imagesGrid);
+  } else {
+    console.log('[renderBoardImages] No images to render');
   }
   // Add live preview thumbnail if monitoring a folder
   if (currentMonitoredFolder) {
@@ -513,6 +649,14 @@ export async function renderBoardImages() {
   // Replace Feather icons in the newly created controls
   if (typeof feather !== 'undefined') {
     feather.replace();
+  }
+  
+  console.log('[renderBoardImages] Render complete');
+  } catch (error) {
+    console.error('[renderBoardImages] Error during render:', error);
+  } finally {
+    // Always release the lock, even if an error occurred
+    isRenderingImages = false;
   }
 }
 async function renderLivePreviewThumbnail(container) {

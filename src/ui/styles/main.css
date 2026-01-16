@@ -519,6 +519,36 @@ h3 {
     min-width: 0;
 }
 
+.card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.card-delete-btn {
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: rgba(239, 68, 68, 0.8);
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.card-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.6);
+    color: var(--danger);
+    transform: scale(1.1);
+}
+
 .card-header-section h3 {
     margin: 0;
     font-size: 15px;

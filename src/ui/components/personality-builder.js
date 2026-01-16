@@ -20,6 +20,15 @@ class PersonalityBuilder extends HTMLElement {
 
     render() {
         const char = this._data.characterData || {}; // Handle nested data if present
+        const escapeHtml = window.SecurityUtils ? window.SecurityUtils.escapeHtml : (text) => {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
 
         this.innerHTML = `
             <div class="personality-builder">
@@ -28,32 +37,32 @@ class PersonalityBuilder extends HTMLElement {
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Gender</label>
-                        <input type="text" id="p-gender" value="${char.gender || ''}" placeholder="Female, Male, Non-binary...">
+                        <input type="text" id="p-gender" value="${escapeHtml(char.gender || '')}" placeholder="Female, Male, Non-binary...">
                     </div>
                     
                     <div class="form-group">
                         <label>Age</label>
-                        <input type="text" id="p-age" value="${char.age || ''}" placeholder="25, Ancient, Teenage...">
+                        <input type="text" id="p-age" value="${escapeHtml(char.age || '')}" placeholder="25, Ancient, Teenage...">
                     </div>
 
                     <div class="form-group">
                         <label>Role / Occupation</label>
                          <!-- Mapped to 'style' or 'class' in original tool -->
-                        <input type="text" id="p-role" value="${char.style || ''}" placeholder="Warrior, Student, Assistant...">
+                        <input type="text" id="p-role" value="${escapeHtml(char.style || '')}" placeholder="Warrior, Student, Assistant...">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Personality Traits</label>
-                    <textarea id="p-personality" rows="3" placeholder="Cheerful, sarcastic, analytical, shy...">${char.personality || ''}</textarea>
+                    <textarea id="p-personality" rows="3" placeholder="Cheerful, sarcastic, analytical, shy...">${escapeHtml(char.personality || '')}</textarea>
                 </div>
 
                 <div class="form-group">
                     <label>Visual Description (Hair, Eyes, Clothing)</label>
                     <div class="nested-grid">
-                        <input type="text" id="p-hair" value="${char.hair || ''}" placeholder="Hair">
-                        <input type="text" id="p-eyes" value="${char.eyes || ''}" placeholder="Eyes">
-                        <input type="text" id="p-clothing" value="${char.clothing || ''}" placeholder="Clothing">
+                        <input type="text" id="p-hair" value="${escapeHtml(char.hair || '')}" placeholder="Hair">
+                        <input type="text" id="p-eyes" value="${escapeHtml(char.eyes || '')}" placeholder="Eyes">
+                        <input type="text" id="p-clothing" value="${escapeHtml(char.clothing || '')}" placeholder="Clothing">
                     </div>
                 </div>
 

@@ -359,6 +359,21 @@ app.whenReady().then(() => {
 
     // Open External URL handler
     registerIpcHandler(ipcMain, 'openExternal', async (_, url) => {
+        if (!url || typeof url !== 'string') {
+            throw new Error('Invalid URL');
+        }
+
+        let urlObj;
+        try {
+            urlObj = new URL(url);
+        } catch {
+            throw new Error('Malformed URL');
+        }
+
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+            throw new Error('Unsupported URL protocol');
+        }
+
         const { shell } = require('electron');
         await shell.openExternal(url);
         return true;

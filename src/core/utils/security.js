@@ -140,11 +140,15 @@ function validatePath(filePath, basePath) {
     }
     
     const path = require('path');
-    const resolvedPath = path.resolve(basePath, filePath);
     const resolvedBase = path.resolve(basePath);
+    const resolvedPath = path.resolve(basePath, filePath);
+    const relativePath = path.relative(resolvedBase, resolvedPath);
     
-    // Ensure resolved path starts with base path (prevents directory traversal)
-    if (!resolvedPath.startsWith(resolvedBase)) {
+    // Ensure resolved path stays within base path (prevents traversal)
+    const isInsideBase = relativePath === '' ||
+        (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+    
+    if (!isInsideBase) {
         return null;
     }
     

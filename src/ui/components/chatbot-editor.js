@@ -801,15 +801,14 @@ class ChatbotEditor extends HTMLElement {
                 // Update state to 'edit' so subsequent saves don't create duplicates
                 this.currentId = newBot.id;
                 this._mode = 'edit';
-                this.chatbotData = newBot; // Update internal data
+                const updatedBot = await window.api.chatbot.get(newBot.id);
+                this.chatbotData = updatedBot || newBot; // Refresh with saved data
 
                 // Update header title
                 const headerTitle = this.querySelector('.editor-header h2');
                 if (headerTitle) headerTitle.textContent = 'Edit Chatbot';
 
-                // Re-render sections not fully needed unless we want to refresh IDs, 
-                // but usually fine to leave as is.
-                this.renderSections(newBot); // Optional: ensure everything syncs
+                // Re-render handled by chatbotData setter
 
                 // Show success feedback
                 alert('Chatbot created successfully!');

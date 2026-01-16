@@ -586,11 +586,13 @@
         },
 
         /**
-         * Shows the "Delete Chatbot" confirmation modal
+         * Shows the "Delete Chatbot" confirmation modal (for editor)
          * @param {ChatbotEditor} editor - The editor instance
          * @param {string} chatbotName - The name of the chatbot to delete
          */
         showDeleteConfirmationModal: function(editor, chatbotName) {
+            const escapeHtml = window.SecurityUtils ? window.SecurityUtils.escapeHtml : (text) => String(text ?? '');
+            const safeChatbotName = escapeHtml(chatbotName);
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
             overlay.innerHTML = `
@@ -606,7 +608,7 @@
                         <div class="form-group">
                             <label for="delete-confirm-input">Type the chatbot name to confirm deletion:</label>
                             <div style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-radius: 4px; font-weight: 600; color: var(--text-primary);">
-                                ${chatbotName}
+                                ${safeChatbotName}
                             </div>
                             <input type="text" id="delete-confirm-input" class="input-field" 
                                    placeholder="Type the chatbot name here">
@@ -675,6 +677,117 @@
                 } catch (error) {
                     console.error('Error deleting chatbot:', error);
                     alert('Failed to delete chatbot. Check console for details.');
+                }
+            });
+
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+                if (confirmInput) {
+                    confirmInput.focus();
+                }
+            }, 100);
+        },
+
+        /**
+         * Shows the "Delete Chatbot" confirmation modal (for card view)
+         * @param {string} chatbotId - The ID of the chatbot to delete
+         * @param {string} chatbotName - The name of the chatbot to delete
+         * @param {Function} onDeleteCallback - Callback to execute after successful deletion
+         */
+        showDeleteConfirmationModalForCard: function(chatbotId, chatbotName, onDeleteCallback) {
+            const escapeHtml = window.SecurityUtils ? window.SecurityUtils.escapeHtml : (text) => String(text ?? '');
+            const safeChatbotName = escapeHtml(chatbotName);
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+                <div class="modal" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3>Delete Chatbot</h3>
+                        <button class="modal-close" type="button">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; color: var(--danger);">
+                            <strong>Warning:</strong> This action cannot be undone. This will permanently delete the chatbot.
+                        </div>
+                        <div class="form-group">
+                            <label for="delete-confirm-input-card">Type the chatbot name to confirm deletion:</label>
+                            <div style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-radius: 4px; font-weight: 600; color: var(--text-primary);">
+                                ${safeChatbotName}
+                            </div>
+                            <input type="text" id="delete-confirm-input-card" class="input-field" 
+                                   placeholder="Type the chatbot name here">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="secondary-btn cancel-delete-modal-card">Cancel</button>
+                        <button class="danger-btn confirm-delete-btn-card" disabled>Delete</button>
+                    </div>
+                </div>
+            `;
+
+            const closeModal = () => overlay.remove();
+
+            overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+            overlay.querySelector('.cancel-delete-modal-card').addEventListener('click', closeModal);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeModal();
+            });
+
+            const modal = overlay.querySelector('.modal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'TEXTAREA' || 
+                        e.target.tagName === 'SELECT' ||
+                        e.target.tagName === 'BUTTON' ||
+                        e.target.closest('input, textarea, select, button')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                });
+            }
+
+            const confirmInput = overlay.querySelector('#delete-confirm-input-card');
+            const confirmBtn = overlay.querySelector('.confirm-delete-btn-card');
+
+            if (confirmInput) {
+                confirmInput.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                confirmInput.addEventListener('focus', (e) => {
+                    e.stopPropagation();
+                });
+                confirmInput.addEventListener('input', (e) => {
+                    const inputValue = e.target.value.trim();
+                    if (inputValue === chatbotName) {
+                        confirmBtn.disabled = false;
+                    } else {
+                        confirmBtn.disabled = true;
+                    }
+                });
+            }
+
+            confirmBtn.addEventListener('click', async () => {
+                const inputValue = confirmInput.value.trim();
+                if (inputValue !== chatbotName) {
+                    alert('The name you typed does not match the chatbot name.');
+                    return;
+                }
+
+                try {
+                    const result = await window.api.chatbot.delete(chatbotId);
+                    if (result === false) {
+                        alert('Failed to delete chatbot. Chatbot not found.');
+                        return;
+                    }
+                    closeModal();
+                    if (onDeleteCallback) {
+                        onDeleteCallback();
+                    }
+                } catch (error) {
+                    console.error('Error deleting chatbot:', error);
+                    alert(`Failed to delete chatbot: ${error.message}`);
                 }
             });
 

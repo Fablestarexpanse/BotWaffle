@@ -6,8 +6,13 @@ const fs = require('fs').promises;
 const PROMPT_WAFFLE_ROOT = path.join(__dirname, '../tools/prompt-waffle');
 
 function getSafePath(target) {
+    const resolvedBase = path.resolve(PROMPT_WAFFLE_ROOT);
     const resolved = path.resolve(PROMPT_WAFFLE_ROOT, target);
-    if (!resolved.startsWith(path.resolve(PROMPT_WAFFLE_ROOT))) {
+    const relativePath = path.relative(resolvedBase, resolved);
+    const isInsideBase = relativePath === '' ||
+        (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+
+    if (!isInsideBase) {
         throw new Error('Access denied');
     }
     return resolved;

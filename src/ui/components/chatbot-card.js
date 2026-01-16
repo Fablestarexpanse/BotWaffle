@@ -78,8 +78,12 @@ class ChatbotCard extends HTMLElement {
             if (bot.exampleDialogs && Array.isArray(bot.exampleDialogs)) {
                 bot.exampleDialogs.forEach(dialog => {
                     if (dialog && typeof dialog === 'object') {
-                        if (dialog.user) sectionTokens.exampleDialogs += estimate(String(dialog.user));
-                        if (dialog.assistant) sectionTokens.exampleDialogs += estimate(String(dialog.assistant));
+                        if (dialog.text) {
+                            sectionTokens.exampleDialogs += estimate(String(dialog.text));
+                        } else {
+                            if (dialog.user) sectionTokens.exampleDialogs += estimate(String(dialog.user));
+                            if (dialog.assistant) sectionTokens.exampleDialogs += estimate(String(dialog.assistant));
+                        }
                     }
                 });
                 tokenCount += sectionTokens.exampleDialogs;
@@ -125,7 +129,10 @@ class ChatbotCard extends HTMLElement {
                             <h3>${displayName}</h3>
                             <div class="category">${category}</div>
                         </div>
-                        <div class="status-badge ${statusValue}">${escapeHtml(statusDisplay)}</div>
+                        <div class="card-header-actions">
+                            <div class="status-badge ${statusValue}">${escapeHtml(statusDisplay)}</div>
+                            <button class="card-delete-btn" title="Delete chatbot" data-chatbot-id="${bot.id}">🗑️</button>
+                        </div>
                     </div>
                     <p class="description">${description}</p>
                 </div>
@@ -193,16 +200,37 @@ class ChatbotCard extends HTMLElement {
 
         const card = this.querySelector('.chatbot-card');
         if (card) {
-            card.addEventListener('click', (e) => {
-                // Don't trigger edit if clicking on a tag
-                if (e.target.closest('.tag')) {
+            // Delete button handler
+            const deleteBtn = card.querySelector('.card-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const tag = e.target.getAttribute('data-tag');
-                    if (tag) {
-                        this.dispatchEvent(new CustomEvent('filter-by-tag', {
-                            detail: { tag },
-                            bubbles: true
-                        }));
+                    e.preventDefault();
+                    const chatbotName = bot.profile?.displayName || bot.profile?.name || 'this chatbot';
+                    if (window.EditorModals && window.EditorModals.showDeleteConfirmationModalForCard) {
+                        window.EditorModals.showDeleteConfirmationModalForCard(bot.id, chatbotName, () => {
+                            // After deletion, find the chatbot-list element and refresh it
+                            const chatbotList = document.querySelector('chatbot-list');
+                            if (chatbotList && chatbotList.loadChatbots) {
+                                chatbotList.loadChatbots();
+                            }
+                        });
+                    }
+                });
+            }
+
+            card.addEventListener('click', (e) => {
+                // Don't trigger edit if clicking on delete button, tag, or asset buttons
+                if (e.target.closest('.card-delete-btn') || e.target.closest('.tag') || e.target.closest('.asset-button-compact')) {
+                    e.stopPropagation();
+                    if (e.target.closest('.tag')) {
+                        const tag = e.target.getAttribute('data-tag');
+                        if (tag) {
+                            this.dispatchEvent(new CustomEvent('filter-by-tag', {
+                                detail: { tag },
+                                bubbles: true
+                            }));
+                        }
                     }
                     return;
                 }

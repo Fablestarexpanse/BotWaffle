@@ -42,15 +42,33 @@ function createChunk(type, data) {
 function exportToPng(chatbot, outputPath, sourceImagePath) {
     try {
         // 1. Construct V2 Character Card Spec JSON
+        const scenarioText = typeof chatbot.scenario === 'string'
+            ? chatbot.scenario
+            : (chatbot.scenario?.scenario || chatbot.scenario?.text || '');
+        const initialMessages = Array.isArray(chatbot.initialMessages)
+            ? chatbot.initialMessages
+            : (typeof chatbot.initialMessages === 'string' ? [{ text: chatbot.initialMessages }] : []);
+        const exampleDialogs = Array.isArray(chatbot.exampleDialogs) ? chatbot.exampleDialogs : [];
+        const personalityData = chatbot.personality?.characterData || chatbot.personality || {};
+
         const cardData = {
             name: chatbot.profile.name || "Anonymous",
             description: chatbot.profile.description || "",
-            personality: chatbot.personality.personality || "",
-            scenario: chatbot.prompts?.scenario || "",
-            first_mes: chatbot.prompts?.greetings?.[0]?.text || "",
-            mes_example: chatbot.prompts?.examples?.map(ex => `<START>\n{{user}}: ${ex.user}\n{{char}}: ${ex.assistant}`).join('\n') || "",
+            personality: personalityData.personality || "",
+            scenario: scenarioText,
+            first_mes: initialMessages[0]?.text || "",
+            mes_example: exampleDialogs
+                .map(ex => {
+                    if (ex && typeof ex === 'object' && ex.text) {
+                        return `<START>\n{{user}}: ${ex.text}\n{{char}}: `;
+                    }
+                    const userText = ex && typeof ex === 'object' ? (ex.user || '') : '';
+                    const assistantText = ex && typeof ex === 'object' ? (ex.assistant || '') : '';
+                    return `<START>\n{{user}}: ${userText}\n{{char}}: ${assistantText}`;
+                })
+                .join('\n') || "",
             creator_notes: `Created with BotWaffle`,
-            system_prompt: chatbot.personality.systemPrompt || "",
+            system_prompt: personalityData.systemPrompt || "",
             post_history_instructions: "",
             alternate_greetings: [],
             character_book: undefined,

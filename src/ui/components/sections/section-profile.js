@@ -224,8 +224,8 @@ class SectionProfile extends customElements.get('section-base') {
 
             <div class="form-group">
                 <label>Description</label>
-                <textarea name="description" class="input-field" rows="3" maxlength="200" placeholder="A brief elevator pitch...">${descriptionValue}</textarea>
-                <div class="field-hint">Maximum 200 characters</div>
+                <textarea name="description" class="input-field" rows="3" maxlength="2000" placeholder="A brief elevator pitch...">${descriptionValue}</textarea>
+                <div class="field-hint">Maximum 2000 characters</div>
             </div>
         `;
 
@@ -348,6 +348,7 @@ class SectionProfile extends customElements.get('section-base') {
     openGallery(startIndex) {
         const images = this.getImageData();
         if (images.length === 0) return;
+        const escapeHtml = window.SecurityUtils.escapeHtml;
 
         // Create Modal Overlay
         const overlay = document.createElement('div');
@@ -360,7 +361,7 @@ class SectionProfile extends customElements.get('section-base') {
             <div class="gallery-thumbnails">
                 ${images.map((src, i) => `
                     <div class="gallery-thumb ${i === startIndex ? 'active' : ''}" data-index="${i}">
-                        <img src="${this.normalizePath(src)}" alt="Thumbnail ${i + 1}">
+                        <img src="${escapeHtml(this.normalizePath(src))}" alt="Thumbnail ${i + 1}">
                     </div>
                 `).join('')}
             </div>

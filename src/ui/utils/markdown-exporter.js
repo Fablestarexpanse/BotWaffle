@@ -158,18 +158,47 @@
                 lines.push('');
 
                 // Try to get section data from chatbotData
-                const sectionKey = sectionConfig.type;
+                const sectionKeyMap = {
+                    'initial-messages': 'initialMessages',
+                    'example-dialogs': 'exampleDialogs'
+                };
+                const sectionKey = sectionKeyMap[sectionConfig.type] || sectionConfig.type;
                 let hasContent = false;
                 if (chatbotData[sectionKey] && typeof chatbotData[sectionKey] === 'object') {
                     const data = chatbotData[sectionKey];
-                    Object.keys(data).forEach(key => {
-                        const value = data[key];
-                        if (value && typeof value !== 'object') {
-                            const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim();
-                            lines.push(`- ${label}: ${escapeMarkdown(String(value))}`);
-                            hasContent = true;
-                        }
-                    });
+                    if (Array.isArray(data)) {
+                        data.forEach((entry, index) => {
+                            if (typeof entry === 'string') {
+                                lines.push(`- Entry ${index + 1}: ${escapeMarkdown(entry)}`);
+                                hasContent = true;
+                                return;
+                            }
+
+                            if (entry && typeof entry === 'object') {
+                                if (entry.text) {
+                                    lines.push(`- Entry ${index + 1}: ${escapeMarkdown(String(entry.text))}`);
+                                    hasContent = true;
+                                    return;
+                                }
+
+                                if (entry.user || entry.assistant) {
+                                    const userText = entry.user ? escapeMarkdown(String(entry.user)) : '';
+                                    const assistantText = entry.assistant ? escapeMarkdown(String(entry.assistant)) : '';
+                                    lines.push(`- Entry ${index + 1}: ${[userText, assistantText].filter(Boolean).join(' / ')}`);
+                                    hasContent = true;
+                                }
+                            }
+                        });
+                    } else {
+                        Object.keys(data).forEach(key => {
+                            const value = data[key];
+                            if (value && typeof value !== 'object') {
+                                const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim();
+                                lines.push(`- ${label}: ${escapeMarkdown(String(value))}`);
+                                hasContent = true;
+                            }
+                        });
+                    }
                 }
                 
                 // If no content, at least show the section exists

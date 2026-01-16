@@ -129,6 +129,11 @@ class ChatbotList extends HTMLElement {
                 this.filterBots(tag);
             }
         });
+
+        // Listen for refresh-list events (e.g., after deletion)
+        this.addEventListener('refresh-list', () => {
+            this.loadChatbots();
+        });
     }
 
     async loadChatbots() {

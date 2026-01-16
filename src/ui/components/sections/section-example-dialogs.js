@@ -23,13 +23,30 @@ class SectionExampleDialogs extends customElements.get('section-base') {
     renderContent() {
         const body = this.querySelector('.section-body');
         const dialogsData = this._data.exampleDialogs || this._data.dialogs || [];
-        
+
+        const normalizedDialogs = dialogsData.map((dialog) => {
+            if (typeof dialog === 'string') {
+                return { id: this._generateId(), text: dialog };
+            }
+
+            if (dialog && typeof dialog === 'object') {
+                const textValue = typeof dialog.text === 'string'
+                    ? dialog.text
+                    : [dialog.user ? `User: ${dialog.user}` : '', dialog.assistant ? `Assistant: ${dialog.assistant}` : '']
+                        .filter(Boolean)
+                        .join('\n');
+                return { id: dialog.id || this._generateId(), text: textValue || '' };
+            }
+
+            return { id: this._generateId(), text: '' };
+        });
+
         // Initialize with one empty dialog if empty
-        if (dialogsData.length === 0) {
-            dialogsData.push({ id: this._generateId(), user: '', assistant: '' });
+        if (normalizedDialogs.length === 0) {
+            normalizedDialogs.push({ id: this._generateId(), text: '' });
         }
-        
-        this._dialogs = dialogsData;
+
+        this._dialogs = normalizedDialogs;
 
         const escapeHtml = window.SecurityUtils.escapeHtml;
         
@@ -49,12 +66,8 @@ class SectionExampleDialogs extends customElements.get('section-base') {
                                 </div>
                                 <div class="dialog-content">
                                     <div class="form-group">
-                                        <label>User:</label>
-                                        <textarea class="input-field dialog-user" rows="3" placeholder="User message...">${escapeHtml(dialog.user || '')}</textarea>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Assistant:</label>
-                                        <textarea class="input-field dialog-assistant" rows="3" placeholder="Assistant response...">${escapeHtml(dialog.assistant || '')}</textarea>
+                                        <label>Example Dialog</label>
+                                        <textarea class="input-field dialog-text" rows="6" placeholder="Enter the example dialog...">${escapeHtml(dialog.text || '')}</textarea>
                                     </div>
                                 </div>
                             </div>
@@ -94,35 +107,19 @@ class SectionExampleDialogs extends customElements.get('section-base') {
         const dialogItems = this.querySelectorAll('.dialog-item');
         dialogItems.forEach(item => {
             const index = parseInt(item.getAttribute('data-index'), 10);
-            const userTextarea = item.querySelector('.dialog-user');
-            const assistantTextarea = item.querySelector('.dialog-assistant');
+            const dialogTextarea = item.querySelector('.dialog-text');
             
-            if (userTextarea) {
+            if (dialogTextarea) {
                 // Prevent header click from interfering
-                userTextarea.addEventListener('click', (e) => {
+                dialogTextarea.addEventListener('click', (e) => {
                     e.stopPropagation();
                 });
-                userTextarea.addEventListener('focus', (e) => {
+                dialogTextarea.addEventListener('focus', (e) => {
                     e.stopPropagation();
                 });
-                userTextarea.addEventListener('input', () => {
+                dialogTextarea.addEventListener('input', () => {
                     if (this._dialogs[index]) {
-                        this._dialogs[index].user = userTextarea.value;
-                    }
-                });
-            }
-            
-            if (assistantTextarea) {
-                // Prevent header click from interfering
-                assistantTextarea.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-                assistantTextarea.addEventListener('focus', (e) => {
-                    e.stopPropagation();
-                });
-                assistantTextarea.addEventListener('input', () => {
-                    if (this._dialogs[index]) {
-                        this._dialogs[index].assistant = assistantTextarea.value;
+                        this._dialogs[index].text = dialogTextarea.value;
                     }
                 });
             }
@@ -130,7 +127,7 @@ class SectionExampleDialogs extends customElements.get('section-base') {
     }
 
     _addDialog() {
-        const newDialog = { id: this._generateId(), user: '', assistant: '' };
+        const newDialog = { id: this._generateId(), text: '' };
         this._dialogs.push(newDialog);
         this.renderContent();
     }
@@ -151,19 +148,15 @@ class SectionExampleDialogs extends customElements.get('section-base') {
         
         dialogItems.forEach(item => {
             const index = parseInt(item.getAttribute('data-index'), 10);
-            const userTextarea = item.querySelector('.dialog-user');
-            const assistantTextarea = item.querySelector('.dialog-assistant');
+            const dialogTextarea = item.querySelector('.dialog-text');
+            const text = dialogTextarea ? dialogTextarea.value.trim() : '';
             
-            const user = userTextarea ? userTextarea.value.trim() : '';
-            const assistant = assistantTextarea ? assistantTextarea.value.trim() : '';
-            
-            // Only include if at least one field has content
-            if (user || assistant) {
+            // Only include if dialog has content
+            if (text) {
                 const dialog = this._dialogs[index] || { id: this._generateId() };
                 dialogs.push({
                     id: dialog.id,
-                    user: user,
-                    assistant: assistant
+                    text
                 });
             }
         });

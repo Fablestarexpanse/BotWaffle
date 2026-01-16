@@ -147,12 +147,47 @@ export function createFolderElement({
     const createActionButton = (title, iconName, onClick) => {
       const button = document.createElement('button');
       button.className = 'action-button';
-      button.title = title;
+      // Remove native title tooltip - we'll use custom tooltip instead
+      // button.title = title;
       const icon = document.createElement('i');
       icon.setAttribute('data-feather', iconName);
       button.appendChild(icon);
+      
+      // Custom tooltip for action buttons
+      let tooltip = null;
+      button.addEventListener('mouseenter', (e) => {
+        tooltip = document.createElement('div');
+        tooltip.className = 'custom-folder-tooltip';
+        tooltip.textContent = title;
+        document.body.appendChild(tooltip);
+        const rect = button.getBoundingClientRect();
+        tooltip.style.position = 'fixed';
+        tooltip.style.left = `${rect.left + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top - 32}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+        tooltip.style.background = '#222';
+        tooltip.style.color = '#fff';
+        tooltip.style.padding = '6px 12px';
+        tooltip.style.borderRadius = '6px';
+        tooltip.style.fontSize = '13px';
+        tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
+        tooltip.style.zIndex = 10000;
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.whiteSpace = 'nowrap';
+      });
+      button.addEventListener('mouseleave', () => {
+        if (tooltip) {
+          tooltip.remove();
+          tooltip = null;
+        }
+      });
+      
       button.onclick = e => {
         e.stopPropagation();
+        if (tooltip) {
+          tooltip.remove();
+          tooltip = null;
+        }
         if (typeof onClick === 'function') {
           try {
             onClick();

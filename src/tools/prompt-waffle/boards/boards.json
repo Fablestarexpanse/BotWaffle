@@ -3,22 +3,95 @@
     "id": "board-default",
     "name": "Default Board",
     "tags": [],
-    "cards": [],
+    "cards": [
+      {
+        "id": "card-1768541934922",
+        "snippetPath": "Start Here/default_cyberpunk.json",
+        "x": 299,
+        "y": 65,
+        "width": 594,
+        "height": 140,
+        "locked": false,
+        "color": "#3498DB"
+      },
+      {
+        "id": "card-1768541936453",
+        "snippetPath": "Start Here/default_space.json",
+        "x": 375,
+        "y": 384,
+        "width": 714,
+        "height": 140,
+        "locked": false,
+        "color": "#2ECC71"
+      },
+      {
+        "id": "card-1768542946868",
+        "snippetPath": "Start Here/default_cyberpunk.json",
+        "x": 156,
+        "y": 239,
+        "width": 594,
+        "height": 140,
+        "locked": false,
+        "color": "#E74C3C"
+      },
+      {
+        "id": "card-1768542951472",
+        "snippetPath": "Start Here/default_space.json",
+        "x": 988,
+        "y": 225,
+        "width": 714,
+        "height": 140,
+        "locked": false,
+        "color": "#F39C12"
+      }
+    ],
     "groups": [],
     "images": [],
-    "createdAt": "2025-12-24T02:15:05.248Z",
-    "modifiedAt": "2025-12-24T02:15:05.248Z",
-    "filePath": "Start Here\\default_board.json"
+    "createdAt": "2025-09-06T21:36:49.113Z",
+    "modifiedAt": "2025-09-06T21:36:49.113Z"
   },
   {
-    "id": "board-1767059575198",
-    "name": "Test me",
-    "tags": [],
-    "cards": [],
+    "id": "board-1768541456547",
+    "name": "Test Board",
+    "tags": [
+      "a test board"
+    ],
+    "cards": [
+      {
+        "id": "card-1768541863289",
+        "snippetPath": "Start Here/default_cyberpunk.json",
+        "x": 198,
+        "y": 29,
+        "width": 594,
+        "height": 140,
+        "locked": false,
+        "color": "#E74C3C"
+      },
+      {
+        "id": "card-1768541864638",
+        "snippetPath": "Start Here/default_photorealistic.json",
+        "x": 300,
+        "y": 204,
+        "width": 632,
+        "height": 140,
+        "locked": false,
+        "color": "#3498DB"
+      },
+      {
+        "id": "card-1768541866387",
+        "snippetPath": "Start Here/default_space.json",
+        "x": 459,
+        "y": 377,
+        "width": 714,
+        "height": 140,
+        "locked": false,
+        "color": "#2ECC71"
+      }
+    ],
     "groups": [],
     "images": [],
-    "createdAt": "2025-12-30T01:52:55.198Z",
-    "modifiedAt": "2025-12-30T01:52:55.198Z",
-    "filePath": "boards\\test_me_1767059575198.json"
+    "createdAt": "2026-01-16T05:30:56.547Z",
+    "modifiedAt": "2026-01-16T05:30:56.547Z",
+    "filePath": "test_board_1768541456547.json"
   }
 ]

@@ -143,6 +143,7 @@ async function handleSnippetDrop(data, targetFolderPath) {
   try {
     if (!data || !data.path) {
       console.error('Invalid drag data for snippet drop:', data);
+      showToast('Invalid snippet data', 'error');
       return;
     }
     // Log the value of data.path at the start
@@ -179,49 +180,40 @@ async function handleSnippetDrop(data, targetFolderPath) {
       await window.electronAPI.createFolder(newFolderPath);
     }
     // Check if the source file exists before trying to move it
-    if (window.electronAPI && window.electronAPI.exists) {
-      const fileExists = await window.electronAPI.exists(oldPath);
-      // Also check what files exist in the snippets directory and subdirectories
-      try {
-        const snippetsFiles = await window.electronAPI.listFiles('snippets');
-        // Check if the file exists in any subdirectory
-        let fileFound = false;
-        for (const item of snippetsFiles) {
-          if (item.isDirectory) {
-            try {
-              const subFiles = await window.electronAPI.listFiles(
-                `snippets/${item.name}`
-              );
-              const fileName = normalizedPath.split('/').pop();
-              if (subFiles.some(f => f.name === fileName)) {
-                fileFound = true;
-                break;
-              }
-            } catch (subError) {
-              // Ignore subdirectory errors during file existence check
-            }
-          }
-        }
-        if (!fileExists && !fileFound) {
-          throw new Error(`Source file does not exist: ${oldPath}`);
-        }
-      } catch (listError) {
-        if (!fileExists) {
-          throw new Error(`Source file does not exist: ${oldPath}`);
-        }
-      }
+    try {
+      await window.electronAPI.readFile(oldPath);
+    } catch (error) {
+      console.error('Source snippet file not found:', oldPath, error);
+      showToast('Source file not found. Cannot move snippet.', 'error');
+      return;
     }
+    
+    // Check if target file already exists to prevent overwriting
+    try {
+      await window.electronAPI.readFile(newPath);
+      showToast('A file with this name already exists in the target folder', 'error');
+      return;
+    } catch (error) {
+      // File doesn't exist, which is good - we can proceed
+    }
+    
+    // Move the file
     await window.electronAPI.rename(oldPath, newPath);
+    
     // Verify the file was moved successfully
-    if (window.electronAPI && window.electronAPI.exists) {
-      const oldFileExists = await window.electronAPI.exists(oldPath);
-      const newFileExists = await window.electronAPI.exists(newPath);
-      if (oldFileExists) {
-        console.warn('[MoveSnippet] Warning: Old file still exists after move');
+    try {
+      await window.electronAPI.readFile(newPath);
+      // New file exists, good
+    } catch (error) {
+      console.error('Snippet move verification failed:', error);
+      // Try to check if old file still exists (rename might have failed)
+      try {
+        await window.electronAPI.readFile(oldPath);
+        showToast('Failed to move snippet. Source file still exists.', 'error');
+      } catch (oldError) {
+        showToast('Failed to verify snippet move. File may be lost.', 'error');
       }
-      if (!newFileExists) {
-        throw new Error(`New file does not exist after move: ${newPath}`);
-      }
+      return;
     }
     // Update the snippet in AppState to reflect the new path
     const snippets = AppState.getSnippets();
@@ -276,54 +268,126 @@ async function handleSnippetDrop(data, targetFolderPath) {
 }
 async function handleBoardDrop(data, targetFolderPath) {
   try {
-    if (!data || !data.path) {
+    if (!data || !data.path || !data.board) {
       console.error('Invalid drag data for board drop:', data);
+      showToast('Invalid board data', 'error');
       return;
     }
+    
     // Normalize all paths to use forward slashes
     const normalize = p => p.replace(/\\/g, '/');
-    // Handle the case where data.path might already include 'snippets/'
-    let normalizedPath = normalize(data.path);
-    if (normalizedPath.startsWith('snippets/')) {
-      normalizedPath = normalizedPath.substring(9); // Remove 'snippets/' prefix
+    
+    // Get the board from AppState to find its actual filePath
+    const boards = AppState.getBoards();
+    const board = boards.find(b => b.id === data.board.id || b.name === data.board.name);
+    
+    if (!board) {
+      console.error('Board not found in AppState:', data.board);
+      showToast('Board not found', 'error');
+      return;
     }
-    const oldPath = `snippets/${normalizedPath}`;
-    const fileName = normalizedPath.split('/').pop();
-    const currentFolder = normalizedPath.includes('/')
-      ? normalizedPath.split('/').slice(0, -1).join('/')
-      : '';
-    const newFolderPath = targetFolderPath
-      ? `snippets/${targetFolderPath}`
-      : 'snippets';
+    
+    // Use the board's filePath if available, otherwise use the path from drag data
+    let oldPath = board.filePath || data.path;
+    
+    // Normalize and ensure path starts with snippets/
+    oldPath = normalize(oldPath);
+    if (!oldPath.startsWith('snippets/')) {
+      // If board is in boards/ directory, we need to copy it to snippets/ first
+      if (oldPath.startsWith('boards/')) {
+        // Read the board file from boards/ directory
+        const boardContent = await window.electronAPI.readFile(oldPath);
+        const boardData = JSON.parse(boardContent);
+        
+        // Create new path in snippets/
+        const fileName = oldPath.split('/').pop();
+        const newPath = targetFolderPath
+          ? `snippets/${targetFolderPath}/${fileName}`
+          : `snippets/${fileName}`;
+        
+        // Ensure target folder exists
+        if (targetFolderPath && window.electronAPI && window.electronAPI.createFolder) {
+          await window.electronAPI.createFolder(`snippets/${targetFolderPath}`);
+        }
+        
+        // Write board to new location
+        await window.electronAPI.writeFile(newPath, boardContent);
+        
+        // Update board's filePath
+        board.filePath = newPath;
+        AppState.setBoards(boards);
+        
+        // Save the updated boards array
+        const { saveBoards } = await import('./state.js');
+        await saveBoards();
+        
+        // Reload sidebar
+        const currentState = getSidebarState();
+        const { loadInitialData } = await import('./load-initial-data.js');
+        const initialData = await loadInitialData();
+        const foldersContainer = document.getElementById('foldersContainer');
+        if (foldersContainer && initialData && initialData.sidebarTree) {
+          renderSidebar(initialData.sidebarTree, foldersContainer);
+          applySidebarState(currentState);
+        }
+        
+        showToast(`Board "${data.board.name}" moved successfully`, 'success');
+        return;
+      } else {
+        oldPath = `snippets/${oldPath}`;
+      }
+    }
+    
+    // Check if old file exists before trying to move
+    try {
+      await window.electronAPI.readFile(oldPath);
+    } catch (error) {
+      console.error('Board file not found at:', oldPath, error);
+      showToast('Board file not found. Cannot move board.', 'error');
+      return;
+    }
+    
+    const fileName = oldPath.split('/').pop();
     const newPath = targetFolderPath
-      ? `${newFolderPath}/${fileName}`
+      ? `snippets/${targetFolderPath}/${fileName}`
       : `snippets/${fileName}`;
+    
     // Only return early if the paths are actually the same (after normalization)
     if (normalize(oldPath) === normalize(newPath)) {
       return;
     }
+    
     // Prevent moving a board into itself or a subpath of itself
     if (newPath.startsWith(`${oldPath}/`)) {
       showToast('Cannot move board into itself or its subpath', 'error');
       return;
     }
+    
     // Ensure the target folder exists
-    if (
-      targetFolderPath &&
-      window.electronAPI &&
-      window.electronAPI.createFolder
-    ) {
-      await window.electronAPI.createFolder(newFolderPath);
+    if (targetFolderPath && window.electronAPI && window.electronAPI.createFolder) {
+      await window.electronAPI.createFolder(`snippets/${targetFolderPath}`);
     }
+    
+    // Check if target file already exists
+    try {
+      await window.electronAPI.readFile(newPath);
+      showToast('A board with this name already exists in the target folder', 'error');
+      return;
+    } catch (error) {
+      // File doesn't exist, which is good - we can proceed
+    }
+    
     // Move the board file
     await window.electronAPI.rename(oldPath, newPath);
-    // Update the board's path in the boards array
-    const boards = AppState.getBoards();
-    const board = boards.find(b => b.name === data.board.name);
-    if (board) {
-      // Update the board's file path reference
-      board.filePath = newPath;
-    }
+    
+    // Update the board's file path reference
+    board.filePath = newPath;
+    AppState.setBoards(boards);
+    
+    // Save the updated boards array
+    const { saveBoards } = await import('./state.js');
+    await saveBoards();
+    
     // Reload sidebar tree from disk to reflect the changes
     if (window.sidebarTree) {
       // Preserve expanded/collapsed state
@@ -340,24 +404,66 @@ async function handleBoardDrop(data, targetFolderPath) {
     showToast(`Board "${data.board.name}" moved successfully`, 'success');
   } catch (error) {
     console.error('Error moving board:', error);
-    showToast('Error moving board', 'error');
+    showToast(`Error moving board: ${error.message || 'Unknown error'}`, 'error');
   }
 }
 async function handleFolderDrop(sourcePath, targetPath) {
   try {
-    if (!sourcePath || sourcePath === targetPath) return;
+    if (!sourcePath) {
+      console.error('Invalid source path for folder drop:', sourcePath);
+      showToast('Invalid folder path', 'error');
+      return;
+    }
+    
+    if (sourcePath === targetPath) {
+      return; // No move needed
+    }
+    
     // Prevent moving a folder into itself or its descendants
-    if (targetPath === sourcePath || targetPath.startsWith(`${sourcePath}/`)) {
+    if (targetPath && (targetPath === sourcePath || targetPath.startsWith(`${sourcePath}/`))) {
       showToast('Cannot move a folder into itself or its subfolders', 'error');
       return;
     }
+    
     const folderName = sourcePath.split('/').pop();
     const oldFolderPath = `snippets/${sourcePath}`;
     const newFolderPath = targetPath
       ? `snippets/${targetPath}/${folderName}`
       : `snippets/${folderName}`;
+    
+    // Check if source folder exists before trying to move
+    try {
+      const files = await window.electronAPI.readdir(oldFolderPath);
+      if (!files || files.length === 0) {
+        // Folder might be empty, but that's okay
+      }
+    } catch (error) {
+      console.error('Source folder not found:', oldFolderPath, error);
+      showToast('Source folder not found. Cannot move folder.', 'error');
+      return;
+    }
+    
+    // Check if target folder already exists
+    try {
+      await window.electronAPI.readdir(newFolderPath);
+      showToast('A folder with this name already exists in the target location', 'error');
+      return;
+    } catch (error) {
+      // Folder doesn't exist, which is good - we can proceed
+    }
+    
     if (window.electronAPI && window.electronAPI.rename) {
       await window.electronAPI.rename(oldFolderPath, newFolderPath);
+      
+      // Verify the folder was moved successfully
+      try {
+        await window.electronAPI.readdir(newFolderPath);
+        // New folder exists, good
+      } catch (error) {
+        console.error('Folder move verification failed:', error);
+        showToast('Failed to verify folder move. The folder may not have been moved correctly.', 'error');
+        return;
+      }
     } else {
       showToast('Filesystem API not available', 'error');
       return;
@@ -515,30 +621,38 @@ async function deleteFolder(path) {
   }
 
   try {
+    // Normalize path to use forward slashes for consistent matching
+    const normalizedPath = path.replace(/\\/g, '/');
+    
     // Delete the folder on disk
     if (window.electronAPI && window.electronAPI.deleteFolderRecursive) {
-      await window.electronAPI.deleteFolderRecursive(`snippets/${path}`);
+      await window.electronAPI.deleteFolderRecursive(`snippets/${normalizedPath}`);
     } else if (window.electronAPI && window.electronAPI.deleteFolder) {
       // fallback if only deleteFolder is available
-      await window.electronAPI.deleteFolder(`snippets/${path}`);
+      await window.electronAPI.deleteFolder(`snippets/${normalizedPath}`);
     } else {
       showToast('Filesystem API not available', 'error');
       return;
     }
     
     // Remove from sidebar tree in memory
-    function removeFolder(tree, path) {
+    function removeFolder(tree, searchPath) {
       for (let i = 0; i < tree.length; i++) {
-        if (tree[i].type === 'folder' && tree[i].path === path) {
+        // Normalize both paths for comparison
+        const treePath = tree[i].path ? tree[i].path.replace(/\\/g, '/') : '';
+        if (tree[i].type === 'folder' && treePath === searchPath) {
           return tree.splice(i, 1)[0];
         } else if (tree[i].type === 'folder' && tree[i].children) {
-          const found = removeFolder(tree[i].children, path);
+          const found = removeFolder(tree[i].children, searchPath);
           if (found) return found;
         }
       }
       return null;
     }
-    removeFolder(window.sidebarTree, path);
+    const removed = removeFolder(window.sidebarTree, normalizedPath);
+    if (!removed) {
+      console.warn('Folder not found in tree:', normalizedPath);
+    }
     
     // Preserve the current expanded state of folders before refreshing
     const currentState = getSidebarState();
@@ -949,12 +1063,12 @@ export function renderSidebar(tree, container, depth = 0, parentPath = '') {
     const entry = sortedTree[i];
     const isLast = i === sortedTree.length - 1;
     if (entry.type === 'folder') {
-      // Compute the full path for this folder
-      const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+      // Use entry.path directly - it already contains the full path from the tree
+      const folderPath = entry.path || entry.name;
       const folderElement = createFolderElement({
         name: entry.name,
-        id: `folder-${fullPath.replace(/[\\/]/g, '-')}`,
-        path: fullPath,
+        id: `folder-${folderPath.replace(/[\\/]/g, '-')}`,
+        path: folderPath,
         depth,
         isLast,
         eventHandlers: {
@@ -984,7 +1098,7 @@ export function renderSidebar(tree, container, depth = 0, parentPath = '') {
           if (b.type === 'board') return 1;
           return 0;
         });
-        renderSidebar(childrenSorted, subContainer, depth + 1, fullPath);
+        renderSidebar(childrenSorted, subContainer, depth + 1, folderPath);
       }
     } else if (entry.type === 'snippet') {
       // Use the content directly from the tree entry

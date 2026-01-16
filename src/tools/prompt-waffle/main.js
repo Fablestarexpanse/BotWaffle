@@ -1420,8 +1420,8 @@ ipcMain.handle('select-folder-and-save-prompt', async (event, prompt) => {
   }
 });
 
-// Export/Import handlers
-ipcMain.handle('export-data', async () => {
+// Export/Import handlers - REMOVED
+/* ipcMain.handle('export-data', async () => {
   try {
     const AdmZip = require('adm-zip');
     const zip = new AdmZip();
@@ -1486,7 +1486,7 @@ ipcMain.handle('export-data', async () => {
     logger.error('[Export] Error exporting data:', error);
     return { success: false, error: error.message || 'Failed to export data' };
   }
-});
+}); */
 
 ipcMain.handle('import-data', async () => {
   try {
@@ -1556,7 +1556,7 @@ ipcMain.handle('import-data', async () => {
     logger.error('[Import] Error importing data:', error);
     return { success: false, error: error.message || 'Failed to import data' };
   }
-});
+}); */
 
 ipcMain.handle('show-save-dialog', async (event, options) => {
   try {
@@ -1573,7 +1573,7 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
   }
 });
 
-ipcMain.handle('open-backup-file-dialog', async () => {
+/* ipcMain.handle('open-backup-file-dialog', async () => {
   try {
     const result = await dialog.showOpenDialog({
       title: 'Select Backup ZIP File to Verify',
@@ -1590,7 +1590,7 @@ ipcMain.handle('open-backup-file-dialog', async () => {
     logger.error('[Main] Error opening backup file dialog:', error);
     return { cancelled: true, error: error.message };
   }
-});
+}); */
 
 ipcMain.handle('verify-backup', async (event, zipPath) => {
   try {
@@ -1682,7 +1682,7 @@ ipcMain.handle('verify-backup', async (event, zipPath) => {
       summary: {}
     };
   }
-});
+}); */
 
 ipcMain.handle('save-prompt-to-file', async (event, prompt, folderPath, filename = 'promptwaffle_prompt.txt') => {
   try {

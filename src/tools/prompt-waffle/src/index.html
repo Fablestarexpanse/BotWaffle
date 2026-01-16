@@ -44,20 +44,6 @@
           <img src="assets/logo.png" alt="PromptWaffle Logo" />
           <p class="tagline">Break it. Remix it. Generate better.</p>
           <p class="version">v<span id="currentVersion">1.5.2</span></p>
-          <div class="data-management-buttons">
-            <button id="exportDataBtn" class="data-btn" title="Export all data to ZIP file">
-              <i data-feather="download"></i>
-              Export Data
-            </button>
-            <button id="importDataBtn" class="data-btn" title="Import data from ZIP file">
-              <i data-feather="upload"></i>
-              Import Data
-            </button>
-            <button id="verifyBackupBtn" class="data-btn" title="Verify backup ZIP file">
-              <i data-feather="check-circle"></i>
-              Verify Backup
-            </button>
-          </div>
           <a href="#" id="kofiLink" class="kofi-link" title="Support PromptWaffle development">
             <i data-feather="heart"></i>
             <span>Support on Ko-fi</span>
@@ -76,12 +62,6 @@
                 <i data-feather="file-plus"></i>
               </button>
               <span class="header-tool-label">Snippet</span>
-            </div>
-            <div class="header-tool">
-              <button class="action-button" id="promptKitBtn" title="Wildcard Studio - Build prompts with wildcards">
-                <i data-feather="smile"></i>
-              </button>
-              <span class="header-tool-label">Wildcard Studio</span>
             </div>
             <div class="header-tool">
               <div class="dropdown">
@@ -179,78 +159,6 @@
                 </div>
               </div>
               <div class="control-group">
-                <button id="openCharacterBuilderBtn" class="control-btn" title="Open Character Builder">
-                  <i data-feather="user-plus"></i>
-                  <span>Character Builder</span>
-                </button>
-                <div class="control-description">
-                  Create and manage character descriptions
-                </div>
-              </div>
-              <div class="control-group">
-                <button id="openWildcardStudioBtn" class="control-btn" title="Open Wildcard Studio">
-                  <i data-feather="shuffle"></i>
-                  <span>Wildcard Studio</span>
-                </button>
-                <div class="control-description">
-                  Create and manage wildcard collections
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Content Section -->
-          <div class="board-section">
-            <div class="section-label">Content</div>
-            <div class="section-controls">
-              <div class="control-group">
-                <button id="addImageBtn" class="control-btn" title="Add reference image to board">
-                  <i data-feather="image"></i>
-                  <span>Images</span>
-                </button>
-                <div class="control-description">
-                  Add reference images to your board (max 6)
-                </div>
-              </div>
-              <div class="control-group">
-                <button id="setFolderBtn" class="control-btn" title="Set folder to monitor">
-                  <i data-feather="folder"></i>
-                  <span>Monitor</span>
-                </button>
-                <div class="control-description">
-                  Monitor a folder for new AI-generated images
-                </div>
-              </div>
-            </div>
-
-            <!-- Live Preview Area -->
-            <div id="livePreviewContainer" class="live-preview-container"></div>
-          </div>
-
-          <!-- Reference Images Section -->
-          <div class="board-section reference-images-section">
-            <div class="section-label">Reference Images</div>
-            <div id="referenceImagesContainer" class="reference-images-container"></div>
-
-            <!-- Character Images Display -->
-            <div id="characterImagesDisplay" class="character-images-display" style="display: none;">
-              <div class="character-images-header">
-                <span class="character-images-title">Active Character</span>
-                <button id="closeCharacterImagesBtn" class="close-character-images-btn" title="Close character images">
-                  <i data-feather="x"></i>
-                </button>
-              </div>
-              <div id="characterImagesContainer" class="character-images-container">
-                <!-- Character images will be displayed here -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Appearance Section -->
-          <div class="board-section">
-            <div class="section-label">Appearance</div>
-            <div class="section-controls">
-              <div class="control-group">
                 <button id="toggleSnippetColorsBtn" class="control-btn" title="Toggle snippet colors on board">
                   <i data-feather="droplet"></i>
                   <span>Colors</span>
@@ -271,6 +179,74 @@
             </div>
           </div>
 
+          <!-- Tools Section -->
+          <div class="board-section">
+            <div class="section-label">Tools</div>
+            <div class="section-controls">
+              <div class="control-group">
+                <button id="openCharacterBuilderBtn" class="control-btn" title="Open Character Builder">
+                  <i data-feather="user-plus"></i>
+                  <span>Character Builder</span>
+                </button>
+                <div class="control-description">
+                  Create and manage character descriptions
+                </div>
+              </div>
+              <div class="control-group">
+                <button id="openWildcardStudioBtn" class="control-btn" title="Open Wildcard Studio">
+                  <i data-feather="shuffle"></i>
+                  <span>Wildcard Studio</span>
+                </button>
+                <div class="control-description">
+                  Create and manage wildcard collections
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Images Section -->
+          <div class="board-section reference-images-section">
+            <div class="section-label">Images</div>
+            <div class="section-controls">
+              <div class="control-group">
+                <button id="addImageBtn" class="control-btn" title="Add reference image to board">
+                  <i data-feather="image"></i>
+                  <span>Add Images</span>
+                </button>
+                <div class="control-description">
+                  Add reference images to your board (max 6)
+                </div>
+              </div>
+              <div class="control-group">
+                <button id="setFolderBtn" class="control-btn" title="Set folder to monitor">
+                  <i data-feather="folder"></i>
+                  <span>Monitor</span>
+                </button>
+                <div class="control-description">
+                  Monitor a folder for new AI-generated images
+                </div>
+              </div>
+            </div>
+            <div id="referenceImagesContainer" class="reference-images-container"></div>
+
+            <!-- Live Preview Area -->
+            <div id="livePreviewContainer" class="live-preview-container"></div>
+
+            <!-- Character Images Display -->
+            <div id="characterImagesDisplay" class="character-images-display" style="display: none;">
+              <div class="character-images-header">
+                <span class="character-images-title">Active Character</span>
+                <button id="closeCharacterImagesBtn" class="close-character-images-btn" title="Close character images">
+                  <i data-feather="x"></i>
+                </button>
+              </div>
+              <div id="characterImagesContainer" class="character-images-container">
+                <!-- Character images will be displayed here -->
+              </div>
+            </div>
+          </div>
+
+
           <!-- Board Tags -->
           <div id="boardTagsDisplay" class="board-tags-display"> </div>
         </div>
@@ -289,11 +265,13 @@
               <i data-feather="chevron-left"></i>
             </button>
             <div class="metadata-header">
-              <h3>Image Metadata</h3>
-              <div class="metadata-header-controls">
+              <div class="metadata-header-title-group">
+                <h3>Image Metadata</h3>
                 <button id="lockMetadataBtn" class="metadata-lock-btn" title="Lock metadata fields (prevent editing)">
                   <i data-feather="unlock"></i>
                 </button>
+              </div>
+              <div class="metadata-header-controls">
               </div>
             </div>
             <div class="metadata-content">

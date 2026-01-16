@@ -71,10 +71,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('select-folder-and-save-prompt', prompt),
   getComfyUIFolder: () => ipcRenderer.invoke('get-comfyui-folder'),
   // Export/Import APIs
-  exportData: () => ipcRenderer.invoke('export-data'),
-  importData: () => ipcRenderer.invoke('import-data'),
-  openBackupFileDialog: () => ipcRenderer.invoke('open-backup-file-dialog'),
-  verifyBackup: (zipPath) => ipcRenderer.invoke('verify-backup', zipPath),
+  // Export/Import/Verify functionality removed
+  // exportData: () => ipcRenderer.invoke('export-data'),
+  // importData: () => ipcRenderer.invoke('import-data'),
+  // openBackupFileDialog: () => ipcRenderer.invoke('open-backup-file-dialog'),
+  // verifyBackup: (zipPath) => ipcRenderer.invoke('verify-backup', zipPath),
   // File dialog APIs
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options)
 });

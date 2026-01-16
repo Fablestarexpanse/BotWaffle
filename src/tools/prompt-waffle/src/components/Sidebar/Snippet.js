@@ -70,12 +70,13 @@ export function createSnippetElement({
     indicator.className = 'snippet-indicator';
 
     if (isCharacterSnippet) {
-      // Add character icon and styling
-      indicator.innerHTML = '<i data-feather="user" style="width: 12px; height: 12px;"></i>';
+      // Add robot icon for character snippets (BotWaffle style)
+      indicator.innerHTML = '<i data-feather="cpu" style="width: 14px; height: 14px;"></i>';
       indicator.className += ' character-indicator';
       snippetElement.className += ' character-snippet';
     } else {
-      indicator.textContent = '•';
+      // Add file-text icon for regular snippets
+      indicator.innerHTML = '<i data-feather="file-text" style="width: 14px; height: 14px;"></i>';
     }
 
     // For character snippets, show only name and tags
@@ -112,12 +113,12 @@ export function createSnippetElement({
     // Insert tree indicator before content
     snippetElement.insertBefore(treeIndicator, snippetElement.firstChild);
 
-    // Initialize feather icons for character snippets
-    if (isCharacterSnippet && typeof feather !== 'undefined') {
+    // Initialize feather icons for all snippets
+    if (typeof feather !== 'undefined') {
       try {
         feather.replace();
       } catch (error) {
-        console.warn('Error initializing feather icons for character snippet:', error);
+        console.warn('Error initializing feather icons for snippet:', error);
       }
     }
     // Apply styling for compact 3-line layout using Utils
@@ -135,14 +136,15 @@ export function createSnippetElement({
     applyStyles(snippetElement, snippetStyles);
     const indicatorStyles = {
       flexShrink: '0',
-      width: '8px',
-      height: '8px',
+      width: '16px',
+      height: '16px',
       marginRight: '8px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '12px',
-      lineHeight: '1'
+      lineHeight: '1',
+      color: isCharacterSnippet ? 'var(--accent-info)' : 'var(--text-secondary)'
     };
     applyStyles(indicator, indicatorStyles);
     const contentStyles = {

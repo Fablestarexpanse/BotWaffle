@@ -274,6 +274,10 @@
                 viewElement = document.createElement('bot-scripts-view');
                 viewElement.botId = botId;
                 break;
+            case 'saved-chats':
+                viewElement = document.createElement('bot-saved-chats-view');
+                viewElement.botId = botId;
+                break;
             case 'image-prompts':
                 viewElement = document.createElement('bot-image-prompts-view');
                 viewElement.botId = botId;

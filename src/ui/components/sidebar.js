@@ -86,6 +86,12 @@ class Sidebar {
                 </a>
             </li>
             <li class="nav-item">
+                <a href="#" class="nav-link bot-nav-link" data-view="saved-chats">
+                    <i data-feather="message-square"></i>
+                    <span>Saved Chats</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="#" class="nav-link bot-nav-link" data-view="image-prompts">
                     <i data-feather="zap"></i>
                     <span>Image Prompts</span>

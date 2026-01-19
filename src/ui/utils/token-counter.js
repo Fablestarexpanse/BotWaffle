@@ -7,7 +7,7 @@
     'use strict';
 
     /**
-     * Estimates token count from text (simple approximation: words / 4)
+     * Estimates token count from text using tiktoken-compatible approximation
      * @param {string} text - Text to count tokens for
      * @returns {number} Estimated token count
      */
@@ -16,17 +16,15 @@
         const trimmed = text.trim();
         if (!trimmed) return 0;
         
-        // GPT tokenization approximation (aligned with tiktoken/GPT tokenizer behavior)
-        // Character-based counting for mixed content (text + markdown formatting)
-        
+        // GPT tokenization approximation (aligned with tiktoken cl100k_base tokenizer)
+        // The cl100k_base tokenizer used by GPT-3.5 and GPT-4 averages approximately
+        // 3.8-4.0 characters per token for typical English prose with formatting.
+        // This is more accurate than the previous 2.1 ratio which was overcounting.
+        // 
+        // For character sheets with markdown formatting, special characters, and
+        // structured text, we use 3.9 chars/token to match JanitorAI's tiktoken counts.
         const charCount = trimmed.length;
-        
-        // For character sheets exported as markdown (the format sent to models):
-        // Markdown formatting adds tokens: headers (#), list markers (-), bold (**), etc.
-        // Special chars, punctuation, and formatting tokens increase token density
-        // Based on comparison with JanitorAI's tiktoken counts, use ~2.1 chars/token
-        // This accounts for the exported markdown format with all its structure
-        return Math.ceil(charCount / 2.1);
+        return Math.ceil(charCount / 3.9);
     }
 
     /**
@@ -72,20 +70,30 @@
         // Get all text inputs, textareas, and text content
         const inputs = body.querySelectorAll('input[type="text"], textarea, input[type="email"], input[type="url"]');
         inputs.forEach(input => {
-            if (input.value) {
-                count += estimateTokens(input.value);
+            // Only count if there's actual content (not just whitespace)
+            const value = input.value ? input.value.trim() : '';
+            if (value) {
+                count += estimateTokens(value);
             }
         });
         
         // Also count text in non-input elements (for complex sections)
-        // Exclude labels, buttons, and other UI elements
+        // Exclude labels, buttons, hints, and other UI elements
         const textNodes = body.querySelectorAll('*');
         textNodes.forEach(node => {
             if (node.children.length === 0 && node.textContent) {
                 const text = node.textContent.trim();
-                // Exclude labels, buttons, tabs, dialog headers, and other UI elements
-                if (text && !node.closest('input, textarea, button, script, style, label, .message-tab, .tab-close, .dialog-header, .dialog-number, .initial-messages-header, .dialogs-header')) {
-                    // Skip if it's just whitespace or very short
+                // Skip if empty or whitespace
+                if (!text) return;
+                
+                // Exclude UI elements: labels, buttons, hints, tabs, headers, etc.
+                const isUIElement = node.closest('input, textarea, button, script, style, label, .message-tab, .tab-close, .dialog-header, .dialog-number, .initial-messages-header, .dialogs-header, .field-hint, .form-group label, .section-header, .section-title') ||
+                                   node.classList.contains('field-hint') ||
+                                   node.tagName === 'LABEL' ||
+                                   node.tagName === 'BUTTON';
+                
+                if (!isUIElement) {
+                    // Only count if it's substantial content (more than 3 chars)
                     if (text.length > 3) {
                         count += estimateTokens(text);
                     }

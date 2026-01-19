@@ -110,6 +110,15 @@ class SectionExampleDialogs extends customElements.get('section-base') {
             const dialogTextarea = item.querySelector('.dialog-text');
             
             if (dialogTextarea) {
+                // Auto-resize function
+                const autoResize = () => {
+                    dialogTextarea.style.height = 'auto';
+                    dialogTextarea.style.height = dialogTextarea.scrollHeight + 'px';
+                };
+                
+                // Set initial height
+                autoResize();
+                
                 // Prevent header click from interfering
                 dialogTextarea.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -118,9 +127,15 @@ class SectionExampleDialogs extends customElements.get('section-base') {
                     e.stopPropagation();
                 });
                 dialogTextarea.addEventListener('input', () => {
+                    autoResize();
                     if (this._dialogs[index]) {
                         this._dialogs[index].text = dialogTextarea.value;
                     }
+                });
+                
+                // Resize on paste
+                dialogTextarea.addEventListener('paste', () => {
+                    setTimeout(autoResize, 0);
                 });
             }
         });

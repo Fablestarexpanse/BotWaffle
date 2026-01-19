@@ -24,9 +24,18 @@ class SectionScenario extends customElements.get('section-base') {
             </div>
         `;
         
-        // Setup listeners to prevent header click from interfering
+        // Setup listeners to prevent header click from interfering and auto-resize
         const textarea = body.querySelector('#scenario-text');
         if (textarea) {
+            // Auto-resize function
+            const autoResize = () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            };
+            
+            // Set initial height
+            autoResize();
+            
             textarea.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
@@ -34,7 +43,13 @@ class SectionScenario extends customElements.get('section-base') {
                 e.stopPropagation();
             });
             textarea.addEventListener('input', () => {
+                autoResize();
                 this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+            });
+            
+            // Resize on paste
+            textarea.addEventListener('paste', () => {
+                setTimeout(autoResize, 0);
             });
         }
     }

@@ -22,78 +22,107 @@ class ChatbotCard extends HTMLElement {
             imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
         }
 
-        // Calculate token counts for each section
-        const sectionTokens = {
-            personality: 0,
-            scenario: 0,
-            initialMessages: 0,
-            exampleDialogs: 0,
-            customSections: 0
-        };
-        let tokenCount = 0;
+        // Calculate token counts for all sections
+        let sheetTokens = 0;  // Personality/Character Sheet
+        let scenarioTokens = 0;
+        let initialTokens = 0;
+        let examplesTokens = 0;
+        let permTokens = 0;  // Permanent tokens (personality + scenario + initial + examples)
+        let tempTokens = 0;  // Temporary tokens (conversation history - not stored in bot data)
+        let totalTokens = 0;
         
         // Use TokenCounter if available
-        if (window.TokenCounter) {
-            const estimate = window.TokenCounter.estimateTokens || (() => 0);
-            const countObject = window.TokenCounter.countTokensInObject || (() => 0);
-            
-            // Count personality tokens
-            if (bot.personality) {
-                if (bot.personality.characterData) {
-                    sectionTokens.personality = countObject(bot.personality.characterData);
-                } else {
-                    sectionTokens.personality = countObject(bot.personality);
+        if (window.TokenCounter && window.TokenCounter.estimateTokens) {
+            const estimateTokens = window.TokenCounter.estimateTokens;
+            const countObject = window.TokenCounter.countTokensInObject || ((obj) => {
+                // Fallback: if countTokensInObject doesn't work, try to extract strings and estimate
+                if (typeof obj === 'string') return estimateTokens(obj);
+                if (Array.isArray(obj)) {
+                    return obj.reduce((sum, item) => sum + (typeof item === 'string' ? estimateTokens(item) : 0), 0);
                 }
-                tokenCount += sectionTokens.personality;
+                if (typeof obj === 'object' && obj !== null) {
+                    return Object.values(obj).reduce((sum, val) => {
+                        if (typeof val === 'string') return sum + estimateTokens(val);
+                        return sum;
+                    }, 0);
+                }
+                return 0;
+            });
+            
+            // Count personality/character sheet tokens
+            if (bot.personality) {
+                if (typeof bot.personality === 'string') {
+                    sheetTokens = estimateTokens(bot.personality);
+                } else if (bot.personality.characterData) {
+                    sheetTokens = countObject(bot.personality.characterData);
+                } else if (bot.personality.personality) {
+                    sheetTokens = estimateTokens(String(bot.personality.personality));
+                } else if (bot.personality.text) {
+                    sheetTokens = estimateTokens(String(bot.personality.text));
+                } else {
+                    sheetTokens = countObject(bot.personality);
+                }
             }
             
-            // Count scenario tokens - extract text content only
+            // Count scenario tokens
             if (bot.scenario) {
                 if (typeof bot.scenario === 'string') {
-                    sectionTokens.scenario = estimate(bot.scenario);
-                } else if (bot.scenario && typeof bot.scenario === 'object') {
-                    const text = bot.scenario.scenario || bot.scenario.text || '';
-                    if (text) sectionTokens.scenario = estimate(String(text));
+                    scenarioTokens = estimateTokens(bot.scenario);
+                } else if (bot.scenario.scenario) {
+                    scenarioTokens = estimateTokens(String(bot.scenario.scenario));
+                } else if (bot.scenario.text) {
+                    scenarioTokens = estimateTokens(String(bot.scenario.text));
+                } else {
+                    scenarioTokens = countObject(bot.scenario);
                 }
-                tokenCount += sectionTokens.scenario;
             }
             
-            // Count initial messages tokens - count only text fields
+            // Count initial messages tokens
             if (bot.initialMessages) {
                 if (Array.isArray(bot.initialMessages)) {
-                    bot.initialMessages.forEach(msg => {
-                        if (msg && typeof msg === 'object' && msg.text) {
-                            sectionTokens.initialMessages += estimate(String(msg.text));
-                        } else if (typeof msg === 'string') {
-                            sectionTokens.initialMessages += estimate(msg);
+                    initialTokens = bot.initialMessages.reduce((sum, msg) => {
+                        if (typeof msg === 'string') {
+                            return sum + estimateTokens(msg);
                         }
-                    });
+                        const text = msg.text || msg.message || '';
+                        return sum + estimateTokens(String(text));
+                    }, 0);
                 } else if (typeof bot.initialMessages === 'string') {
-                    sectionTokens.initialMessages = estimate(bot.initialMessages);
+                    initialTokens = estimateTokens(bot.initialMessages);
+                } else {
+                    initialTokens = countObject(bot.initialMessages);
                 }
-                tokenCount += sectionTokens.initialMessages;
             }
             
-            // Count example dialogs tokens - count only user and assistant fields
-            if (bot.exampleDialogs && Array.isArray(bot.exampleDialogs)) {
-                bot.exampleDialogs.forEach(dialog => {
-                    if (dialog && typeof dialog === 'object') {
-                        if (dialog.text) {
-                            sectionTokens.exampleDialogs += estimate(String(dialog.text));
-                        } else {
-                            if (dialog.user) sectionTokens.exampleDialogs += estimate(String(dialog.user));
-                            if (dialog.assistant) sectionTokens.exampleDialogs += estimate(String(dialog.assistant));
+            // Count example dialogs tokens
+            if (bot.exampleDialogs) {
+                if (Array.isArray(bot.exampleDialogs)) {
+                    examplesTokens = bot.exampleDialogs.reduce((sum, dialog) => {
+                        if (typeof dialog === 'string') {
+                            return sum + estimateTokens(dialog);
                         }
-                    }
-                });
-                tokenCount += sectionTokens.exampleDialogs;
+                        const userText = String(dialog.user || '');
+                        const assistantText = String(dialog.assistant || '');
+                        const dialogText = String(dialog.text || '');
+                        return sum + estimateTokens(userText) + estimateTokens(assistantText) + estimateTokens(dialogText);
+                    }, 0);
+                } else if (typeof bot.exampleDialogs === 'string') {
+                    examplesTokens = estimateTokens(bot.exampleDialogs);
+                } else {
+                    examplesTokens = countObject(bot.exampleDialogs);
+                }
             }
             
-            // Count custom sections tokens
-            if (bot.customSections && typeof bot.customSections === 'object') {
-                sectionTokens.customSections = countObject(bot.customSections);
-                tokenCount += sectionTokens.customSections;
-            }
+            // Permanent tokens = character data that stays in context (sheet + scenario + examples)
+            // Initial messages are temporary (sent once at start of conversation)
+            permTokens = sheetTokens + scenarioTokens + examplesTokens;
+            
+            // Temporary tokens = initial messages + conversation history
+            // (conversation history not stored in bot data, so only initial messages for cards)
+            tempTokens = initialTokens;
+            
+            // Total = permanent + temporary
+            totalTokens = permTokens + tempTokens;
         }
 
         // Escape all user data to prevent XSS
@@ -150,25 +179,25 @@ class ChatbotCard extends HTMLElement {
                     <div class="card-data-section">
                         <div class="token-breakdown-compact">
                             <div class="token-row">
-                                <span class="token-label-compact">Sheet:</span>
-                                <span class="token-value-compact token-character-sheet">${sectionTokens.customSections + sectionTokens.personality}</span>
-                                <span class="token-label-compact">Scenario:</span>
-                                <span class="token-value-compact token-scenario">${sectionTokens.scenario}</span>
+                                <span class="token-label-compact">SHEET:</span>
+                                <span class="token-value-compact token-personality">${sheetTokens}</span>
+                                <span class="token-label-compact">SCENARIO:</span>
+                                <span class="token-value-compact token-scenario">${scenarioTokens}</span>
                             </div>
                             <div class="token-row">
-                                <span class="token-label-compact">Initial:</span>
-                                <span class="token-value-compact token-initial-messages">${sectionTokens.initialMessages}</span>
-                                <span class="token-label-compact">Examples:</span>
-                                <span class="token-value-compact token-example-dialogs">${sectionTokens.exampleDialogs}</span>
+                                <span class="token-label-compact">INITIAL:</span>
+                                <span class="token-value-compact token-initial-messages">${initialTokens}</span>
+                                <span class="token-label-compact">EXAMPLES:</span>
+                                <span class="token-value-compact token-example-dialogs">${examplesTokens}</span>
                             </div>
                             <div class="token-totals-compact">
                                 <div class="token-total-row">
-                                    <span class="token-total-label-compact">Perm:</span>
-                                    <span class="token-total-value-compact token-permanent">${sectionTokens.customSections + sectionTokens.personality}</span>
-                                    <span class="token-total-label-compact">Temp:</span>
-                                    <span class="token-total-value-compact token-temp">${sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs}</span>
-                                    <span class="token-total-label-compact">Total:</span>
-                                    <span class="token-total-value-compact token-grand">${tokenCount}</span>
+                                    <span class="token-total-label-compact">PERM:</span>
+                                    <span class="token-total-value-compact token-perm">${permTokens}</span>
+                                    <span class="token-total-label-compact">TEMP:</span>
+                                    <span class="token-total-value-compact token-temp">${tempTokens}</span>
+                                    <span class="token-total-label-compact">TOTAL:</span>
+                                    <span class="token-total-value-compact token-grand">${totalTokens}</span>
                                 </div>
                             </div>
                         </div>

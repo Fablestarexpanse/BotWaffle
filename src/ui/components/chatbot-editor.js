@@ -27,9 +27,10 @@ class ChatbotEditor extends HTMLElement {
         const bot = this._data || {};
         const isEdit = this._mode === 'edit';
 
-        // Default layout if none exists
+        // Default layout - Profile, then Character Sheet (Personality), then other sections
         const defaultLayout = [
             { type: 'profile', id: 'section-profile', minimized: false },
+            { type: 'personality', id: 'section-personality', minimized: false },
             { type: 'scenario', id: 'section-scenario', minimized: false },
             { type: 'initial-messages', id: 'section-initial-messages', minimized: false },
             { type: 'example-dialogs', id: 'section-example-dialogs', minimized: false }
@@ -37,8 +38,10 @@ class ChatbotEditor extends HTMLElement {
         
         this.layout = bot.layout || defaultLayout;
         
-        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        // Ensure required sections are always in layout
         const requiredSections = [
+            { type: 'profile', id: 'section-profile' },
+            { type: 'personality', id: 'section-personality' },
             { type: 'scenario', id: 'section-scenario' },
             { type: 'initial-messages', id: 'section-initial-messages' },
             { type: 'example-dialogs', id: 'section-example-dialogs' }
@@ -62,8 +65,6 @@ class ChatbotEditor extends HTMLElement {
                     <button id="save-btn" class="primary-btn">Save</button>
                 </div>
                 <div class="actions">
-                    <button id="add-section-btn" class="secondary-btn">+ Add Section</button>
-                    <button id="import-markdown-btn" class="secondary-btn">Import Markdown</button>
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
@@ -74,22 +75,10 @@ class ChatbotEditor extends HTMLElement {
             </div>
 
             <div id="other-sections-container">
-                <!-- Character Card Info section injected here first -->
-            </div>
-            <div class="character-sheet-wrapper">
-                <div class="character-sheet-header" id="character-sheet-header">
-                    <div class="sheet-header-left">
-                        <span class="sheet-toggle-icon">▼</span>
-                        <h3>Character Sheet</h3>
-                        <span class="token-count" id="character-sheet-token-count">0 tokens</span>
-                    </div>
-                </div>
-                <div class="editor-content" id="character-sheet-sections">
-                    <!-- Character Sheet sections (Personality, Custom) injected here -->
-                </div>
+                <!-- Profile section injected here first -->
             </div>
             <div id="other-sections-after-container">
-                <!-- Scenario, Initial Messages, Example Dialogs sections injected here after Character Sheet -->
+                <!-- Personality, Scenario, Initial Messages, Example Dialogs sections injected here -->
             </div>
         `;
 
@@ -98,86 +87,32 @@ class ChatbotEditor extends HTMLElement {
     }
 
     renderSections(botData) {
-        const charSheetContainer = this.querySelector('#character-sheet-sections');
         const otherSectionsContainer = this.querySelector('#other-sections-container');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-        charSheetContainer.innerHTML = '';
-        otherSectionsContainer.innerHTML = '';
+        
+        if (otherSectionsContainer) otherSectionsContainer.innerHTML = '';
         if (otherSectionsAfterContainer) otherSectionsAfterContainer.innerHTML = '';
 
-        // Sections that belong in Character Sheet
-        const characterSheetTypes = ['personality', 'custom'];
-        // Sections that appear after Character Sheet
-        const afterSheetTypes = ['scenario', 'initial-messages', 'example-dialogs'];
+        // Sections that appear after Profile
+        const afterProfileTypes = ['personality', 'scenario', 'initial-messages', 'example-dialogs'];
 
         // Render profile section first in otherSectionsContainer
         const profileSection = this.layout.find(s => s.type === 'profile');
-        if (profileSection) {
+        if (profileSection && otherSectionsContainer) {
             const tagName = 'section-profile';
-            const element = document.createElement(tagName);
-            if (profileSection.id) element.id = profileSection.id;
-            if (profileSection.minimized) element.setAttribute('minimized', 'true');
-            element.data = botData;
-            otherSectionsContainer.appendChild(element);
+            if (customElements.get(tagName)) {
+                const element = document.createElement(tagName);
+                if (profileSection.id) element.id = profileSection.id;
+                if (profileSection.minimized) element.setAttribute('minimized', 'true');
+                element.data = botData;
+                otherSectionsContainer.appendChild(element);
+            }
         }
 
-        // Render character sheet sections (personality, custom) - exclude afterSheetTypes
-        const charSheetSections = this.layout.filter(s => characterSheetTypes.includes(s.type));
-        charSheetSections.forEach(sectionConfig => {
-            const container = charSheetContainer;
-            let element;
-
-            if (sectionConfig.type === 'custom') {
-                // Custom category section
-                const tagName = 'section-custom';
-                if (!customElements.get(tagName)) {
-                    console.warn(`Component ${tagName} not defined, skipping section.`);
-                    const errorEl = document.createElement('div');
-                    errorEl.style.color = 'red';
-                    errorEl.style.padding = '10px';
-                    errorEl.style.border = '1px dashed red';
-                    errorEl.style.margin = '10px 0';
-                    errorEl.textContent = `Error: Custom section component not defined.`;
-                    container.appendChild(errorEl);
-                    return;
-                }
-                element = document.createElement(tagName);
-                if (sectionConfig.id) element.id = sectionConfig.id;
-                // Set category and fields before appending to ensure title renders correctly
-                element.category = sectionConfig.category || '';
-                element.fields = sectionConfig.fields || [];
-            } else {
-                // Standard section types (profile, personality, etc.)
-                const tagName = `section-${sectionConfig.type}`;
-                if (!customElements.get(tagName)) {
-                    console.warn(`Component ${tagName} not defined, skipping section.`);
-                    const errorEl = document.createElement('div');
-                    errorEl.style.color = 'red';
-                    errorEl.style.padding = '10px';
-                    errorEl.style.border = '1px dashed red';
-                    errorEl.style.margin = '10px 0';
-                    errorEl.textContent = `Error: Unknown section type '${sectionConfig.type}'`;
-                    container.appendChild(errorEl);
-                    return;
-                }
-                element = document.createElement(tagName);
-            }
-
-            if (sectionConfig.id) element.id = sectionConfig.id;
-
-            // Set initial state
-            if (sectionConfig.minimized) element.setAttribute('minimized', 'true');
-
-            // Pass data
-            element.data = botData;
-
-            container.appendChild(element);
-        });
-
-        // Render sections that appear after Character Sheet (scenario, initial-messages, example-dialogs)
-        const afterSheetSections = this.layout.filter(s => afterSheetTypes.includes(s.type));
-        afterSheetSections.forEach(sectionConfig => {
-            const container = otherSectionsAfterContainer || otherSectionsContainer; // Fallback to otherSectionsContainer if container doesn't exist
+        // Render all sections after Profile (personality, scenario, initial-messages, example-dialogs)
+        const afterSections = this.layout.filter(s => afterProfileTypes.includes(s.type));
+        afterSections.forEach(sectionConfig => {
+            if (!otherSectionsAfterContainer) return;
             const tagName = `section-${sectionConfig.type}`;
             if (!customElements.get(tagName)) {
                 console.warn(`Component ${tagName} not defined, skipping section.`);
@@ -187,26 +122,24 @@ class ChatbotEditor extends HTMLElement {
             if (sectionConfig.id) element.id = sectionConfig.id;
             if (sectionConfig.minimized) element.setAttribute('minimized', 'true');
             element.data = botData;
-            container.appendChild(element);
+            otherSectionsAfterContainer.appendChild(element);
         });
         
-        // Update token counts after rendering (defer to allow sections to be interactive immediately)
+        // Update token counts after rendering
         setTimeout(() => this.updateTokenCounts(), 0);
     }
 
     updateTokenCounts() {
         if (!window.TokenCounter) return;
         
-        const charSheetContainer = this.querySelector('#character-sheet-sections');
         const otherSectionsContainer = this.querySelector('#other-sections-container');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-        if (!charSheetContainer || !otherSectionsContainer) return;
+        if (!otherSectionsContainer) return;
         
-        // Count tokens from all sections (character sheet + separate sections)
+        // Count tokens from all sections (excluding profile)
         const allSections = [
-            ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
             ...otherSectionsContainer.querySelectorAll('section-profile'),
-            ...(otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [])
+            ...(otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [])
         ];
         let totalTokens = 0;
         
@@ -240,32 +173,13 @@ class ChatbotEditor extends HTMLElement {
         // Update token display in Character Card Info section
         this.updateProfileTokenDisplay();
         
-        // Update character sheet token count
-        this.updateCharacterSheetTokenCount();
-        
         // Update token status (green/red based on max)
         this.updateTokenStatus(totalTokens);
     }
 
     updateCharacterSheetTokenCount() {
-        if (!window.TokenCounter) return;
-        
-        const charSheetContainer = this.querySelector('#character-sheet-sections');
-        const tokenCountElement = this.querySelector('#character-sheet-token-count');
-        
-        if (!charSheetContainer || !tokenCountElement) return;
-        
-        // Get all sections within the character sheet (personality and custom)
-        const charSheetSections = charSheetContainer.querySelectorAll('section-personality, section-custom');
-        let totalTokens = 0;
-        
-        charSheetSections.forEach(section => {
-            const count = window.TokenCounter.getSectionTokenCount(section) || 0;
-            totalTokens += count;
-        });
-        
-        // Update the display
-        tokenCountElement.textContent = `${totalTokens} token${totalTokens !== 1 ? 's' : ''}`;
+        // Character Sheet removed - this method is no longer needed
+        // Token counts are handled by updateTokenCounts() and updateProfileTokenDisplay()
     }
     
     updateInitialMessagesTokenCounts(section) {
@@ -301,7 +215,6 @@ class ChatbotEditor extends HTMLElement {
         const profileSection = this.querySelector('section-profile');
         if (!profileSection) return;
         
-        const charSheetContainer = this.querySelector('#character-sheet-sections');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
         
         // Calculate token counts for each section
@@ -309,28 +222,16 @@ class ChatbotEditor extends HTMLElement {
             personality: 0,
             scenario: 0,
             initialMessages: 0,
-            exampleDialogs: 0,
-            customSections: 0
+            exampleDialogs: 0
         };
         
-        const estimate = window.TokenCounter.estimateTokens || (() => 0);
-        const countObject = window.TokenCounter.countTokensInObject || (() => 0);
-        
-        // Count personality and custom sections from character sheet
-        if (charSheetContainer) {
-            const personalitySection = charSheetContainer.querySelector('section-personality');
+        // Count all sections from after-container
+        if (otherSectionsAfterContainer) {
+            const personalitySection = otherSectionsAfterContainer.querySelector('section-personality');
             if (personalitySection) {
                 sectionTokens.personality = window.TokenCounter.getSectionTokenCount(personalitySection) || 0;
             }
             
-            const customSections = charSheetContainer.querySelectorAll('section-custom');
-            customSections.forEach(section => {
-                sectionTokens.customSections += window.TokenCounter.getSectionTokenCount(section) || 0;
-            });
-        }
-        
-        // Count scenario, initial messages, and example dialogs
-        if (otherSectionsAfterContainer) {
             const scenarioSection = otherSectionsAfterContainer.querySelector('section-scenario');
             if (scenarioSection) {
                 sectionTokens.scenario = window.TokenCounter.getSectionTokenCount(scenarioSection) || 0;
@@ -347,8 +248,8 @@ class ChatbotEditor extends HTMLElement {
             }
         }
         
-        const totalTokens = sectionTokens.personality + sectionTokens.customSections + 
-                           sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs;
+        const totalTokens = sectionTokens.personality + sectionTokens.scenario + 
+                           sectionTokens.initialMessages + sectionTokens.exampleDialogs;
         
         // Update the token display in profile section
         const tokenDisplay = profileSection.querySelector('.profile-token-display');
@@ -356,9 +257,9 @@ class ChatbotEditor extends HTMLElement {
             tokenDisplay.innerHTML = `
                 <div class="token-breakdown-card">
                     <div class="token-grid">
-                        <div class="token-item-card token-character-sheet">
-                            <span class="token-label">Character Sheet</span>
-                            <span class="token-value">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
+                        <div class="token-item-card token-personality">
+                            <span class="token-label">Personality</span>
+                            <span class="token-value">${sectionTokens.personality} tokens</span>
                         </div>
                         <div class="token-item-card token-scenario">
                             <span class="token-label">Scenario</span>
@@ -375,15 +276,7 @@ class ChatbotEditor extends HTMLElement {
                     </div>
                     <div class="token-totals">
                         <div class="token-total-item">
-                            <span class="token-total-label">Total Permanent</span>
-                            <span class="token-total-value token-permanent">${sectionTokens.customSections + sectionTokens.personality} tokens</span>
-                        </div>
-                        <div class="token-total-item">
-                            <span class="token-total-label">Total Temp</span>
-                            <span class="token-total-value token-temp">${sectionTokens.scenario + sectionTokens.initialMessages + sectionTokens.exampleDialogs} tokens</span>
-                        </div>
-                        <div class="token-total-item">
-                            <span class="token-total-label">Grand Total</span>
+                            <span class="token-total-label">Total</span>
                             <span class="token-total-value token-grand">${totalTokens} tokens</span>
                         </div>
                     </div>
@@ -422,27 +315,17 @@ class ChatbotEditor extends HTMLElement {
     }
 
     setupListeners() {
-        // Character sheet collapse/expand
-        const sheetHeader = this.querySelector('#character-sheet-header');
-        const sheetWrapper = this.querySelector('.character-sheet-wrapper');
-        if (sheetHeader && sheetWrapper) {
-            sheetHeader.addEventListener('click', () => {
-                sheetWrapper.classList.toggle('collapsed');
-            });
-        }
+        // Character sheet removed - no collapse/expand needed
 
         // Max token input handler
         const maxTokenInput = this.querySelector('#max-token-input');
         if (maxTokenInput) {
             maxTokenInput.addEventListener('input', () => {
-                const charSheetContainer = this.querySelector('#character-sheet-sections');
                 const otherSectionsContainer = this.querySelector('#other-sections-container');
                 const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-                if (charSheetContainer && otherSectionsContainer) {
+                if (otherSectionsContainer && otherSectionsAfterContainer) {
                     const allSections = [
-                        ...charSheetContainer.querySelectorAll('section-personality, section-custom'),
-                        ...otherSectionsContainer.querySelectorAll('section-profile'),
-                        ...(otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [])
+                        ...otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs')
                     ];
                     let totalTokens = 0;
                     allSections.forEach(section => {
@@ -462,15 +345,6 @@ class ChatbotEditor extends HTMLElement {
             await this.save();
         });
 
-        // Add Section Logic: Show Modal
-        this.querySelector('#add-section-btn').addEventListener('click', () => {
-            window.EditorModals.showAddSectionModal(this);
-        });
-
-        // Import Markdown Logic: Show Modal
-        this.querySelector('#import-markdown-btn').addEventListener('click', () => {
-            window.EditorModals.showImportMarkdownModal(this);
-        });
 
         const deleteBtn = this.querySelector('#delete-btn');
         if (deleteBtn) {
@@ -500,8 +374,10 @@ class ChatbotEditor extends HTMLElement {
         // Listen for section events
         this.addEventListener('remove-section', (e) => {
             const section = e.target;
-            // Don't allow removing profile section
-            if (section.tagName.toLowerCase() === 'section-profile') {
+            // Don't allow removing required sections
+            const tagName = section.tagName.toLowerCase();
+            const requiredSections = ['section-profile', 'section-personality', 'section-scenario', 'section-initial-messages', 'section-example-dialogs'];
+            if (requiredSections.includes(tagName)) {
                 return;
             }
             const index = this.layout.findIndex(s => `section-${s.type}` === section.tagName.toLowerCase() && (section.id ? s.id === section.id : true));
@@ -513,11 +389,11 @@ class ChatbotEditor extends HTMLElement {
         });
 
         // DRAG AND DROP HANDLERS
-        const charSheetContainer = this.querySelector('#character-sheet-sections');
         const otherSectionsContainer = this.querySelector('#other-sections-container');
+        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
         
         // Set up event listeners for both containers
-        [charSheetContainer, otherSectionsContainer].forEach(container => {
+        [otherSectionsContainer, otherSectionsAfterContainer].forEach(container => {
             if (!container) return;
             
             // Update tokens when content changes
@@ -538,19 +414,19 @@ class ChatbotEditor extends HTMLElement {
         let draggedItem = null;
         let targetContainer = null;
 
-        // Set up drag and drop for character sheet sections
-        if (charSheetContainer) {
-            charSheetContainer.addEventListener('dragstart', (e) => {
+        // Set up drag and drop for sections in after-container
+        if (otherSectionsAfterContainer) {
+            otherSectionsAfterContainer.addEventListener('dragstart', (e) => {
                 if (e.target.getAttribute('draggable') === 'true') {
                     draggedItem = e.target;
-                    targetContainer = charSheetContainer;
+                    targetContainer = otherSectionsAfterContainer;
                     e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData('text/plain', e.target.id);
                     setTimeout(() => e.target.style.opacity = '0.5', 0);
                 }
             });
 
-            charSheetContainer.addEventListener('dragend', (e) => {
+            otherSectionsAfterContainer.addEventListener('dragend', (e) => {
                 if (e.target.getAttribute('draggable') === 'true') {
                     e.target.style.opacity = '1';
                     draggedItem = null;
@@ -559,14 +435,14 @@ class ChatbotEditor extends HTMLElement {
                 }
             });
 
-            charSheetContainer.addEventListener('dragover', (e) => {
+            otherSectionsAfterContainer.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                if (draggedItem && targetContainer === charSheetContainer) {
-                    const afterElement = getDragAfterElement(charSheetContainer, e.clientY);
+                if (draggedItem && targetContainer === otherSectionsAfterContainer) {
+                    const afterElement = getDragAfterElement(otherSectionsAfterContainer, e.clientY);
                     if (afterElement == null) {
-                        charSheetContainer.appendChild(draggedItem);
+                        otherSectionsAfterContainer.appendChild(draggedItem);
                     } else {
-                        charSheetContainer.insertBefore(draggedItem, afterElement);
+                        otherSectionsAfterContainer.insertBefore(draggedItem, afterElement);
                     }
                 }
             });
@@ -621,11 +497,10 @@ class ChatbotEditor extends HTMLElement {
 
     updateLayoutFromDOM() {
         const newLayout = [];
-        const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
-        const otherSections = this.querySelectorAll('#other-sections-container > *');
+        const otherSections = this.querySelectorAll('#other-sections-container > section-profile');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [];
-        const allSections = [...charSheetSections, ...otherSections, ...afterSections];
+        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [];
+        const allSections = [...otherSections, ...afterSections];
         
         allSections.forEach(el => {
             const typeHeader = el.tagName.toLowerCase().replace('section-', '');
@@ -649,8 +524,10 @@ class ChatbotEditor extends HTMLElement {
             newLayout.push(config);
         });
         
-        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        // Ensure required sections are always in layout
         const requiredSections = [
+            { type: 'profile', id: 'section-profile' },
+            { type: 'personality', id: 'section-personality' },
             { type: 'scenario', id: 'section-scenario' },
             { type: 'initial-messages', id: 'section-initial-messages' },
             { type: 'example-dialogs', id: 'section-example-dialogs' }
@@ -672,8 +549,10 @@ class ChatbotEditor extends HTMLElement {
         this.layout = newLayout;
     }
     async save() {
-        // Ensure required sections (scenario, initial-messages, example-dialogs) are always in layout
+        // Ensure required sections are always in layout
         const requiredSections = [
+            { type: 'profile', id: 'section-profile' },
+            { type: 'personality', id: 'section-personality' },
             { type: 'scenario', id: 'section-scenario' },
             { type: 'initial-messages', id: 'section-initial-messages' },
             { type: 'example-dialogs', id: 'section-example-dialogs' }
@@ -691,27 +570,25 @@ class ChatbotEditor extends HTMLElement {
         });
         
         // Collect data from all sections
-        const charSheetSections = this.querySelectorAll('#character-sheet-sections > *');
-        const otherSections = this.querySelectorAll('#other-sections-container > *');
+        const otherSections = this.querySelectorAll('#other-sections-container > section-profile');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-scenario, section-initial-messages, section-example-dialogs') : [];
-        const sections = [...charSheetSections, ...otherSections, ...afterSections];
+        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [];
+        const sections = [...otherSections, ...afterSections];
+        
         let fullData = {
             // Preserve existing data that might not be in sections (like ID)
             ...this._data,
             layout: this.layout
         };
 
-        // Iterate and merge
+        // Iterate and merge data from sections
         sections.forEach(section => {
             if (typeof section.getData === 'function') {
                 const sectionData = section.getData();
                 const tagName = section.tagName.toLowerCase();
 
-                // Merge strategy: Profile is top level/profile object, Personality is personality object
-                // Custom sections store data by category name
                 if (tagName === 'section-profile') {
-                    // section-profile returns { name, displayName, ... } which belongs in profile
+                    // Profile section returns { name, displayName, ... } which belongs in profile
                     fullData.name = sectionData.name;
                     fullData.displayName = sectionData.displayName;
                     fullData.category = sectionData.category;
@@ -721,7 +598,7 @@ class ChatbotEditor extends HTMLElement {
                     fullData.images = sectionData.images;
                     fullData.thumbnailIndex = sectionData.thumbnailIndex;
                     fullData.status = sectionData.status;
-
+                    
                     // Also store in profile object for consistency
                     if (!fullData.profile) fullData.profile = {};
                     fullData.profile.name = sectionData.name;
@@ -733,6 +610,7 @@ class ChatbotEditor extends HTMLElement {
                     fullData.profile.images = sectionData.images;
                     fullData.profile.thumbnailIndex = sectionData.thumbnailIndex;
                 } else if (tagName === 'section-personality') {
+                    // Personality is now just a string
                     fullData.personality = sectionData;
                 } else if (tagName === 'section-scenario') {
                     fullData.scenario = sectionData;
@@ -740,11 +618,6 @@ class ChatbotEditor extends HTMLElement {
                     fullData.initialMessages = sectionData;
                 } else if (tagName === 'section-example-dialogs') {
                     fullData.exampleDialogs = sectionData;
-                } else if (tagName === 'section-custom') {
-                    // Custom sections: store data by category name
-                    const categoryName = section.category || 'custom';
-                    if (!fullData.customSections) fullData.customSections = {};
-                    fullData.customSections[categoryName] = sectionData;
                 }
             }
         });
@@ -764,18 +637,15 @@ class ChatbotEditor extends HTMLElement {
                 return;
             }
         }
+        
+        if (this._mode === 'edit' && !this.currentId) {
+            alert('Error: Cannot save - missing chatbot ID.');
+            return;
+        }
 
         try {
             if (this._mode === 'create') {
-                // For create, we pass the whole object, but backend expects 'profile' separation?
-                // chatbot-manager.js createChatbot takes profileData.
-                // We need to adjust either backend or how we pass data.
-                // Looking at chatbot-manager.js: createChatbot(profileData) -> creates structure.
-                // It treats input as profile data mostly.
-                // We should probably update the bot immediately after creation to add personality.
-                // Or update createChatbot to accept full object.
-                // For now, let's assume createChatbot only takes profile fields, so we do create then update.
-
+                // For create mode, create with profile data
                 const newBot = await window.api.chatbot.create({
                     name: fullData.name,
                     displayName: fullData.displayName,
@@ -787,15 +657,13 @@ class ChatbotEditor extends HTMLElement {
                     layout: fullData.layout
                 });
 
+                // Update with all section data
                 await window.api.chatbot.update(newBot.id, {
-                    personality: fullData.personality,
+                    personality: fullData.personality || '',
                     scenario: fullData.scenario,
                     initialMessages: fullData.initialMessages,
                     exampleDialogs: fullData.exampleDialogs,
-                    customSections: fullData.customSections,
-                    metadata: {
-                        status: fullData.status || 'draft'
-                    }
+                    layout: fullData.layout
                 });
 
                 // Update state to 'edit' so subsequent saves don't create duplicates
@@ -835,14 +703,13 @@ class ChatbotEditor extends HTMLElement {
                         images: fullData.images,
                         thumbnailIndex: fullData.thumbnailIndex
                     },
-                    personality: fullData.personality,
+                    personality: fullData.personality || '',
                     scenario: fullData.scenario,
                     initialMessages: fullData.initialMessages,
                     exampleDialogs: fullData.exampleDialogs,
-                    customSections: fullData.customSections,
                     layout: fullData.layout,
                     metadata: {
-                        status: fullData.status || 'draft',
+                        status: fullData.status || this._data?.metadata?.status || 'draft',
                         version: newVersion
                     }
                 });

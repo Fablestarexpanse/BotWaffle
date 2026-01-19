@@ -15,19 +15,31 @@ async function cleanupTestBots() {
     initializeStorage();
     
     console.log('[Cleanup] Loading all chatbots...');
-    const allBots = chatbotManager.listChatbots();
+    const allBots = await chatbotManager.listChatbots();
     console.log(`[Cleanup] Found ${allBots.length} total bots`);
     
-    // Find test bots - by name pattern or tags
+    // Show first 10 bot names for debugging
+    if (allBots.length > 0) {
+        console.log('[Cleanup] Sample bot names:');
+        allBots.slice(0, 10).forEach(bot => {
+            console.log(`  - ${bot.profile?.name || 'unnamed'} (tags: ${(bot.profile?.tags || []).join(', ') || 'none'})`);
+        });
+    }
+    
+    // Find test bots - by name pattern or tags (comprehensive patterns)
     const testBots = allBots.filter(bot => {
-        const name = bot.profile?.name || '';
+        const name = (bot.profile?.name || '').toLowerCase();
+        const displayName = (bot.profile?.displayName || '').toLowerCase();
         const tags = bot.profile?.tags || [];
         
-        // Check if it's a test bot
-        return name.startsWith('TestBot_') || 
-               name.startsWith('StressTestBot') ||
-               tags.includes('stress-test') ||
-               tags.includes('auto');
+        // Check if it's a test bot - comprehensive patterns
+        return name.includes('test') || 
+               displayName.includes('test') ||
+               name.startsWith('testbot_') || 
+               name.startsWith('stresstestbot') ||
+               tags.some(tag => tag.toLowerCase().includes('test')) ||
+               tags.some(tag => tag.toLowerCase().includes('stress')) ||
+               tags.some(tag => tag.toLowerCase() === 'auto');
     });
     
     console.log(`[Cleanup] Found ${testBots.length} test bots to remove`);
@@ -43,9 +55,9 @@ async function cleanupTestBots() {
     
     for (const bot of testBots) {
         try {
-            chatbotManager.deleteChatbot(bot.id);
+            await chatbotManager.deleteChatbot(bot.id);
             deleted++;
-            if (deleted % 100 === 0) {
+            if (deleted % 10 === 0 || deleted === testBots.length) {
                 console.log(`[Cleanup] Deleted ${deleted}/${testBots.length} test bots...`);
             }
         } catch (error) {
@@ -60,7 +72,7 @@ async function cleanupTestBots() {
     }
     
     // Verify
-    const remainingBots = chatbotManager.listChatbots();
+    const remainingBots = await chatbotManager.listChatbots();
     console.log(`[Cleanup] ✓ Remaining bots: ${remainingBots.length}`);
     console.log('[Cleanup] Done!');
 }

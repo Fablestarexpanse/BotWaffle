@@ -736,6 +736,7 @@ h3 {
     white-space: nowrap;
 }
 
+.token-personality .token-value-compact,
 .token-character-sheet .token-value-compact {
     color: #10B981;
 }
@@ -750,6 +751,14 @@ h3 {
 
 .token-example-dialogs .token-value-compact {
     color: #A78BFA;
+}
+
+.token-perm .token-value-compact {
+    color: #10B981;
+}
+
+.token-temp .token-value-compact {
+    color: #F59E0B;
 }
 
 .token-totals-compact {
@@ -778,6 +787,18 @@ h3 {
     font-weight: 700;
     text-align: right;
     white-space: nowrap;
+}
+
+.token-total-value-compact.token-grand {
+    color: #00F5FF;
+}
+
+.token-total-value-compact.token-perm {
+    color: #10B981;
+}
+
+.token-total-value-compact.token-temp {
+    color: #F59E0B;
 }
 
 .token-total-value-compact.token-permanent {

@@ -146,6 +146,7 @@ class ChatbotManager {
             // Dynamic Layout Configuration
             layout: sanitizedData.layout || [
                 { type: 'profile', id: 'section-profile', minimized: false },
+                { type: 'personality', id: 'section-personality', minimized: false },
                 { type: 'scenario', id: 'section-scenario', minimized: false },
                 { type: 'initial-messages', id: 'section-initial-messages', minimized: false },
                 { type: 'example-dialogs', id: 'section-example-dialogs', minimized: false }

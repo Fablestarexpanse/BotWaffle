@@ -24,12 +24,15 @@ class SectionInitialMessages extends customElements.get('section-base') {
         const body = this.querySelector('.section-body');
         const initialMessages = this._data.initialMessages || this._data.scenario?.initialMessages || this._data.scenario?.messages || [];
         
-        // Initialize messages if empty
-        if (initialMessages.length === 0) {
-            initialMessages.push({ id: this._generateId(), text: '' });
+        // Only initialize from data if we don't already have messages (preserve existing messages)
+        if (this._messages.length === 0) {
+            // Initialize messages if empty
+            if (initialMessages.length === 0) {
+                this._messages = [{ id: this._generateId(), text: '' }];
+            } else {
+                this._messages = initialMessages;
+            }
         }
-        
-        this._messages = initialMessages;
 
         const escapeHtml = window.SecurityUtils.escapeHtml;
         
@@ -46,7 +49,7 @@ class SectionInitialMessages extends customElements.get('section-base') {
                             return `
                             <button type="button" class="message-tab ${index === 0 ? 'active' : ''}" data-index="${index}">
                                 Message ${index + 1} (${tokenCount} tokens)
-                                ${this._messages.length > 1 ? `<span class="tab-close" data-index="${index}">×</span>` : ''}
+                                ${this._messages.length > 1 ? `<span class="tab-close" data-index="${index}" style="pointer-events: auto; z-index: 10; position: relative;">×</span>` : ''}
                             </button>
                         `;
                         }).join('')}
@@ -70,24 +73,49 @@ class SectionInitialMessages extends customElements.get('section-base') {
     }
 
     _setupListeners() {
-        const tabs = this.querySelectorAll('.message-tab');
+        const tabsContainer = this.querySelector('#messages-tabs');
         const panels = this.querySelectorAll('.message-panel');
         const addBtn = this.querySelector('#add-message-btn');
 
-        // Tab switching
-        tabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                if (e.target.classList.contains('tab-close')) {
+        // Use event delegation for tabs (handles dynamically created tabs)
+        if (tabsContainer) {
+            // Handle mousedown on close button (fires before click, more reliable)
+            tabsContainer.addEventListener('mousedown', (e) => {
+                const closeBtn = e.target.closest('.tab-close') || (e.target.classList.contains('tab-close') ? e.target : null);
+                if (closeBtn) {
+                    e.preventDefault();
                     e.stopPropagation();
-                    const index = parseInt(e.target.getAttribute('data-index'), 10);
-                    this._removeMessage(index);
-                    return;
+                    e.stopImmediatePropagation();
+                    const index = parseInt(closeBtn.getAttribute('data-index'), 10);
+                    if (!isNaN(index) && index >= 0) {
+                        // Use setTimeout to allow mousedown to complete, then show modal
+                        setTimeout(() => {
+                            this._confirmRemoveMessage(index);
+                        }, 0);
+                    }
+                    return false;
+                }
+            }, true);
+
+            // Handle click for tab switching
+            tabsContainer.addEventListener('click', (e) => {
+                // Skip if close button was clicked (handled by mousedown)
+                if (e.target.closest('.tab-close') || e.target.classList.contains('tab-close')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
                 }
                 
-                const index = parseInt(tab.getAttribute('data-index'), 10);
-                this._switchTab(index);
+                // Check if tab itself was clicked (but not the close button)
+                const tab = e.target.closest('.message-tab');
+                if (tab && !e.target.closest('.tab-close') && !e.target.classList.contains('tab-close')) {
+                    const index = parseInt(tab.getAttribute('data-index'), 10);
+                    if (!isNaN(index) && index >= 0) {
+                        this._switchTab(index);
+                    }
+                }
             });
-        });
+        }
 
         // Add new message
         if (addBtn) {
@@ -100,6 +128,15 @@ class SectionInitialMessages extends customElements.get('section-base') {
         panels.forEach(panel => {
             const textarea = panel.querySelector('.message-textarea');
             if (textarea) {
+                // Auto-resize function
+                const autoResize = () => {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = textarea.scrollHeight + 'px';
+                };
+                
+                // Set initial height
+                autoResize();
+                
                 // Prevent header click from interfering
                 textarea.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -108,6 +145,7 @@ class SectionInitialMessages extends customElements.get('section-base') {
                     e.stopPropagation();
                 });
                 textarea.addEventListener('input', () => {
+                    autoResize();
                     const index = parseInt(panel.getAttribute('data-index'), 10);
                     if (this._messages[index]) {
                         this._messages[index].text = textarea.value;
@@ -116,6 +154,11 @@ class SectionInitialMessages extends customElements.get('section-base') {
                     this._updateMessageTokenCount(index);
                     // Trigger editor to update all token counts
                     this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+                });
+                
+                // Resize on paste
+                textarea.addEventListener('paste', () => {
+                    setTimeout(autoResize, 0);
                 });
             }
         });
@@ -138,6 +181,16 @@ class SectionInitialMessages extends customElements.get('section-base') {
         if (tabs[index]) tabs[index].classList.add('active');
         if (panels[index]) panels[index].classList.add('active');
         
+        // Auto-resize the textarea for the active panel
+        const activePanel = panels[index];
+        if (activePanel) {
+            const textarea = activePanel.querySelector('.message-textarea');
+            if (textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            }
+        }
+        
         // Update token count when switching tabs (in case content changed)
         this._updateMessageTokenCount(index);
     }
@@ -151,6 +204,63 @@ class SectionInitialMessages extends customElements.get('section-base') {
         setTimeout(() => {
             this._switchTab(this._messages.length - 1);
         }, 50);
+    }
+
+    _confirmRemoveMessage(index) {
+        if (this._messages.length <= 1) {
+            // Don't allow removing the last message
+            return;
+        }
+
+        const messageText = this._messages[index]?.text || '';
+        const messagePreview = messageText.length > 50 
+            ? messageText.substring(0, 50) + '...' 
+            : messageText || '(empty message)';
+
+        const escapeHtml = window.SecurityUtils ? window.SecurityUtils.escapeHtml : (text) => String(text ?? '');
+        const safePreview = escapeHtml(messagePreview);
+
+        // Create confirmation modal
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Delete Message</h3>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; color: var(--danger);">
+                        <strong>Warning:</strong> This action cannot be undone.
+                    </div>
+                    <div class="form-group">
+                        <label>Are you sure you want to delete this message?</label>
+                        <div style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-radius: 4px; font-style: italic; color: var(--text-secondary);">
+                            "${safePreview}"
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="secondary-btn cancel-delete-message">Cancel</button>
+                    <button class="danger-btn confirm-delete-message">Delete Message</button>
+                </div>
+            </div>
+        `;
+
+        const closeModal = () => overlay.remove();
+
+        overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.cancel-delete-message').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+
+        overlay.querySelector('.confirm-delete-message').addEventListener('click', () => {
+            this._removeMessage(index);
+            closeModal();
+        });
+
+        document.body.appendChild(overlay);
     }
 
     _removeMessage(index) {
@@ -193,23 +303,12 @@ class SectionInitialMessages extends customElements.get('section-base') {
         }
         
         // Update tab text, preserving close button structure
+        // Note: Event listeners are handled via delegation in _setupListeners, so no need to re-attach
         if (hasCloseBtn && this._messages.length > 1) {
-            tab.innerHTML = `${baseText} (${tokenCount} tokens)<span class="tab-close" data-index="${index}">×</span>`;
+            tab.innerHTML = `${baseText} (${tokenCount} tokens)<span class="tab-close" data-index="${index}" style="pointer-events: auto; z-index: 10; position: relative;">×</span>`;
         } else {
             tab.innerHTML = `${baseText} (${tokenCount} tokens)`;
         }
-        
-        // Re-setup listeners for this tab after innerHTML change
-        tab.addEventListener('click', (e) => {
-            if (e.target.classList.contains('tab-close')) {
-                e.stopPropagation();
-                const idx = parseInt(e.target.getAttribute('data-index'), 10);
-                this._removeMessage(idx);
-                return;
-            }
-            const idx = parseInt(tab.getAttribute('data-index'), 10);
-            this._switchTab(idx);
-        });
     }
 
     getData() {

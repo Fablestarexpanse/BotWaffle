@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const { initializeStorage } = require('./src/core/storage');
 const { initializeServices, getService } = require('./src/core/services');
@@ -21,6 +21,29 @@ function createWindow() {
     });
 
     mainWindow.loadFile('src/ui/index.html');
+    
+    // Set up context menu for right-click
+    const contextMenuTemplate = [
+        { role: 'undo', label: 'Undo' },
+        { role: 'redo', label: 'Redo' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cut' },
+        { role: 'copy', label: 'Copy' },
+        { role: 'paste', label: 'Paste' },
+        { role: 'pasteAndMatchStyle', label: 'Paste and Match Style' },
+        { role: 'delete', label: 'Delete' },
+        { role: 'selectAll', label: 'Select All' },
+        { type: 'separator' },
+        { role: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', visible: false },
+        { role: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', visible: false }
+    ];
+
+    const contextMenu = Menu.buildFromTemplate(contextMenuTemplate);
+
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        // Show the context menu
+        contextMenu.popup();
+    });
     
     mainWindow.on('closed', () => {
         mainWindow = null;

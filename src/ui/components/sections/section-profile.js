@@ -142,8 +142,41 @@ class SectionProfile extends customElements.get('section-base') {
         const data = profile.name ? profile : (this._data || {});
 
         // Handle images: defaults to array if exists, or single image, or empty
-        const images = data.images || (data.image ? [data.image] : []);
-        const thumbnailIndex = data.thumbnailIndex !== undefined ? data.thumbnailIndex : (images.length > 0 ? 0 : -1);
+        const allImages = data.images || (data.image ? [data.image] : []);
+        let profileImageIndices = data.profileImageIndices || [];
+        
+        console.log('Profile section renderContent - FULL DATA:', {
+            _data: this._data,
+            profile: this._data.profile,
+            data: data,
+            allImagesCount: allImages.length,
+            allImages: allImages,
+            profileImageIndices: profileImageIndices,
+            hasProfile: !!this._data.profile,
+            'data.images': data.images,
+            'data.profileImageIndices': data.profileImageIndices,
+            'profile.images': profile.images,
+            'profile.profileImageIndices': profile.profileImageIndices
+        });
+        
+        // Determine thumbnail index - use saved one, or default to first image if available
+        let thumbnailIndex = data.thumbnailIndex !== undefined ? data.thumbnailIndex : (allImages.length > 0 ? 0 : -1);
+        
+        // Ensure thumbnailIndex is valid
+        if (thumbnailIndex >= allImages.length || thumbnailIndex < 0) {
+            thumbnailIndex = allImages.length > 0 ? 0 : -1;
+        }
+        
+        // Only show the thumbnail image (not multiple images)
+        const images = [];
+        if (thumbnailIndex >= 0 && thumbnailIndex < allImages.length) {
+            images.push(allImages[thumbnailIndex]);
+        }
+        
+        console.log('Displaying thumbnail:', {
+            thumbnailIndex: thumbnailIndex,
+            thumbnailImage: thumbnailIndex >= 0 ? allImages[thumbnailIndex] : 'none'
+        });
 
         // Fetch categories dynamically
         let categories = ['Character', 'Assistant', 'Roleplay', 'Educational']; // Fallback
@@ -171,15 +204,18 @@ class SectionProfile extends customElements.get('section-base') {
             return `<option value="${escapeHtml(status)}" ${status === statusValue ? 'selected' : ''}>${escapeHtml(displayText)}</option>`;
         }).join('');
         
+        // Get max token value from metadata or profile
+        const maxTokenValue = this._data.metadata?.maxTokens || this._data.profile?.maxTokens || '';
+        const maxTokenValueAttr = maxTokenValue ? ` value="${escapeHtml(String(maxTokenValue))}"` : '';
+        
         body.innerHTML = `
             <div class="profile-main-layout">
                 <div class="profile-left">
                     <div class="form-group" id="images-container">
-                        <label>Character Images (Max 5) - First image is thumbnail for character card</label>
+                        <label>Character Thumbnail - Manage all images in Pictures section</label>
                         <div class="image-list" id="image-list">
                             <!-- Images injected here -->
                         </div>
-                        <button type="button" id="add-image-btn" class="secondary-btn small" style="margin-top: 5px;">+ Add Image from Computer</button>
                     </div>
                 </div>
                 <div class="profile-right">
@@ -190,7 +226,7 @@ class SectionProfile extends customElements.get('section-base') {
                         </div>
                         <div style="margin-top: 8px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <input type="number" id="max-token-input" class="max-token-input" placeholder="Max tokens" min="0" value="" style="flex: 1;">
+                                <input type="number" id="max-token-input" class="max-token-input" placeholder="Max tokens" min="0"${maxTokenValueAttr} style="flex: 1;">
                                 <span class="token-status" id="token-status"></span>
                             </div>
                             <div class="token-help-text">Set maximum token limit to track if you exceed it</div>
@@ -233,19 +269,33 @@ class SectionProfile extends customElements.get('section-base') {
         this.setupListeners();
     }
 
-    renderImageList(images, thumbnailIndex) {
+    renderImageList(displayedImages, thumbnailIndex) {
         const listContainer = this.querySelector('#image-list');
         listContainer.innerHTML = '';
 
-        if (images.length === 0) {
-            listContainer.innerHTML = '<div class="image-empty-state">No images added yet. Click "Add Image from Computer" to add images.</div>';
+        if (displayedImages.length === 0) {
+            listContainer.innerHTML = '<div class="image-empty-state">No thumbnail set. Go to Pictures section to add images and set a thumbnail.</div>';
             return;
         }
 
-        images.forEach((imagePath, index) => {
+        // Get all images to map displayed images correctly
+        const allImages = this._data.profile?.images || [];
+
+        displayedImages.forEach((imagePath, displayIndex) => {
+            // Find the actual index in allImages by matching the image path
+            const actualIndex = allImages.findIndex(img => img === imagePath);
+            if (actualIndex === -1) {
+                console.warn('Image not found in allImages:', imagePath);
+                return;
+            }
+            
             const imageItem = document.createElement('div');
             imageItem.className = 'image-item';
-            imageItem.dataset.index = index;
+            imageItem.dataset.index = displayIndex;
+            imageItem.dataset.actualIndex = actualIndex;
+            
+            // Check if this is the thumbnail
+            const isThumbnail = (thumbnailIndex !== -1 && actualIndex === thumbnailIndex);
 
             // Determine if this is a local file path or URL
             const isLocalFile = imagePath && !imagePath.startsWith('http://') && !imagePath.startsWith('https://') && !imagePath.startsWith('file://');
@@ -260,19 +310,19 @@ class SectionProfile extends customElements.get('section-base') {
             const escapeHtml = window.SecurityUtils.escapeHtml;
             const escapedImageSrc = escapeHtml(imageSrc);
             const escapedImagePath = escapeHtml(imagePath || '');
-            const altText = escapeHtml(`Character image ${index + 1}`);
+            const altText = escapeHtml(`Character image ${displayIndex + 1}`);
             
             imageItem.innerHTML = `
                 <div class="image-preview-container">
                     <img src="${escapedImageSrc}" alt="${altText}" class="image-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                     <div class="image-error" style="display: none;">Failed to load image</div>
-                    ${index === thumbnailIndex ? '<div class="thumbnail-badge">Thumbnail</div>' : ''}
+                    ${isThumbnail ? '<div class="thumbnail-badge">Thumbnail</div>' : ''}
                 </div>
                 <div class="image-controls">
-                    <button type="button" class="secondary-btn small set-thumbnail-btn" data-index="${index}">
-                        ${index === thumbnailIndex ? '✓ Thumbnail' : 'Set as Thumbnail'}
+                    <button type="button" class="secondary-btn small set-thumbnail-btn" data-index="${actualIndex}">
+                        ${isThumbnail ? '✓ Thumbnail' : 'Set as Thumbnail'}
                     </button>
-                    <button type="button" class="icon-btn remove-image-btn" data-index="${index}" title="Remove image">×</button>
+                    <button type="button" class="icon-btn remove-image-btn" data-index="${displayIndex}" title="Remove from profile">×</button>
                 </div>
                 <input type="hidden" class="image-path-input" value="${escapedImagePath}">
             `;
@@ -280,9 +330,7 @@ class SectionProfile extends customElements.get('section-base') {
             listContainer.appendChild(imageItem);
         });
 
-        // Update Add Button State
-        const addBtn = this.querySelector('#add-image-btn');
-        if (addBtn) addBtn.style.display = images.length >= 5 ? 'none' : 'block';
+        // Add image button removed - users should use Pictures section
     }
 
     setupListeners() {
@@ -304,6 +352,26 @@ class SectionProfile extends customElements.get('section-base') {
             });
         });
         
+        // Explicit handling for max-token-input to ensure it's clickable
+        const maxTokenInput = this.querySelector('#max-token-input');
+        if (maxTokenInput) {
+            maxTokenInput.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+            maxTokenInput.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+            maxTokenInput.addEventListener('focus', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+            maxTokenInput.addEventListener('input', () => {
+                this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
+            });
+        }
+        
         // Also stop propagation on labels
         body.querySelectorAll('label').forEach(label => {
             label.addEventListener('click', (e) => {
@@ -311,13 +379,7 @@ class SectionProfile extends customElements.get('section-base') {
             });
         });
 
-        // Add Image Button
-        const addBtn = this.querySelector('#add-image-btn');
-        if (addBtn) {
-            addBtn.addEventListener('click', async () => {
-                await this.handleAddImage();
-            });
-        }
+        // Add Image Button removed - users should use Pictures section
 
         // Set Thumbnail Buttons
         body.querySelectorAll('.set-thumbnail-btn').forEach(btn => {
@@ -327,22 +389,16 @@ class SectionProfile extends customElements.get('section-base') {
             });
         });
 
-        // Remove Image Buttons
+        // Remove Image Buttons (removes from profile display, not from all images)
         body.querySelectorAll('.remove-image-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.getAttribute('data-index'));
-                this.removeImage(index);
+                const displayIndex = parseInt(e.target.closest('.remove-image-btn').getAttribute('data-index'));
+                this.removeImage(displayIndex);
             });
         });
 
-        // Image Preview Click (Open Gallery)
-        body.querySelectorAll('.image-preview').forEach(img => {
-            img.addEventListener('click', (e) => {
-                const item = e.target.closest('.image-item');
-                const index = parseInt(item.dataset.index);
-                this.openGallery(index);
-            });
-        });
+        // Image Preview Click - DISABLED (no click functionality on thumbnail)
+        // Users can view/manage images in Pictures section
     }
 
     openGallery(startIndex) {
@@ -425,12 +481,19 @@ class SectionProfile extends customElements.get('section-base') {
 
     async handleAddImage() {
         try {
-            // Get current images to check how many we can add
-            const currentImages = this.getImageData();
-            const remainingSlots = 5 - currentImages.length;
+            // Get current images and profile image indices
+            const allImages = this._data.profile?.images || [];
+            const profileImageIndices = this._data.profile?.profileImageIndices || [];
+            const remainingSlots = 50 - allImages.length;
 
             if (remainingSlots <= 0) {
-                alert('Maximum of 5 images allowed.');
+                alert('Maximum of 50 images allowed. Go to Pictures section to manage images.');
+                return;
+            }
+
+            // Check if we can add more profile images
+            if (profileImageIndices.length >= 5) {
+                alert('Maximum of 5 images can be displayed in the profile section. Go to Pictures section to select which images to display here.');
                 return;
             }
 
@@ -475,14 +538,29 @@ class SectionProfile extends customElements.get('section-base') {
                 return;
             }
 
-            // Add new images
-            currentImages.push(...newImages);
+            // Add new images to all images
+            const updatedAllImages = [...allImages, ...newImages];
+            
+            // Add new images to profileImageIndices if there's room (max 5)
+            const updatedProfileIndices = [...profileImageIndices];
+            const startIndex = allImages.length;
+            for (let i = 0; i < newImages.length && updatedProfileIndices.length < 5; i++) {
+                updatedProfileIndices.push(startIndex + i);
+            }
 
             // If this is the first image, make it the thumbnail
-            const thumbnailIndex = currentImages.length === newImages.length ? 0 : this.getThumbnailIndex();
+            const thumbnailIndex = allImages.length === 0 ? 0 : this.getThumbnailIndex();
 
-            this.renderImageList(currentImages, thumbnailIndex);
-            this.setupListeners();
+            // Update the data
+            this._data.profile = {
+                ...this._data.profile,
+                images: updatedAllImages,
+                profileImageIndices: updatedProfileIndices,
+                thumbnailIndex: thumbnailIndex
+            };
+
+            // Re-render with updated data
+            await this.renderContent();
             this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
         } catch (error) {
             console.error('Error adding images:', error);
@@ -490,46 +568,73 @@ class SectionProfile extends customElements.get('section-base') {
         }
     }
 
-    setThumbnail(index) {
-        const currentImages = this.getImageData();
+    setThumbnail(actualIndex) {
+        // Update thumbnail index in profile data (actualIndex is the index in allImages)
+        this._data.profile = {
+            ...this._data.profile,
+            thumbnailIndex: actualIndex
+        };
         
-        // Move the selected image to the first position
-        if (index > 0 && index < currentImages.length) {
-            const selectedImage = currentImages[index];
-            currentImages.splice(index, 1); // Remove from current position
-            currentImages.unshift(selectedImage); // Add to beginning
-        }
+        // Re-render to show updated thumbnail
+        const images = this._data.profile?.images || [];
+        const profileImageIndices = this._data.profile?.profileImageIndices || [];
+        const displayedImages = profileImageIndices
+            .filter(idx => idx >= 0 && idx < images.length)
+            .slice(0, 5)
+            .map(idx => images[idx]);
+        const thumbnailIndex = actualIndex;
         
-        // Thumbnail is now at index 0
-        this.renderImageList(currentImages, 0);
+        this.renderImageList(displayedImages, thumbnailIndex);
         this.setupListeners();
         this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
     }
 
     removeImage(index) {
-        const currentImages = this.getImageData();
-        const currentThumbnailIndex = this.getThumbnailIndex();
+        // Note: This removes from displayed images only
+        // For full removal, user should go to Pictures section
+        const allImages = this.getImageData();
+        const profileImageIndices = this._data.profile?.profileImageIndices || [];
+        const displayedImages = profileImageIndices
+            .filter(idx => idx >= 0 && idx < allImages.length)
+            .slice(0, 5)
+            .map(idx => allImages[idx]);
+        
+        // Find the actual index in allImages
+        const actualIndex = profileImageIndices[index];
+        if (actualIndex === undefined) return;
 
-        currentImages.splice(index, 1);
-
-        // Adjust thumbnail index if needed
+        // Remove from profileImageIndices
+        profileImageIndices.splice(index, 1);
+        
+        // Update thumbnail index if needed
+        const currentThumbnailIndex = this._data.profile?.thumbnailIndex || 0;
         let newThumbnailIndex = currentThumbnailIndex;
-        if (index === currentThumbnailIndex) {
-            // Removed the thumbnail, set first image as thumbnail or -1 if none
-            newThumbnailIndex = currentImages.length > 0 ? 0 : -1;
-        } else if (index < currentThumbnailIndex) {
-            // Removed an image before the thumbnail, adjust index
+        if (actualIndex === currentThumbnailIndex) {
+            newThumbnailIndex = allImages.length > 0 ? 0 : -1;
+        } else if (actualIndex < currentThumbnailIndex) {
             newThumbnailIndex = currentThumbnailIndex - 1;
         }
 
-        this.renderImageList(currentImages, newThumbnailIndex);
+        this._data.profile = {
+            ...this._data.profile,
+            profileImageIndices: profileImageIndices,
+            thumbnailIndex: newThumbnailIndex
+        };
+
+        // Re-render
+        const updatedDisplayedImages = profileImageIndices
+            .filter(idx => idx >= 0 && idx < allImages.length)
+            .slice(0, 5)
+            .map(idx => allImages[idx]);
+        
+        this.renderImageList(updatedDisplayedImages, newThumbnailIndex);
         this.setupListeners();
         this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
     }
 
     getImageData() {
-        const inputs = this.querySelectorAll('.image-path-input');
-        return Array.from(inputs).map(input => input.value).filter(path => path.trim() !== '');
+        // Return all images from profile data, not just displayed ones
+        return this._data.profile?.images || [];
     }
 
     getThumbnailIndex() {
@@ -569,8 +674,9 @@ class SectionProfile extends customElements.get('section-base') {
             };
         }
 
-        const images = this.getImageData();
+        const allImages = this.getImageData();
         const thumbnailIndex = this.getThumbnailIndex();
+        const profileImageIndices = this._data.profile?.profileImageIndices || [];
 
         // Safely get form values, with fallbacks if elements don't exist yet
         const nameInput = body.querySelector('[name="name"]');
@@ -578,19 +684,25 @@ class SectionProfile extends customElements.get('section-base') {
         const categoryInput = body.querySelector('[name="category"]');
         const descriptionInput = body.querySelector('[name="description"]');
         const tagsInput = body.querySelector('[name="tags"]');
+        const maxTokenInput = body.querySelector('#max-token-input');
         // Status is now in the header, not the body
         const statusInput = this.querySelector('.status-select-header');
+
+        // Get max token value
+        const maxTokenValue = maxTokenInput ? (maxTokenInput.value ? parseInt(maxTokenInput.value, 10) : null) : null;
 
         return {
             name: nameInput ? nameInput.value : '',
             displayName: displayNameInput ? displayNameInput.value : '',
             category: categoryInput ? categoryInput.value : '',
             description: descriptionInput ? descriptionInput.value : '',
-            image: images.length > 0 ? images[0] : '', // Backward compat - first image
-            images: images,
+            image: allImages.length > 0 ? allImages[0] : '', // Backward compat - first image
+            images: allImages,
+            profileImageIndices: profileImageIndices,
             thumbnailIndex: thumbnailIndex,
             tags: tagsInput ? tagsInput.value.split(',').map(t => t.trim()).filter(t => t) : [],
-            status: statusInput ? statusInput.value : 'draft'
+            status: statusInput ? statusInput.value : 'draft',
+            maxTokens: maxTokenValue && !isNaN(maxTokenValue) && maxTokenValue > 0 ? maxTokenValue : null
         };
     }
 }

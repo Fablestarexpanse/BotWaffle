@@ -94,9 +94,17 @@ function validateChatbotProfile(data) {
     // Validate images array
     if (data.images) {
         if (Array.isArray(data.images)) {
-            sanitized.images = data.images
-                .filter(img => typeof img === 'string')
-                .slice(0, MAX_IMAGES); // Limit to MAX_IMAGES images
+            const filteredImages = data.images.filter(img => typeof img === 'string');
+            console.log('Validation - Images array:', {
+                inputCount: data.images.length,
+                filteredCount: filteredImages.length,
+                MAX_IMAGES: MAX_IMAGES,
+                willSlice: filteredImages.length > MAX_IMAGES
+            });
+            sanitized.images = filteredImages.slice(0, MAX_IMAGES); // Limit to MAX_IMAGES images
+            if (sanitized.images.length < filteredImages.length) {
+                console.warn(`Validation - Trimmed images array from ${filteredImages.length} to ${sanitized.images.length}`);
+            }
         } else {
             errors.push('Images must be an array');
             sanitized.images = [];
@@ -115,6 +123,35 @@ function validateChatbotProfile(data) {
     } else {
         sanitized.thumbnailIndex = sanitized.images.length > 0 ? 0 : -1;
     }
+    
+    // Validate profileImageIndices (array of indices for images to display in profile, max 5)
+    // CRITICAL: Always preserve this field - it's important for the UI
+    // Use the images array from the input data (which may be merged with existing)
+    // This is important because updates might only send profileImageIndices, not images
+    const imagesArray = data.images || [];
+    const imagesLength = imagesArray.length;
+    
+    // Always set profileImageIndices in sanitized output if it exists in input
+    if (data.profileImageIndices !== undefined && data.profileImageIndices !== null) {
+        if (Array.isArray(data.profileImageIndices)) {
+            // Filter to only valid indices (must be within images array bounds) and limit to 5
+            // If imagesLength is 0, we can't validate indices, so preserve them all (they'll be validated later)
+            const validIndices = imagesLength > 0
+                ? data.profileImageIndices
+                    .filter(idx => typeof idx === 'number' && idx >= 0 && idx < imagesLength)
+                    .slice(0, 5)
+                : data.profileImageIndices
+                    .filter(idx => typeof idx === 'number' && idx >= 0)
+                    .slice(0, 5);
+            sanitized.profileImageIndices = validIndices;
+        } else {
+            sanitized.profileImageIndices = [];
+        }
+    } else if (data.profileImageIndices === null) {
+        // Explicitly set to empty array if null
+        sanitized.profileImageIndices = [];
+    }
+    // If undefined, don't set it - let caller preserve existing value from current profile
     
     // Validate layout if provided
     if (data.layout) {

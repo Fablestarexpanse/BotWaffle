@@ -174,20 +174,87 @@ class ChatbotManager {
         if (!current) throw new Error(`Chatbot ${id} not found`);
 
         // Validate profile updates if provided
+        let validation = null;
+        let originalProfileImageIndices = undefined;
         if (updates.profile) {
-            // Merge with existing profile for validation
-            const mergedProfile = { ...current.profile, ...updates.profile };
-            const validation = validateChatbotProfile(mergedProfile);
+            // CRITICAL: Preserve profileImageIndices from the UPDATE (not merged profile)
+            // This is the value the user is trying to set
+            originalProfileImageIndices = updates.profile.profileImageIndices;
+            
+            console.log('updateChatbot - Original update profileImageIndices:', originalProfileImageIndices);
+            console.log('updateChatbot - Current profile has profileImageIndices:', current.profile?.profileImageIndices);
+            
+            // Merge with existing profile for validation (validation needs full context)
+            const mergedProfileForValidation = { ...current.profile, ...updates.profile };
+            validation = validateChatbotProfile(mergedProfileForValidation);
             if (!validation.valid) {
                 throw new Error(`Invalid profile data: ${validation.errors.join(', ')}`);
             }
-            updates.profile = validation.data;
+            
+            console.log('updateChatbot - Validation result has profileImageIndices:', 'profileImageIndices' in validation.data);
+            console.log('updateChatbot - Validation result profileImageIndices value:', validation.data.profileImageIndices);
+            
+            // Start with validated data, but we'll override profileImageIndices below
+            updates.profile = { ...validation.data };
+            
+            // CRITICAL: Always restore profileImageIndices from the ORIGINAL UPDATE if it was provided
+            // Don't rely on validation to preserve it - we know what the user wants
+            if (originalProfileImageIndices !== undefined) {
+                // Get the actual images array length from current profile (images are already saved)
+                const imagesArray = current.profile?.images || [];
+                const imagesLength = imagesArray.length;
+                
+                // Validate the indices are valid
+                let validIndices = [];
+                if (originalProfileImageIndices === null) {
+                    validIndices = [];
+                } else if (Array.isArray(originalProfileImageIndices)) {
+                    validIndices = originalProfileImageIndices
+                        .filter(idx => typeof idx === 'number' && idx >= 0 && idx < imagesLength)
+                        .slice(0, 5);
+                }
+                
+                console.log('updateChatbot - Setting profileImageIndices:', {
+                    original: originalProfileImageIndices,
+                    imagesLength: imagesLength,
+                    validIndices: validIndices
+                });
+                
+                // FORCE it into the profile - this is what the user wants
+                updates.profile.profileImageIndices = validIndices;
+            }
         }
 
+        // Merge profile data - updates.profile now has validated data with FORCED profileImageIndices
+        const mergedProfile = { ...current.profile, ...(updates.profile || {}) };
+        
+        // TRIPLE CHECK: Force profileImageIndices one more time to be absolutely sure
+        if (originalProfileImageIndices !== undefined) {
+            const imagesArray = mergedProfile.images || current.profile?.images || [];
+            const imagesLength = imagesArray.length;
+            let validIndices = [];
+            if (originalProfileImageIndices === null) {
+                validIndices = [];
+            } else if (Array.isArray(originalProfileImageIndices)) {
+                validIndices = originalProfileImageIndices
+                    .filter(idx => typeof idx === 'number' && idx >= 0 && idx < imagesLength)
+                    .slice(0, 5);
+            }
+            mergedProfile.profileImageIndices = validIndices;
+            console.log('updateChatbot - Final force set profileImageIndices:', validIndices);
+        }
+        
+        console.log('updateChatbot - Final merged profile:', {
+            profileImageIndices: mergedProfile.profileImageIndices,
+            images: mergedProfile.images?.length,
+            hasProfileImageIndices: 'profileImageIndices' in mergedProfile,
+            profileKeys: Object.keys(mergedProfile)
+        });
+        
         const updated = {
             ...current,
             ...updates,
-            profile: { ...current.profile, ...(updates.profile || {}) },
+            profile: mergedProfile,
             metadata: {
                 ...current.metadata,
                 updated: new Date().toISOString(),

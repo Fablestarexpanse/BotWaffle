@@ -202,17 +202,17 @@ class ChatbotCard extends HTMLElement {
                             </div>
                         </div>
                         <div class="card-assets-compact">
-                            <button class="asset-button-compact asset-images" data-type="images" title="View Images">
+                            <button class="asset-button-compact asset-images" data-type="images" title="View Images" data-bot-id="${bot.id}">
                                 <span class="asset-icon-compact">🖼️</span>
                                 <span class="asset-count-compact">${(bot.profile.images && bot.profile.images.length) || 0}</span>
                             </button>
-                            <button class="asset-button-compact asset-scripts" data-type="scripts" title="View Scripts">
+                            <button class="asset-button-compact asset-scripts" data-type="scripts" title="View Scripts" data-bot-id="${bot.id}">
                                 <span class="asset-icon-compact">📜</span>
-                                <span class="asset-count-compact">${(bot.scripts && bot.scripts.length) || 0}</span>
+                                <span class="asset-count-compact">${(bot.metadata?.scripts && bot.metadata.scripts.length) || 0}</span>
                             </button>
-                            <button class="asset-button-compact asset-prompts" data-type="prompts" title="View Image Prompts">
+                            <button class="asset-button-compact asset-prompts" data-type="prompts" title="View Image Prompts" data-bot-id="${bot.id}">
                                 <span class="asset-icon-compact">✨</span>
-                                <span class="asset-count-compact">${(bot.imagePrompts && bot.imagePrompts.length) || 0}</span>
+                                <span class="asset-count-compact">${(bot.metadata?.imagePrompts && bot.metadata.imagePrompts.length) || 0}</span>
                             </button>
                         </div>
                     </div>
@@ -247,6 +247,59 @@ class ChatbotCard extends HTMLElement {
                     }
                 });
             }
+
+            // Handle asset button clicks for navigation
+            const assetButtons = card.querySelectorAll('.asset-button-compact');
+            assetButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const assetType = btn.getAttribute('data-type');
+                    const botId = btn.getAttribute('data-bot-id');
+                    
+                    if (botId && assetType) {
+                        // Map asset type to view name
+                        let viewName = 'scripts';
+                        if (assetType === 'images') {
+                            viewName = 'pictures';
+                        } else if (assetType === 'prompts') {
+                            viewName = 'image-prompts';
+                        }
+                        
+                        // Check if editor is already open for this bot
+                        const editor = document.querySelector('chatbot-editor');
+                        const isEditorOpen = editor && editor.currentId === botId;
+                        
+                        if (!isEditorOpen) {
+                            // First open the editor for this bot
+                            this.dispatchEvent(new CustomEvent('edit-bot', {
+                                detail: { id: botId },
+                                bubbles: true
+                            }));
+                            
+                            // Wait for editor to open, then navigate
+                            setTimeout(() => {
+                                document.dispatchEvent(new CustomEvent('navigate-bot-view', {
+                                    detail: { 
+                                        view: viewName,
+                                        botId: botId
+                                    },
+                                    bubbles: true
+                                }));
+                            }, 300);
+                        } else {
+                            // Editor already open, just navigate
+                            document.dispatchEvent(new CustomEvent('navigate-bot-view', {
+                                detail: { 
+                                    view: viewName,
+                                    botId: botId
+                                },
+                                bubbles: true
+                            }));
+                        }
+                    }
+                });
+            });
 
             card.addEventListener('click', (e) => {
                 // Don't trigger edit if clicking on delete button, tag, or asset buttons

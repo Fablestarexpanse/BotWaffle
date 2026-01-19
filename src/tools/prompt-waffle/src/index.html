@@ -204,44 +204,25 @@
             </div>
           </div>
 
-          <!-- Images Section -->
-          <div class="board-section reference-images-section">
-            <div class="section-label">Images</div>
+          <!-- Character Section -->
+          <div class="board-section character-section">
+            <div class="section-label">Character</div>
             <div class="section-controls">
-              <div class="control-group">
-                <button id="addImageBtn" class="control-btn" title="Add reference image to board">
-                  <i data-feather="image"></i>
-                  <span>Add Images</span>
+              <div class="control-group character-select-group">
+                <button id="characterSelectBtn" class="character-select-btn" title="Select a character from BotWaffle">
+                  <i data-feather="user"></i>
+                  <span id="characterSelectBtnText">Select Character...</span>
                 </button>
                 <div class="control-description">
-                  Add reference images to your board (max 6)
+                  Link this prompt to a BotWaffle character
                 </div>
-              </div>
-              <div class="control-group">
-                <button id="setFolderBtn" class="control-btn" title="Set folder to monitor">
-                  <i data-feather="folder"></i>
-                  <span>Monitor</span>
-                </button>
-                <div class="control-description">
-                  Monitor a folder for new AI-generated images
-                </div>
-              </div>
-            </div>
-            <div id="referenceImagesContainer" class="reference-images-container"></div>
-
-            <!-- Live Preview Area -->
-            <div id="livePreviewContainer" class="live-preview-container"></div>
-
-            <!-- Character Images Display -->
-            <div id="characterImagesDisplay" class="character-images-display" style="display: none;">
-              <div class="character-images-header">
-                <span class="character-images-title">Active Character</span>
-                <button id="closeCharacterImagesBtn" class="close-character-images-btn" title="Close character images">
-                  <i data-feather="x"></i>
+                <button id="savePromptToCharacterBtn" class="save-prompt-to-character-btn" title="Save compiled prompt to character's image prompts" style="display: none;">
+                  <i data-feather="save"></i>
+                  <span>Save Prompt</span>
                 </button>
               </div>
-              <div id="characterImagesContainer" class="character-images-container">
-                <!-- Character images will be displayed here -->
+              <div id="characterCardDisplay" class="character-card-display" style="display: none;">
+                <!-- Character card will be displayed here -->
               </div>
             </div>
           </div>
@@ -403,7 +384,7 @@
     </main>
   </div>
 
-  <input type="file" id="referenceImageUpload" accept="image/*" style="display: none" multiple />
+  <!-- Reference image upload removed - replaced with character selector -->
 
   <!-- Text Selection Toolbar -->
   <div id="textSelectionToolbar" class="text-selection-toolbar">

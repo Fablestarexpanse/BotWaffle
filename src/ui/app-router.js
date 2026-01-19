@@ -214,11 +214,26 @@
         // Show loading
         container.innerHTML = '<div style="color:white; padding: 20px;">Loading...</div>';
 
+        // Always fetch fresh data when opening editor
         const botData = await window.api.chatbot.get(botId);
         editor.chatbotData = botData;
 
         container.innerHTML = '';
         container.appendChild(editor);
+        
+        // Store editor reference for refreshing
+        window.currentEditor = editor;
+    });
+    
+    // Listen for bot images updated event to refresh editor if it's open
+    document.addEventListener('bot-images-updated', async (e) => {
+        const { botId } = e.detail;
+        const editor = document.querySelector('chatbot-editor');
+        if (editor && editor.currentId === botId) {
+            // Refresh the editor with fresh data
+            const botData = await window.api.chatbot.get(botId);
+            editor.chatbotData = botData;
+        }
     });
 
     // Listen for 'editor-cancel' to return to list
@@ -236,6 +251,41 @@
     document.addEventListener('navigate-library', () => {
         if (checkUnsavedChanges()) return;
         showList();
+    });
+
+    // Listen for bot-specific view navigation
+    document.addEventListener('navigate-bot-view', async (e) => {
+        if (checkUnsavedChanges()) return;
+
+        const { view, botId } = e.detail;
+        if (!botId) return;
+
+        // Show loading
+        container.innerHTML = '<div style="color:white; padding: 20px;">Loading...</div>';
+
+        let viewElement = null;
+
+        switch (view) {
+            case 'pictures':
+                viewElement = document.createElement('bot-images-view');
+                viewElement.botId = botId;
+                break;
+            case 'scripts':
+                viewElement = document.createElement('bot-scripts-view');
+                viewElement.botId = botId;
+                break;
+            case 'image-prompts':
+                viewElement = document.createElement('bot-image-prompts-view');
+                viewElement.botId = botId;
+                break;
+            default:
+                console.warn('Unknown bot view:', view);
+                showList();
+                return;
+        }
+
+        container.innerHTML = '';
+        container.appendChild(viewElement);
     });
 
 })();

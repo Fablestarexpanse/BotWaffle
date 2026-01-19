@@ -77,7 +77,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // openBackupFileDialog: () => ipcRenderer.invoke('open-backup-file-dialog'),
   // verifyBackup: (zipPath) => ipcRenderer.invoke('verify-backup', zipPath),
   // File dialog APIs
-  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options)
+  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+  // BotWaffle chatbot APIs
+  listChatbots: () => ipcRenderer.invoke('chatbot:list'),
+  getChatbot: (id) => ipcRenderer.invoke('chatbot:get', id),
+  updateChatbot: (id, data) => ipcRenderer.invoke('chatbot:update', id, data)
 });
 
 // Auto-updater IPC bridge

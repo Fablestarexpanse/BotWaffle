@@ -20,6 +20,14 @@ function createWindow() {
         }
     });
 
+    // Suppress error dialogs for EPIPE errors (harmless logging issues)
+    mainWindow.webContents.on('uncaught-exception', (event, error) => {
+        if (error && (error.code === 'EPIPE' || error.code === 'ENOTCONN')) {
+            event.preventDefault(); // Suppress the error dialog
+            return;
+        }
+    });
+
     mainWindow.loadFile('src/ui/index.html');
     
     // Set up context menu for right-click
@@ -50,10 +58,42 @@ function createWindow() {
     });
 }
 
+// Handle uncaught exceptions to prevent crashes from EPIPE and other logging errors
+process.on('uncaughtException', (error) => {
+    // Silently ignore EPIPE and ENOTCONN errors (broken pipe/connection)
+    // These are usually harmless logging issues when stdout/stderr is closed
+    if (error.code === 'EPIPE' || error.code === 'ENOTCONN') {
+        return; // Silently ignore
+    }
+    // For other uncaught exceptions, log them (but use a safe method)
+    try {
+        console.error('Uncaught Exception:', error);
+    } catch {
+        // If even console.error fails, silently ignore
+    }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    // Silently ignore EPIPE errors in promise rejections
+    if (reason && reason.code === 'EPIPE') {
+        return;
+    }
+    try {
+        console.error('Unhandled Rejection:', reason);
+    } catch {
+        // Silently ignore
+    }
+});
+
 app.whenReady().then(() => {
     // Initialize logging first
     initializeLogging();
-    info('BotWaffle starting up');
+    try {
+        info('BotWaffle starting up');
+    } catch {
+        // Ignore logging errors during startup
+    }
     
     // Initialize file system
     initializeStorage();
@@ -312,23 +352,23 @@ app.whenReady().then(() => {
     }, { errorReturn: { cancelled: true } });
 
     // Save text file handler (for character sheet export)
+    // Completely rewritten to avoid EPIPE errors - no logging
     registerIpcHandler(ipcMain, 'saveTextFile', async (event, content, defaultFilename) => {
+        // Validate inputs
+        if (typeof content !== 'string') {
+            return { success: false, error: 'Content must be a string' };
+        }
+
+        if (!defaultFilename || typeof defaultFilename !== 'string') {
+            defaultFilename = 'character_sheet.txt';
+        }
+
+        // Sanitize filename
+        const sanitizedFilename = defaultFilename.replace(/[<>:"/\\|?*]/g, '_').substring(0, 255);
+
         try {
             const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
             
-            // Validate content
-            if (typeof content !== 'string') {
-                throw new Error('Content must be a string');
-            }
-
-            // Validate filename
-            if (!defaultFilename || typeof defaultFilename !== 'string') {
-                defaultFilename = 'character_sheet.txt';
-            }
-
-            // Sanitize filename (remove path separators and other dangerous characters)
-            const sanitizedFilename = defaultFilename.replace(/[<>:"/\\|?*]/g, '_');
-
             const result = await dialog.showSaveDialog(parentWindow, {
                 title: 'Export Character Sheet',
                 defaultPath: sanitizedFilename,
@@ -342,22 +382,24 @@ app.whenReady().then(() => {
                 return { success: false, cancelled: true };
             }
 
-            // Write file
+            // Write file - no logging to avoid EPIPE
             const fs = require('fs').promises;
             await fs.writeFile(result.filePath, content, 'utf8');
 
-            info('[Export] Character sheet exported', { filePath: result.filePath });
-
+            // Return success - NO LOGGING to prevent EPIPE errors
             return {
                 success: true,
                 filePath: result.filePath,
                 filename: path.basename(result.filePath)
             };
         } catch (error) {
-            logError('[Export] Error saving text file', error);
-            throw error;
+            // Return error instead of throwing - NO LOGGING
+            return {
+                success: false,
+                error: error.message || 'Failed to save file'
+            };
         }
-    }, { rethrow: true });
+    }, { errorReturn: { success: false, error: 'Unknown error' } });
 
     // PromptWaffle Integration
     const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');

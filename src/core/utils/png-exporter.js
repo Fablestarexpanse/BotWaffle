@@ -49,12 +49,29 @@ function exportToPng(chatbot, outputPath, sourceImagePath) {
             ? chatbot.initialMessages
             : (typeof chatbot.initialMessages === 'string' ? [{ text: chatbot.initialMessages }] : []);
         const exampleDialogs = Array.isArray(chatbot.exampleDialogs) ? chatbot.exampleDialogs : [];
-        const personalityData = chatbot.personality?.characterData || chatbot.personality || {};
+        
+        // Handle personality - can be string (new format) or object (old format)
+        let personalityText = '';
+        let systemPrompt = '';
+        if (chatbot.personality) {
+            if (typeof chatbot.personality === 'string') {
+                personalityText = chatbot.personality;
+            } else if (chatbot.personality.characterData) {
+                // Old format with characterData
+                const characterData = chatbot.personality.characterData;
+                personalityText = characterData.personality || '';
+                systemPrompt = characterData.systemPrompt || '';
+            } else {
+                // Old format without characterData wrapper
+                personalityText = chatbot.personality.personality || chatbot.personality.text || '';
+                systemPrompt = chatbot.personality.systemPrompt || '';
+            }
+        }
 
         const cardData = {
             name: chatbot.profile.name || "Anonymous",
             description: chatbot.profile.description || "",
-            personality: personalityData.personality || "",
+            personality: personalityText,
             scenario: scenarioText,
             first_mes: initialMessages[0]?.text || "",
             mes_example: exampleDialogs
@@ -68,7 +85,7 @@ function exportToPng(chatbot, outputPath, sourceImagePath) {
                 })
                 .join('\n') || "",
             creator_notes: `Created with BotWaffle`,
-            system_prompt: personalityData.systemPrompt || "",
+            system_prompt: systemPrompt,
             post_history_instructions: "",
             alternate_greetings: [],
             character_book: undefined,

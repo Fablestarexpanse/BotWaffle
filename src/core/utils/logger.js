@@ -86,16 +86,19 @@ function formatLogMessage(level, message, data = null) {
  * @param {...any} args - Arguments to log
  */
 function safeConsoleError(...args) {
+    // Check if stderr is writable before attempting to log
+    if (!process.stderr.writable || process.stderr.destroyed) {
+        return; // Silently skip if stderr is not available
+    }
+    
     try {
         console.error(...args);
     } catch (error) {
         // Silently ignore EPIPE and other stream errors
-        if (error.code !== 'EPIPE' && error.code !== 'ENOTCONN') {
-            // Only log non-stream errors if possible
-            try {
-                process.stderr.write(`[Safe Log] ${args.join(' ')}\n`);
-            } catch {}
+        if (error && (error.code === 'EPIPE' || error.code === 'ENOTCONN')) {
+            return; // Silently ignore
         }
+        // For other errors, silently ignore to prevent cascading failures
     }
 }
 
@@ -104,14 +107,20 @@ function safeConsoleError(...args) {
  * @param {...any} args - Arguments to log
  */
 function safeConsoleLog(...args) {
+    // Check if stdout is writable before attempting to log
+    if (!process.stdout.writable || process.stdout.destroyed) {
+        return; // Silently skip if stdout is not available
+    }
+    
     try {
         console.log(...args);
     } catch (error) {
-        if (error.code !== 'EPIPE' && error.code !== 'ENOTCONN') {
-            try {
-                process.stdout.write(`[Safe Log] ${args.join(' ')}\n`);
-            } catch {}
+        // Silently ignore EPIPE and ENOTCONN errors (broken pipe/connection)
+        // These happen when stdout/stderr streams are closed
+        if (error && (error.code === 'EPIPE' || error.code === 'ENOTCONN')) {
+            return; // Silently ignore
         }
+        // For other errors, silently ignore to prevent cascading failures
     }
 }
 
@@ -138,9 +147,13 @@ function writeToLogFile(message) {
 function debug(message, data = null) {
     if (CURRENT_LOG_LEVEL > LOG_LEVELS.DEBUG) return;
     
-    const formatted = formatLogMessage('DEBUG', message, data);
-    safeConsoleLog(formatted);
-    writeToLogFile(formatted);
+    try {
+        const formatted = formatLogMessage('DEBUG', message, data);
+        safeConsoleLog(formatted);
+        writeToLogFile(formatted);
+    } catch (error) {
+        // Silently ignore all logging errors, including EPIPE
+    }
 }
 
 /**
@@ -151,9 +164,14 @@ function debug(message, data = null) {
 function info(message, data = null) {
     if (CURRENT_LOG_LEVEL > LOG_LEVELS.INFO) return;
     
-    const formatted = formatLogMessage('INFO', message, data);
-    safeConsoleLog(formatted);
-    writeToLogFile(formatted);
+    try {
+        const formatted = formatLogMessage('INFO', message, data);
+        safeConsoleLog(formatted);
+        writeToLogFile(formatted);
+    } catch (error) {
+        // Silently ignore all logging errors, including EPIPE
+        // Don't let logging failures break the application
+    }
 }
 
 /**
@@ -164,9 +182,13 @@ function info(message, data = null) {
 function warn(message, data = null) {
     if (CURRENT_LOG_LEVEL > LOG_LEVELS.WARN) return;
     
-    const formatted = formatLogMessage('WARN', message, data);
-    safeConsoleError(formatted);
-    writeToLogFile(formatted);
+    try {
+        const formatted = formatLogMessage('WARN', message, data);
+        safeConsoleError(formatted);
+        writeToLogFile(formatted);
+    } catch (error) {
+        // Silently ignore all logging errors, including EPIPE
+    }
 }
 
 /**
@@ -177,18 +199,23 @@ function warn(message, data = null) {
 function error(message, error = null) {
     if (CURRENT_LOG_LEVEL > LOG_LEVELS.ERROR) return;
     
-    let errorData = error;
-    if (error instanceof Error) {
-        errorData = {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-        };
+    try {
+        let errorData = error;
+        if (error instanceof Error) {
+            errorData = {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            };
+        }
+        
+        const formatted = formatLogMessage('ERROR', message, errorData);
+        safeConsoleError(formatted);
+        writeToLogFile(formatted);
+    } catch (logError) {
+        // Silently ignore all logging errors, including EPIPE
+        // Don't let logging failures break the application
     }
-    
-    const formatted = formatLogMessage('ERROR', message, errorData);
-    safeConsoleError(formatted);
-    writeToLogFile(formatted);
 }
 
 module.exports = {

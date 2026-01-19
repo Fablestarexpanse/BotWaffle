@@ -7,8 +7,8 @@
       {
         "id": "card-1768541934922",
         "snippetPath": "Start Here/default_cyberpunk.json",
-        "x": 299,
-        "y": 65,
+        "x": 1048,
+        "y": 255,
         "width": 594,
         "height": 140,
         "locked": false,
@@ -17,8 +17,8 @@
       {
         "id": "card-1768541936453",
         "snippetPath": "Start Here/default_space.json",
-        "x": 375,
-        "y": 384,
+        "x": 153,
+        "y": 73,
         "width": 714,
         "height": 140,
         "locked": false,
@@ -27,8 +27,8 @@
       {
         "id": "card-1768542946868",
         "snippetPath": "Start Here/default_cyberpunk.json",
-        "x": 156,
-        "y": 239,
+        "x": 380,
+        "y": 225,
         "width": 594,
         "height": 140,
         "locked": false,
@@ -37,8 +37,8 @@
       {
         "id": "card-1768542951472",
         "snippetPath": "Start Here/default_space.json",
-        "x": 988,
-        "y": 225,
+        "x": 871,
+        "y": 63,
         "width": 714,
         "height": 140,
         "locked": false,

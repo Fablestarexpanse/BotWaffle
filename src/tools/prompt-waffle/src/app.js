@@ -77,27 +77,9 @@ async function init() {
         }
       }
     }
-    // 6. Restore monitored folder if it was previously set
-    const monitoredFolder = AppState.getMonitoredFolder();
-    if (monitoredFolder) {
-      try {
-        // Check if the folder still exists before restoring
-        const folderExists = await window.electronAPI.stat(monitoredFolder);
-        if (!folderExists) {
-          console.warn('Monitored folder no longer exists:', monitoredFolder);
-          AppState.setMonitoredFolder(null);
-          return;
-        }
-        // Import the UI functions to restore live preview
-        const { startLivePreview } = await import('./bootstrap/ui.js');
-        await startLivePreview(monitoredFolder);
-      } catch (error) {
-        console.error('Failed to restore monitored folder:', error);
-        // Clear the invalid folder path from state
-        AppState.setMonitoredFolder(null);
-      }
-    }
-    // 7. Set up event listeners for dynamic UI elements
+    // 6. Character selector is now handled by modal (no pre-loading needed)
+
+    // 8. Set up event listeners for dynamic UI elements
     setupEventListeners();
     // 8. Initial UI updates
     bootstrap.updateCompiledPrompt();

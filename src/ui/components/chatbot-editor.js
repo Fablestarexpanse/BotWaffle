@@ -17,6 +17,10 @@ class ChatbotEditor extends HTMLElement {
         this._data = data || {};
         this.currentId = data ? data.id : null;
         this.render();
+        // Update display name after render
+        setTimeout(() => {
+            this.updateDisplayName();
+        }, 100);
     }
 
     connectedCallback() {
@@ -24,8 +28,9 @@ class ChatbotEditor extends HTMLElement {
     }
 
     render() {
-        const bot = this._data || {};
-        const isEdit = this._mode === 'edit';
+        try {
+            const bot = this._data || {};
+            const isEdit = this._mode === 'edit';
 
         // Default layout - Profile, then Character Sheet (Personality), then other sections
         const defaultLayout = [
@@ -36,9 +41,14 @@ class ChatbotEditor extends HTMLElement {
             { type: 'example-dialogs', id: 'section-example-dialogs', minimized: false }
         ];
         
-        this.layout = bot.layout || defaultLayout;
+        // If bot has a layout, use it but ensure profile is first and always present
+        if (bot.layout && Array.isArray(bot.layout)) {
+            this.layout = [...bot.layout];
+        } else {
+            this.layout = defaultLayout;
+        }
         
-        // Ensure required sections are always in layout
+        // CRITICAL: Ensure required sections are always in layout (profile MUST be first)
         const requiredSections = [
             { type: 'profile', id: 'section-profile' },
             { type: 'personality', id: 'section-personality' },
@@ -47,22 +57,49 @@ class ChatbotEditor extends HTMLElement {
             { type: 'example-dialogs', id: 'section-example-dialogs' }
         ];
         
+        // First, ensure all required sections exist
         requiredSections.forEach(required => {
             const exists = this.layout.some(l => l.type === required.type);
             if (!exists) {
-                this.layout.push({
-                    type: required.type,
-                    id: required.id,
-                    minimized: false
-                });
+                // Insert profile at the beginning, others at the end
+                if (required.type === 'profile') {
+                    this.layout.unshift({
+                        type: required.type,
+                        id: required.id,
+                        minimized: false
+                    });
+                } else {
+                    this.layout.push({
+                        type: required.type,
+                        id: required.id,
+                        minimized: false
+                    });
+                }
             }
         });
+        
+        // CRITICAL: Ensure profile is ALWAYS first, no matter what
+        const profileIndex = this.layout.findIndex(s => s.type === 'profile');
+        if (profileIndex === -1) {
+            // Profile doesn't exist - add it first
+            this.layout.unshift({ type: 'profile', id: 'section-profile', minimized: false });
+        } else if (profileIndex > 0) {
+            // Profile exists but not first - move it to first
+            const profile = this.layout.splice(profileIndex, 1)[0];
+            this.layout.unshift(profile);
+        }
 
+        // Get display name for header
+        const displayName = bot?.profile?.displayName || bot?.displayName || (isEdit ? 'Unnamed Bot' : '');
+        
         this.innerHTML = `
             <div class="editor-header">
                 <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
                     <h2>${isEdit ? 'Edit Chatbot' : 'Create New Chatbot'}</h2>
                     <button id="save-btn" class="primary-btn">Save</button>
+                </div>
+                <div class="header-center" id="bot-display-name">
+                    ${isEdit ? `<span class="bot-name-display">${displayName || 'Unnamed Bot'}</span>` : ''}
                 </div>
                 <div class="actions">
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
@@ -82,31 +119,82 @@ class ChatbotEditor extends HTMLElement {
             </div>
         `;
 
-        this.renderSections(bot);
-        this.setupListeners();
+            // Ensure DOM is ready before rendering sections
+            setTimeout(() => {
+                this.renderSections(bot);
+                this.setupListeners();
+                
+                // Initial display name update after sections are rendered
+                setTimeout(() => {
+                    this.updateDisplayName();
+                }, 100);
+            }, 0);
+        } catch (error) {
+            console.error('Error in render():', error);
+            this.innerHTML = `<div style="color: red; padding: 20px;">Error rendering editor: ${error.message}</div>`;
+            throw error;
+        }
     }
 
     renderSections(botData) {
-        const otherSectionsContainer = this.querySelector('#other-sections-container');
-        const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        try {
+            const otherSectionsContainer = this.querySelector('#other-sections-container');
+            const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+            
+            if (!otherSectionsContainer || !otherSectionsAfterContainer) {
+                console.error('Required containers not found!', { 
+                    otherSectionsContainer, 
+                    otherSectionsAfterContainer,
+                    innerHTML: this.innerHTML.substring(0, 200)
+                });
+                return;
+            }
         
-        if (otherSectionsContainer) otherSectionsContainer.innerHTML = '';
-        if (otherSectionsAfterContainer) otherSectionsAfterContainer.innerHTML = '';
+        // Clear containers
+        otherSectionsContainer.innerHTML = '';
+        otherSectionsAfterContainer.innerHTML = '';
 
         // Sections that appear after Profile
         const afterProfileTypes = ['personality', 'scenario', 'initial-messages', 'example-dialogs'];
 
-        // Render profile section first in otherSectionsContainer
-        const profileSection = this.layout.find(s => s.type === 'profile');
-        if (profileSection && otherSectionsContainer) {
-            const tagName = 'section-profile';
-            if (customElements.get(tagName)) {
-                const element = document.createElement(tagName);
-                if (profileSection.id) element.id = profileSection.id;
-                if (profileSection.minimized) element.setAttribute('minimized', 'true');
-                element.data = botData;
-                otherSectionsContainer.appendChild(element);
-            }
+        // Render profile section first in otherSectionsContainer - ALWAYS render it
+        let profileSection = this.layout.find(s => s.type === 'profile');
+        if (!profileSection) {
+            console.warn('Profile section missing from layout! Adding it now.', this.layout);
+            profileSection = { type: 'profile', id: 'section-profile', minimized: false };
+            this.layout.unshift(profileSection);
+        }
+        
+        // Always create and render profile section
+        const tagName = 'section-profile';
+        
+        // Check if custom element is defined
+        if (customElements.get(tagName)) {
+            const element = document.createElement(tagName);
+            
+            // Set attributes
+            if (profileSection.id) element.id = profileSection.id;
+            if (profileSection.minimized) element.setAttribute('minimized', 'true');
+            
+            // Set data - this will trigger rendering
+            element.data = botData;
+            
+            // Append to container
+            otherSectionsContainer.appendChild(element);
+        } else {
+            console.error('section-profile custom element not registered! Attempting to render later...');
+            // Try to render profile later, but continue with other sections
+            setTimeout(() => {
+                if (customElements.get(tagName)) {
+                    const element = document.createElement(tagName);
+                    if (profileSection.id) element.id = profileSection.id;
+                    if (profileSection.minimized) element.setAttribute('minimized', 'true');
+                    element.data = botData;
+                    otherSectionsContainer.appendChild(element);
+                } else {
+                    console.error('section-profile still not registered after delay');
+                }
+            }, 100);
         }
 
         // Render all sections after Profile (personality, scenario, initial-messages, example-dialogs)
@@ -125,8 +213,12 @@ class ChatbotEditor extends HTMLElement {
             otherSectionsAfterContainer.appendChild(element);
         });
         
-        // Update token counts after rendering
-        setTimeout(() => this.updateTokenCounts(), 0);
+            // Update token counts after rendering
+            setTimeout(() => this.updateTokenCounts(), 0);
+        } catch (error) {
+            console.error('Error in renderSections:', error);
+            throw error;
+        }
     }
 
     updateTokenCounts() {
@@ -314,8 +406,27 @@ class ChatbotEditor extends HTMLElement {
         }
     }
 
+    updateDisplayName() {
+        // Get current display name from profile section
+        const profileSection = this.querySelector('section-profile');
+        if (!profileSection) return;
+        
+        const displayNameInput = profileSection.querySelector('[name="displayName"]');
+        const displayName = displayNameInput ? displayNameInput.value.trim() : '';
+        
+        const nameDisplay = this.querySelector('#bot-display-name .bot-name-display');
+        if (nameDisplay) {
+            nameDisplay.textContent = displayName || 'Unnamed Bot';
+        }
+    }
+
     setupListeners() {
         // Character sheet removed - no collapse/expand needed
+
+        // Listen for section changes to update display name
+        this.addEventListener('section-change', () => {
+            this.updateDisplayName();
+        });
 
         // Max token input handler
         const maxTokenInput = this.querySelector('#max-token-input');
@@ -497,12 +608,27 @@ class ChatbotEditor extends HTMLElement {
 
     updateLayoutFromDOM() {
         const newLayout = [];
-        const otherSections = this.querySelectorAll('#other-sections-container > section-profile');
+        const otherSectionsContainer = this.querySelector('#other-sections-container');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
-        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [];
-        const allSections = [...otherSections, ...afterSections];
         
-        allSections.forEach(el => {
+        // Get profile section from otherSectionsContainer
+        const profileSection = otherSectionsContainer ? otherSectionsContainer.querySelector('section-profile') : null;
+        
+        // Get other sections from after container
+        const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [];
+        
+        // Always add profile section first if it exists
+        if (profileSection) {
+            const existingConfig = this.layout.find(l => l.id === profileSection.id) || {};
+            newLayout.push({
+                type: 'profile',
+                id: profileSection.id || 'section-profile',
+                minimized: profileSection.getAttribute('minimized') === 'true'
+            });
+        }
+        
+        // Add other sections
+        afterSections.forEach(el => {
             const typeHeader = el.tagName.toLowerCase().replace('section-', '');
             const existingConfig = this.layout.find(l => l.id === el.id) || {};
 
@@ -524,7 +650,7 @@ class ChatbotEditor extends HTMLElement {
             newLayout.push(config);
         });
         
-        // Ensure required sections are always in layout
+        // Ensure required sections are always in layout (profile must be first)
         const requiredSections = [
             { type: 'profile', id: 'section-profile' },
             { type: 'personality', id: 'section-personality' },
@@ -538,18 +664,35 @@ class ChatbotEditor extends HTMLElement {
             if (!exists) {
                 // Find existing config to preserve minimized state
                 const existing = this.layout.find(l => l.type === required.type);
-                newLayout.push({
+                const config = {
                     type: required.type,
                     id: required.id,
                     minimized: existing?.minimized || false
-                });
+                };
+                
+                // Profile must be first
+                if (required.type === 'profile') {
+                    newLayout.unshift(config);
+                } else {
+                    newLayout.push(config);
+                }
             }
         });
+        
+        // Ensure profile is always first
+        const profileIndex = newLayout.findIndex(l => l.type === 'profile');
+        if (profileIndex > 0) {
+            const profile = newLayout.splice(profileIndex, 1)[0];
+            newLayout.unshift(profile);
+        }
         
         this.layout = newLayout;
     }
     async save() {
-        // Ensure required sections are always in layout
+        // Update layout from DOM first
+        this.updateLayoutFromDOM();
+        
+        // Ensure required sections are always in layout (profile must be first)
         const requiredSections = [
             { type: 'profile', id: 'section-profile' },
             { type: 'personality', id: 'section-personality' },
@@ -561,19 +704,38 @@ class ChatbotEditor extends HTMLElement {
         requiredSections.forEach(required => {
             const exists = this.layout.some(l => l.type === required.type);
             if (!exists) {
-                this.layout.push({
-                    type: required.type,
-                    id: required.id,
-                    minimized: false
-                });
+                // Profile must be first
+                if (required.type === 'profile') {
+                    this.layout.unshift({
+                        type: required.type,
+                        id: required.id,
+                        minimized: false
+                    });
+                } else {
+                    this.layout.push({
+                        type: required.type,
+                        id: required.id,
+                        minimized: false
+                    });
+                }
             }
         });
         
+        // Ensure profile is always first in layout
+        const profileIndex = this.layout.findIndex(l => l.type === 'profile');
+        if (profileIndex > 0) {
+            const profile = this.layout.splice(profileIndex, 1)[0];
+            this.layout.unshift(profile);
+        }
+        
         // Collect data from all sections
-        const otherSections = this.querySelectorAll('#other-sections-container > section-profile');
+        const otherSectionsContainer = this.querySelector('#other-sections-container');
         const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+        
+        const profileSection = otherSectionsContainer ? otherSectionsContainer.querySelector('section-profile') : null;
         const afterSections = otherSectionsAfterContainer ? otherSectionsAfterContainer.querySelectorAll('section-personality, section-scenario, section-initial-messages, section-example-dialogs') : [];
-        const sections = [...otherSections, ...afterSections];
+        
+        const sections = profileSection ? [profileSection, ...afterSections] : afterSections;
         
         let fullData = {
             // Preserve existing data that might not be in sections (like ID)
@@ -609,11 +771,22 @@ class ChatbotEditor extends HTMLElement {
                     fullData.profile.image = sectionData.image;
                     fullData.profile.images = sectionData.images;
                     fullData.profile.thumbnailIndex = sectionData.thumbnailIndex;
+                    // Store maxTokens in metadata for persistence
+                    if (!fullData.metadata) fullData.metadata = {};
+                    if (sectionData.maxTokens !== undefined) {
+                        fullData.metadata.maxTokens = sectionData.maxTokens;
+                        fullData.profile.maxTokens = sectionData.maxTokens;
+                    }
                 } else if (tagName === 'section-personality') {
                     // Personality is now just a string
                     fullData.personality = sectionData;
                 } else if (tagName === 'section-scenario') {
-                    fullData.scenario = sectionData;
+                    // Scenario section returns an object with scenario/text, extract the scenario string
+                    if (sectionData && typeof sectionData === 'object') {
+                        fullData.scenario = sectionData.scenario || sectionData.text || '';
+                    } else {
+                        fullData.scenario = sectionData || '';
+                    }
                 } else if (tagName === 'section-initial-messages') {
                     fullData.initialMessages = sectionData;
                 } else if (tagName === 'section-example-dialogs') {
@@ -675,6 +848,9 @@ class ChatbotEditor extends HTMLElement {
                 // Update header title
                 const headerTitle = this.querySelector('.editor-header h2');
                 if (headerTitle) headerTitle.textContent = 'Edit Chatbot';
+                
+                // Update display name in header
+                this.updateDisplayName();
 
                 // Re-render handled by chatbotData setter
 
@@ -719,6 +895,9 @@ class ChatbotEditor extends HTMLElement {
             this._isDirty = false;
             const saveBtn = this.querySelector('#save-btn');
             if (saveBtn) saveBtn.textContent = 'Save';
+            
+            // Update display name after save
+            this.updateDisplayName();
 
             this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
         } catch (error) {
@@ -730,59 +909,162 @@ class ChatbotEditor extends HTMLElement {
     /**
      * Exports the character sheet as markdown .txt file
      * Excludes the basic profile section
+     * Completely rewritten to avoid EPIPE errors
      */
     async exportCharacterSheet() {
+        // Validate prerequisites
+        if (!window.MarkdownExporter || typeof window.MarkdownExporter.exportToMarkdown !== 'function') {
+            alert('Markdown exporter not available. Please refresh the page and try again.');
+            return;
+        }
+
+        if (!this.currentId) {
+            alert('No chatbot selected for export.');
+            return;
+        }
+
+        if (!window.api || !window.api.chatbot || typeof window.api.chatbot.get !== 'function') {
+            alert('API not available. Please refresh the page and try again.');
+            return;
+        }
+
         try {
-            if (!window.MarkdownExporter) {
-                alert('Markdown exporter not loaded. Please refresh the page.');
+            // Step 1: Collect current data from DOM sections
+            const otherSectionsContainer = this.querySelector('#other-sections-container');
+            const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
+            
+            const exportData = {
+                personality: '',
+                scenario: '',
+                initialMessages: [],
+                exampleDialogs: [],
+                layout: Array.isArray(this.layout) ? this.layout : []
+            };
+
+            // Collect personality
+            const personalitySection = otherSectionsAfterContainer?.querySelector('section-personality');
+            if (personalitySection && typeof personalitySection.getData === 'function') {
+                const data = personalitySection.getData();
+                exportData.personality = typeof data === 'string' ? data : String(data || '');
+            }
+
+            // Collect scenario
+            const scenarioSection = otherSectionsAfterContainer?.querySelector('section-scenario');
+            if (scenarioSection && typeof scenarioSection.getData === 'function') {
+                const data = scenarioSection.getData();
+                if (data && typeof data === 'object') {
+                    exportData.scenario = data.scenario || data.text || '';
+                } else {
+                    exportData.scenario = String(data || '');
+                }
+            }
+
+            // Collect initial messages
+            const initialMessagesSection = otherSectionsAfterContainer?.querySelector('section-initial-messages');
+            if (initialMessagesSection && typeof initialMessagesSection.getData === 'function') {
+                const data = initialMessagesSection.getData();
+                exportData.initialMessages = Array.isArray(data) ? data : [];
+            }
+
+            // Collect example dialogs
+            const exampleDialogsSection = otherSectionsAfterContainer?.querySelector('section-example-dialogs');
+            if (exampleDialogsSection && typeof exampleDialogsSection.getData === 'function') {
+                const data = exampleDialogsSection.getData();
+                exportData.exampleDialogs = Array.isArray(data) ? data : [];
+            }
+
+            // Step 2: Get saved bot data for profile and other metadata
+            let savedBotData = null;
+            try {
+                savedBotData = await window.api.chatbot.get(this.currentId);
+            } catch (apiError) {
+                // If API fails, use DOM data only
+                savedBotData = { profile: {}, layout: exportData.layout };
+            }
+
+            if (!savedBotData) {
+                savedBotData = { profile: {}, layout: exportData.layout };
+            }
+
+            // Step 3: Merge DOM data with saved data (DOM takes precedence)
+            const botData = {
+                profile: savedBotData.profile || {},
+                personality: exportData.personality || (typeof savedBotData.personality === 'string' ? savedBotData.personality : ''),
+                scenario: exportData.scenario || (typeof savedBotData.scenario === 'string' ? savedBotData.scenario : (savedBotData.scenario?.scenario || savedBotData.scenario?.text || '')),
+                initialMessages: exportData.initialMessages.length > 0 ? exportData.initialMessages : (Array.isArray(savedBotData.initialMessages) ? savedBotData.initialMessages : []),
+                exampleDialogs: exportData.exampleDialogs.length > 0 ? exportData.exampleDialogs : (Array.isArray(savedBotData.exampleDialogs) ? savedBotData.exampleDialogs : []),
+                layout: exportData.layout.length > 0 ? exportData.layout : (Array.isArray(savedBotData.layout) ? savedBotData.layout : [])
+            };
+
+            // Step 4: Generate markdown
+            let markdown = '';
+            try {
+                markdown = window.MarkdownExporter.exportToMarkdown(botData, botData.layout);
+                if (typeof markdown !== 'string') {
+                    markdown = String(markdown || '');
+                }
+            } catch (markdownError) {
+                alert(`Error generating markdown: ${markdownError.message || 'Unknown error'}`);
                 return;
             }
 
-            // Get current chatbot data
-            const botData = await window.api.chatbot.get(this.currentId);
-            if (!botData) {
-                alert('Failed to load chatbot data.');
-                return;
+            if (!markdown || markdown.trim().length === 0) {
+                alert('Warning: Generated markdown is empty. Exporting anyway...');
             }
 
-            // Get the layout (sections configuration)
-            const layout = botData.layout || [];
-
-            // Convert to markdown (will export structure even if empty)
-            const markdown = window.MarkdownExporter.exportToMarkdown(botData, layout);
-
-            // Get chatbot name for filename
-            const chatbotName = botData.profile?.name || botData.name || 'character';
-            const sanitizedName = chatbotName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            // Step 5: Generate filename
+            const chatbotName = botData.profile?.name || botData.profile?.displayName || 'character';
+            const sanitizedName = chatbotName.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
             const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
             const filename = `${sanitizedName}_character_sheet_${timestamp}.txt`;
 
-            // Save file via IPC
-            if (window.api && window.api.saveTextFile) {
-                const result = await window.api.saveTextFile(markdown, filename);
-                if (result.success) {
-                    alert(`Character sheet exported successfully to:\n${result.filename}`);
-                } else if (result.cancelled) {
-                    // User cancelled, do nothing
-                } else {
-                    alert(`Export failed: ${result.error || 'Unknown error'}`);
+            // Step 6: Save file via IPC (no logging to avoid EPIPE)
+            if (window.api && window.api.saveTextFile && typeof window.api.saveTextFile === 'function') {
+                try {
+                    const result = await window.api.saveTextFile(markdown, filename);
+                    
+                    if (result && result.success) {
+                        alert(`Character sheet exported successfully!\n\nFile: ${result.filename || filename}`);
+                        return;
+                    }
+                    
+                    if (result && result.cancelled) {
+                        // User cancelled - silently return
+                        return;
+                    }
+                    
+                    // If IPC failed, fall through to browser download
+                } catch (ipcError) {
+                    // IPC failed - use browser download fallback
                 }
-            } else {
-                // Fallback: create download link
-                const blob = new Blob([markdown], { type: 'text/plain' });
+            }
+
+            // Step 7: Fallback to browser download
+            try {
+                const blob = new Blob([markdown], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filename;
+                a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                alert('Character sheet downloaded!');
+                
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                alert(`Character sheet downloaded!\n\nFile: ${filename}`);
+            } catch (downloadError) {
+                alert(`Export failed: ${downloadError.message || 'Unable to download file'}\n\nPlease try saving the content manually.`);
             }
+
         } catch (error) {
-            console.error('Error exporting character sheet:', error);
-            alert(`Export error: ${error.message || 'Failed to export character sheet'}`);
+            // Final error handler - show user-friendly message
+            const errorMessage = error?.message || 'Unknown error occurred';
+            alert(`Export failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`);
         }
     }
 }

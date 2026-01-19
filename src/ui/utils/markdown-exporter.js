@@ -69,85 +69,95 @@
                 lines.push('');
             } else if (sectionConfig.type === 'personality') {
                 // Personality section - convert to markdown
-                const personality = chatbotData.personality || {};
-                const characterData = personality.characterData || personality;
-                
+                // Handle both old format (object with characterData) and new format (string)
                 lines.push(`# Personality`);
                 lines.push('');
 
-                // Extract personality data from characterData if available, otherwise from personality
-                const dataSource = characterData || personality;
+                const personality = chatbotData.personality || {};
+                let personalityText = '';
 
-                // Personality core text
-                if (dataSource.personality) {
-                    lines.push(`## Personality Core`);
-                    lines.push('');
-                    const personalityText = formatFieldValue(dataSource.personality);
-                    if (personalityText.includes('\n')) {
-                        lines.push(personalityText);
-                    } else {
-                        lines.push(escapeMarkdown(personalityText));
+                // Check if personality is a string (new format)
+                if (typeof personality === 'string') {
+                    personalityText = personality;
+                } else if (personality.characterData) {
+                    // Old format - extract from characterData
+                    const characterData = personality.characterData;
+                    personalityText = characterData.personality || '';
+                    
+                    // Also include system prompt if available
+                    if (characterData.systemPrompt) {
+                        lines.push(`## System Prompt`);
+                        lines.push('');
+                        const systemPromptText = formatFieldValue(characterData.systemPrompt);
+                        if (systemPromptText.includes('\n')) {
+                            lines.push(systemPromptText);
+                        } else {
+                            lines.push(escapeMarkdown(systemPromptText));
+                        }
+                        lines.push('');
                     }
-                    lines.push('');
-                }
 
-                // System prompt
-                if (dataSource.systemPrompt) {
-                    lines.push(`## System Prompt`);
-                    lines.push('');
-                    const systemPromptText = formatFieldValue(dataSource.systemPrompt);
-                    if (systemPromptText.includes('\n')) {
-                        lines.push(systemPromptText);
-                    } else {
-                        lines.push(escapeMarkdown(systemPromptText));
+                    // Extract other fields from characterData structure
+                    if (characterData.traits) {
+                        lines.push(`## Defining Traits`);
+                        lines.push('');
+                        const traitsText = formatFieldValue(characterData.traits);
+                        if (traitsText.includes('\n')) {
+                            lines.push(traitsText);
+                        } else {
+                            lines.push(escapeMarkdown(traitsText));
+                        }
+                        lines.push('');
                     }
-                    lines.push('');
-                }
 
-                // Extract other fields from characterData structure
-                if (dataSource.traits) {
-                    lines.push(`## Defining Traits`);
-                    lines.push('');
-                    const traitsText = formatFieldValue(dataSource.traits);
-                    if (traitsText.includes('\n')) {
-                        lines.push(traitsText);
-                    } else {
-                        lines.push(escapeMarkdown(traitsText));
+                    if (characterData.speechPattern) {
+                        lines.push(`## Speech Pattern`);
+                        lines.push('');
+                        const speechText = formatFieldValue(characterData.speechPattern);
+                        if (speechText.includes('\n')) {
+                            lines.push(speechText);
+                        } else {
+                            lines.push(escapeMarkdown(speechText));
+                        }
+                        lines.push('');
                     }
-                    lines.push('');
-                }
 
-                if (dataSource.speechPattern) {
-                    lines.push(`## Speech Pattern`);
-                    lines.push('');
-                    const speechText = formatFieldValue(dataSource.speechPattern);
-                    if (speechText.includes('\n')) {
-                        lines.push(speechText);
-                    } else {
-                        lines.push(escapeMarkdown(speechText));
-                    }
-                    lines.push('');
-                }
-
-                // Add other personality fields if they exist
-                const excludedKeys = ['personality', 'systemPrompt', 'traits', 'speechPattern', 'characterData'];
-                Object.keys(dataSource).forEach(key => {
-                    if (!excludedKeys.includes(key) && dataSource[key]) {
-                        const value = dataSource[key];
-                        if (value && typeof value !== 'object') {
-                            const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim();
-                            const valueText = formatFieldValue(String(value));
-                            if (valueText.includes('\n')) {
-                                lines.push(`## ${label}`);
-                                lines.push('');
-                                lines.push(valueText);
-                                lines.push('');
-                            } else {
-                                lines.push(`- ${label}: ${escapeMarkdown(valueText)}`);
+                    // Add other personality fields if they exist
+                    const excludedKeys = ['personality', 'systemPrompt', 'traits', 'speechPattern', 'characterData'];
+                    Object.keys(characterData).forEach(key => {
+                        if (!excludedKeys.includes(key) && characterData[key]) {
+                            const value = characterData[key];
+                            if (value && typeof value !== 'object') {
+                                const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim();
+                                const valueText = formatFieldValue(String(value));
+                                if (valueText.includes('\n')) {
+                                    lines.push(`## ${label}`);
+                                    lines.push('');
+                                    lines.push(valueText);
+                                    lines.push('');
+                                } else {
+                                    lines.push(`- ${label}: ${escapeMarkdown(valueText)}`);
+                                }
                             }
                         }
+                    });
+                } else if (personality.personality) {
+                    personalityText = personality.personality;
+                } else if (personality.text) {
+                    personalityText = personality.text;
+                }
+
+                // Add personality text
+                if (personalityText) {
+                    const formattedText = formatFieldValue(personalityText);
+                    if (formattedText.includes('\n')) {
+                        lines.push(formattedText);
+                    } else {
+                        lines.push(escapeMarkdown(formattedText));
                     }
-                });
+                } else {
+                    lines.push('(No personality data)');
+                }
                 
                 lines.push('');
             } else {
@@ -160,22 +170,49 @@
                 // Try to get section data from chatbotData
                 const sectionKeyMap = {
                     'initial-messages': 'initialMessages',
-                    'example-dialogs': 'exampleDialogs'
+                    'example-dialogs': 'exampleDialogs',
+                    'scenario': 'scenario'
                 };
                 const sectionKey = sectionKeyMap[sectionConfig.type] || sectionConfig.type;
                 let hasContent = false;
-                if (chatbotData[sectionKey] && typeof chatbotData[sectionKey] === 'object') {
+                
+                // Handle scenario section (can be string or object)
+                if (sectionConfig.type === 'scenario') {
+                    const scenarioData = chatbotData.scenario;
+                    if (scenarioData) {
+                        let scenarioText = '';
+                        if (typeof scenarioData === 'string') {
+                            scenarioText = scenarioData;
+                        } else if (scenarioData.scenario) {
+                            scenarioText = scenarioData.scenario;
+                        } else if (scenarioData.text) {
+                            scenarioText = scenarioData.text;
+                        }
+                        
+                        if (scenarioText) {
+                            const formattedText = formatFieldValue(scenarioText);
+                            if (formattedText.includes('\n')) {
+                                lines.push(formattedText);
+                            } else {
+                                lines.push(escapeMarkdown(formattedText));
+                            }
+                            hasContent = true;
+                        }
+                    }
+                } else if (chatbotData[sectionKey]) {
                     const data = chatbotData[sectionKey];
+                    
+                    // Handle array data (initial messages, example dialogs)
                     if (Array.isArray(data)) {
                         data.forEach((entry, index) => {
-                            if (typeof entry === 'string') {
+                            if (typeof entry === 'string' && entry.trim()) {
                                 lines.push(`- Entry ${index + 1}: ${escapeMarkdown(entry)}`);
                                 hasContent = true;
                                 return;
                             }
 
                             if (entry && typeof entry === 'object') {
-                                if (entry.text) {
+                                if (entry.text && entry.text.trim()) {
                                     lines.push(`- Entry ${index + 1}: ${escapeMarkdown(String(entry.text))}`);
                                     hasContent = true;
                                     return;
@@ -184,12 +221,20 @@
                                 if (entry.user || entry.assistant) {
                                     const userText = entry.user ? escapeMarkdown(String(entry.user)) : '';
                                     const assistantText = entry.assistant ? escapeMarkdown(String(entry.assistant)) : '';
-                                    lines.push(`- Entry ${index + 1}: ${[userText, assistantText].filter(Boolean).join(' / ')}`);
-                                    hasContent = true;
+                                    const combined = [userText, assistantText].filter(Boolean).join(' / ');
+                                    if (combined) {
+                                        lines.push(`- Entry ${index + 1}: ${combined}`);
+                                        hasContent = true;
+                                    }
                                 }
                             }
                         });
-                    } else {
+                    } else if (typeof data === 'string' && data.trim()) {
+                        // Handle string data
+                        lines.push(escapeMarkdown(data));
+                        hasContent = true;
+                    } else if (typeof data === 'object' && data !== null) {
+                        // Handle object data
                         Object.keys(data).forEach(key => {
                             const value = data[key];
                             if (value && typeof value !== 'object') {

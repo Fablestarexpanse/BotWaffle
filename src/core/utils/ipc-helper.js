@@ -36,9 +36,20 @@ function createIpcHandler(handlerFn, options = {}) {
         try {
             return await handlerFn(...args);
         } catch (error) {
-            logError(`Error in IPC handler '${handlerName}'`, error);
+            // Don't log EPIPE errors (broken pipe) - these are usually harmless logging issues
+            if (error.code !== 'EPIPE' && error.code !== 'ENOTCONN') {
+                try {
+                    logError(`Error in IPC handler '${handlerName}'`, error);
+                } catch (logErr) {
+                    // If logging fails, ignore it to prevent cascading errors
+                }
+            }
 
             if (rethrow) {
+                // Don't rethrow EPIPE errors - they're usually harmless
+                if (error.code === 'EPIPE' || error.code === 'ENOTCONN') {
+                    return errorReturn;
+                }
                 throw error;
             }
 

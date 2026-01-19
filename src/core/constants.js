@@ -18,7 +18,7 @@ const CHATBOT_CATEGORIES = [
  * Maximum number of images per chatbot
  * @type {number}
  */
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 50;
 
 /**
  * Maximum number of tags per chatbot

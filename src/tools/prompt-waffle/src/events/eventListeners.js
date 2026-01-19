@@ -481,16 +481,25 @@ export function setupEventListeners() {
       toggleSnippetColorsBtn: bootstrap.toggleCardColors,
       expandCompiledBtn: bootstrap.toggleCompiledPromptExpansion,
       exportPromptBtn: bootstrap.exportPromptAsJSON,
-      addImageBtn: () => {
-        // Import and call the handleReferenceImageUpload function directly
-        // This bypasses the file input element entirely
-        import('../bootstrap/ui.js')
-          .then(ui => {
-            ui.handleReferenceImageUpload();
-          })
-          .catch(error => {
-            console.error('Error importing handleReferenceImageUpload:', error);
+      // Character selection handler - opens modal instead of dropdown
+      characterSelect: async () => {
+        try {
+          const { characterSelectorModal } = await import('../utils/characterSelectorModal.js');
+          const { displayCharacterCard } = await import('../utils/characterSelector.js');
+          
+          await characterSelectorModal.open(async (character) => {
+            if (character) {
+              await displayCharacterCard(character);
+            } else {
+              // Hide character card if no character selected
+              const cardDisplay = document.getElementById('characterCardDisplay');
+              if (cardDisplay) cardDisplay.style.display = 'none';
+            }
           });
+        } catch (error) {
+          console.error('Error opening character selector:', error);
+          showToast('Failed to open character selector', 'error');
+        }
       },
       clearBoardBtn: bootstrap.clearBoard,
       newFolderFromSnippetBtn: bootstrap.showInlineFolderCreation,
@@ -564,21 +573,6 @@ export function setupEventListeners() {
         if (input) input.value = '';
       },
       clearSearchBtn: bootstrap.clearSearch,
-      setFolderBtn: () => {
-        import('../bootstrap/ui.js')
-          .then(async ui => {
-            // If already monitoring, stop it; otherwise start new monitoring
-            if (ui.currentMonitoredFolder) {
-              await ui.stopLivePreview();
-              showToast('Stopped monitoring folder', 'info');
-            } else {
-              ui.handleFolderSelection();
-            }
-          })
-          .catch(error => {
-            console.error('Error importing handleFolderSelection:', error);
-          });
-      },
       backgroundColorBtn: () => {
         import('../bootstrap/ui.js')
           .then(ui => {
@@ -688,7 +682,22 @@ export function setupEventListeners() {
       },
       cancelBoardBtn: bootstrap.closeBoardModal
     };
+    // Attach character select button click handler separately
+    safeElementOperation(document.getElementById('characterSelectBtn'), btn => {
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          try {
+            await eventHandlers.characterSelect();
+          } catch (error) {
+            console.error('Error in character select handler:', error);
+          }
+        });
+      }
+    });
+
     Object.entries(eventHandlers).forEach(([id, handler]) => {
+      // Skip characterSelect as it's handled separately (it's a select, not a button)
+      if (id === 'characterSelect') return;
       const element = document.getElementById(id);
       if (element && typeof handler === 'function') {
         element.onclick = handler;

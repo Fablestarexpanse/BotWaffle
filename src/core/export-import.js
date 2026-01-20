@@ -41,6 +41,191 @@ async function copyDirectory(src, dest) {
 }
 
 /**
+ * Generate character sheet markdown from chatbot data
+ * @param {Object} chatbotData - The chatbot data object
+ * @param {Array} layout - The section layout array
+ * @returns {string} Markdown formatted character sheet
+ */
+function generateCharacterSheet(chatbotData, layout = []) {
+    const lines = [];
+    
+    // Helper to escape markdown special characters in content
+    function escapeMarkdown(text) {
+        if (!text) return '';
+        return String(text).replace(/\n/g, ' ').trim();
+    }
+
+    // Helper to format field value
+    function formatFieldValue(value) {
+        if (!value) return '';
+        const str = String(value).trim();
+        return str;
+    }
+
+    // Default layout if not provided
+    if (!layout || layout.length === 0) {
+        layout = [
+            { type: 'personality' },
+            { type: 'scenario' },
+            { type: 'initial-messages' },
+            { type: 'example-dialogs' }
+        ];
+    }
+
+    // Process each section in layout order
+    layout.forEach(sectionConfig => {
+        // Skip profile section
+        if (sectionConfig.type === 'profile') {
+            return;
+        }
+
+        if (sectionConfig.type === 'personality') {
+            lines.push(`# Personality`);
+            lines.push('');
+
+            const personality = chatbotData.personality || {};
+            let personalityText = '';
+
+            if (typeof personality === 'string') {
+                personalityText = personality;
+            } else if (personality.characterData) {
+                const characterData = personality.characterData;
+                personalityText = characterData.personality || '';
+                
+                if (characterData.systemPrompt) {
+                    lines.push(`## System Prompt`);
+                    lines.push('');
+                    lines.push(formatFieldValue(characterData.systemPrompt));
+                    lines.push('');
+                }
+            } else if (personality.personality) {
+                personalityText = personality.personality;
+            } else if (personality.text) {
+                personalityText = personality.text;
+            }
+
+            if (personalityText) {
+                const formattedText = formatFieldValue(personalityText);
+                if (formattedText.includes('\n')) {
+                    lines.push(formattedText);
+                } else {
+                    lines.push(escapeMarkdown(formattedText));
+                }
+            } else {
+                lines.push('(No personality data)');
+            }
+            
+            lines.push('');
+        } else if (sectionConfig.type === 'scenario') {
+            lines.push(`# Scenario`);
+            lines.push('');
+
+            const scenarioData = chatbotData.scenario;
+            if (scenarioData) {
+                let scenarioText = '';
+                if (typeof scenarioData === 'string') {
+                    scenarioText = scenarioData;
+                } else if (scenarioData.scenario) {
+                    scenarioText = scenarioData.scenario;
+                } else if (scenarioData.text) {
+                    scenarioText = scenarioData.text;
+                }
+                
+                if (scenarioText) {
+                    const formattedText = formatFieldValue(scenarioText);
+                    if (formattedText.includes('\n')) {
+                        lines.push(formattedText);
+                    } else {
+                        lines.push(escapeMarkdown(formattedText));
+                    }
+                } else {
+                    lines.push('(No scenario data)');
+                }
+            } else {
+                lines.push('(No scenario data)');
+            }
+            lines.push('');
+        } else if (sectionConfig.type === 'initial-messages') {
+            lines.push(`# Initial Messages`);
+            lines.push('');
+
+            const initialMessages = chatbotData.initialMessages || [];
+            if (Array.isArray(initialMessages) && initialMessages.length > 0) {
+                initialMessages.forEach((entry, index) => {
+                    if (typeof entry === 'string' && entry.trim()) {
+                        lines.push(`- Message ${index + 1}: ${escapeMarkdown(entry)}`);
+                    } else if (entry && typeof entry === 'object' && entry.text) {
+                        lines.push(`- Message ${index + 1}: ${escapeMarkdown(String(entry.text))}`);
+                    }
+                });
+            } else {
+                lines.push('(No initial messages)');
+            }
+            lines.push('');
+        } else if (sectionConfig.type === 'example-dialogs') {
+            lines.push(`# Example Dialogs`);
+            lines.push('');
+
+            const exampleDialogs = chatbotData.exampleDialogs || [];
+            if (Array.isArray(exampleDialogs) && exampleDialogs.length > 0) {
+                exampleDialogs.forEach((entry, index) => {
+                    if (entry && typeof entry === 'object') {
+                        const userText = entry.user ? escapeMarkdown(String(entry.user)) : '';
+                        const assistantText = entry.assistant ? escapeMarkdown(String(entry.assistant)) : '';
+                        if (userText || assistantText) {
+                            lines.push(`- Dialog ${index + 1}:`);
+                            if (userText) lines.push(`  User: ${userText}`);
+                            if (assistantText) lines.push(`  Assistant: ${assistantText}`);
+                        }
+                    }
+                });
+            } else {
+                lines.push('(No example dialogs)');
+            }
+            lines.push('');
+        }
+    });
+
+    // Remove trailing empty lines
+    while (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+    }
+
+    return lines.join('\n');
+}
+
+/**
+ * Recursively add files from a directory to a zip archive
+ * @param {AdmZip} zip - The zip archive instance
+ * @param {string} dirPath - Directory path to add
+ * @param {string} zipPath - Path inside the zip (base path)
+ */
+function addDirectoryToZip(zip, dirPath, zipPath = '') {
+    const entries = fsSync.readdirSync(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        const zipEntryPath = zipPath ? `${zipPath}/${entry.name}` : entry.name;
+        
+        if (entry.isDirectory()) {
+            // Add directory entry (some zip tools require this)
+            zip.addFile(`${zipEntryPath}/`, Buffer.alloc(0));
+            // Recursively add directory contents
+            addDirectoryToZip(zip, fullPath, zipEntryPath);
+        } else {
+            // Add file
+            try {
+                const fileBuffer = fsSync.readFileSync(fullPath);
+                zip.addFile(zipEntryPath, fileBuffer);
+                info(`[Export] Added file: ${zipEntryPath}`);
+            } catch (error) {
+                logError(`[Export] Failed to add file: ${fullPath}`, error);
+            }
+        }
+    }
+}
+
+/**
  * Export all BotWaffle data to a ZIP file
  * @returns {Promise<Object>} Export result
  */
@@ -51,31 +236,67 @@ async function exportBotWaffleData() {
         const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
         const zipFilename = `BotWaffle_Backup_${timestamp}.zip`;
 
-        // Folders to export (excluding prompt-waffle as it has its own export)
-        const foldersToExport = ['chatbots', 'conversations', 'templates', 'assets'];
+        // Export new character folder structure
+        const charactersPath = getDataPath('characters');
+        if (fsSync.existsSync(charactersPath)) {
+            // Use manual recursive function to ensure all files are included
+            addDirectoryToZip(zip, charactersPath, 'characters');
+            info(`[Export] Added characters folder`);
+            
+            // Generate and add character sheets for all characters
+            try {
+                const ChatbotManager = require('./chatbot-manager');
+                const { findCharacterFolderById } = require('./storage');
+                const chatbotManager = new ChatbotManager();
+                const allBots = await chatbotManager.listChatbots();
+                
+                for (const bot of allBots) {
+                    try {
+                        // Find the character folder to get the correct path structure
+                        const characterFolderPath = await findCharacterFolderById(bot.id);
+                        if (characterFolderPath) {
+                            const folderName = path.basename(characterFolderPath);
+                            const characterSheet = generateCharacterSheet(bot, bot.layout || []);
+                            const sheetPath = `characters/${folderName}/character_sheet.txt`;
+                            zip.addFile(sheetPath, Buffer.from(characterSheet, 'utf8'));
+                            info(`[Export] Added character sheet for: ${bot.profile?.name || bot.id}`);
+                        }
+                    } catch (error) {
+                        logError(`[Export] Failed to generate character sheet for ${bot.id}`, error);
+                    }
+                }
+            } catch (error) {
+                logError('[Export] Failed to generate character sheets', error);
+            }
+        }
 
-        for (const folder of foldersToExport) {
+        // Also export legacy folders for compatibility
+        const legacyFolders = ['conversations', 'templates'];
+        for (const folder of legacyFolders) {
             const folderPath = getDataPath(folder);
             try {
                 await fs.access(folderPath);
-                zip.addLocalFolder(folderPath, folder);
+                addDirectoryToZip(zip, folderPath, folder);
                 info(`[Export] Added folder: ${folder}`);
             } catch (error) {
-                // Folder doesn't exist, skip it
                 info(`[Export] Skipping non-existent folder: ${folder}`);
             }
         }
 
         // Create export manifest
         const manifest = {
-            version: '1.0',
+            version: '2.0', // New version for character folder structure
             exportDate: new Date().toISOString(),
             appVersion: app.getVersion(),
+            structure: 'character-folders', // New structure type
             folders: []
         };
 
         // Check which folders actually exist
-        for (const folder of foldersToExport) {
+        if (fsSync.existsSync(charactersPath)) {
+            manifest.folders.push('characters');
+        }
+        for (const folder of legacyFolders) {
             try {
                 const folderPath = getDataPath(folder);
                 await fs.access(folderPath);
@@ -110,6 +331,82 @@ async function exportBotWaffleData() {
     } catch (error) {
         logError('[Export] Error exporting data', error);
         return { success: false, error: error.message || 'Failed to export data' };
+    }
+}
+
+/**
+ * Export a single character with all its assets
+ * @param {string} characterId - Character UUID
+ * @param {string} characterName - Character name for filename
+ * @returns {Promise<Object>} Export result
+ */
+async function exportCharacter(characterId, characterName) {
+    try {
+        const { findCharacterFolderById } = require('./storage');
+        const characterPath = await findCharacterFolderById(characterId);
+
+        if (!characterPath || !fsSync.existsSync(characterPath)) {
+            throw new Error('Character folder not found');
+        }
+
+        const zip = new AdmZip();
+        const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const sanitizedName = (characterName || 'character').replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+        const zipFilename = `${sanitizedName}_${timestamp}.zip`;
+
+        // Manually add all files from character folder to ensure everything is included
+        const zipBasePath = `character-${characterId}`;
+        addDirectoryToZip(zip, characterPath, zipBasePath);
+        
+        // Generate and add character sheet
+        try {
+            const ChatbotManager = require('./chatbot-manager');
+            const chatbotManager = new ChatbotManager();
+            const bot = await chatbotManager.getChatbot(characterId);
+            
+            if (bot) {
+                const characterSheet = generateCharacterSheet(bot, bot.layout || []);
+                const sheetPath = `${zipBasePath}/character_sheet.txt`;
+                zip.addFile(sheetPath, Buffer.from(characterSheet, 'utf8'));
+                info(`[Export] Added character sheet for: ${characterName}`);
+            }
+        } catch (error) {
+            logError(`[Export] Failed to generate character sheet for ${characterId}`, error);
+        }
+
+        // Create manifest
+        const manifest = {
+            version: '2.0',
+            exportDate: new Date().toISOString(),
+            appVersion: app.getVersion(),
+            structure: 'character-export',
+            characterId: characterId,
+            characterName: characterName
+        };
+        zip.addFile('export_manifest.json', Buffer.from(JSON.stringify(manifest, null, 2)));
+
+        // Show save dialog
+        const result = await dialog.showSaveDialog({
+            title: 'Export Character',
+            defaultPath: zipFilename,
+            filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
+        });
+
+        if (result.canceled) {
+            return { success: false, cancelled: true };
+        }
+
+        zip.writeZip(result.filePath);
+        info(`[Export] Character exported to: ${result.filePath}`);
+
+        return {
+            success: true,
+            filePath: result.filePath,
+            filename: path.basename(result.filePath)
+        };
+    } catch (error) {
+        logError('[Export] Error exporting character', error);
+        return { success: false, error: error.message || 'Failed to export character' };
     }
 }
 
@@ -150,7 +447,7 @@ async function importBotWaffleData() {
         const backupDir = path.join(dataDir, '..', 'backup_before_import_' + Date.now());
         try {
             await fs.mkdir(backupDir, { recursive: true });
-            const foldersToBackup = ['chatbots', 'conversations', 'templates', 'assets'];
+            const foldersToBackup = ['characters', 'conversations', 'templates'];
             for (const folder of foldersToBackup) {
                 const folderPath = getDataPath(folder);
                 try {
@@ -158,7 +455,6 @@ async function importBotWaffleData() {
                     await copyDirectory(folderPath, path.join(backupDir, folder));
                     info(`[Import] Backed up: ${folder}`);
                 } catch (e) {
-                    // Folder doesn't exist, skip
                     info(`[Import] Skipping non-existent folder: ${folder}`);
                 }
             }
@@ -264,6 +560,7 @@ async function verifyBotWaffleBackup(zipPath) {
 
 module.exports = {
     exportBotWaffleData,
+    exportCharacter,
     importBotWaffleData,
     verifyBotWaffleBackup
 };

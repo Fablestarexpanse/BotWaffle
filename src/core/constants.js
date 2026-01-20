@@ -95,11 +95,12 @@ const VALID_SECTION_TYPES = [
  * @type {string[]}
  */
 const STORAGE_DIRS = [
-    'chatbots',
+    'characters',  // New: per-character folders
+    'chatbots',    // Legacy: kept for migration
     'conversations',
     'templates',
     'config',
-    'assets',
+    'assets',      // Legacy: kept for migration
     'prompt-waffle'
 ];
 

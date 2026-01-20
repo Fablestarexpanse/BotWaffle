@@ -238,6 +238,13 @@ class ChatbotCard extends HTMLElement {
                     const chatbotName = bot.profile?.displayName || bot.profile?.name || 'this chatbot';
                     if (window.EditorModals && window.EditorModals.showDeleteConfirmationModalForCard) {
                         window.EditorModals.showDeleteConfirmationModalForCard(bot.id, chatbotName, () => {
+                            // Close editor if it's open for this bot
+                            const editor = document.querySelector('chatbot-editor');
+                            if (editor && editor.currentId === bot.id) {
+                                // Navigate back to library
+                                document.dispatchEvent(new CustomEvent('navigate-library', { bubbles: true }));
+                            }
+                            
                             // After deletion, find the chatbot-list element and refresh it
                             const chatbotList = document.querySelector('chatbot-list');
                             if (chatbotList && chatbotList.loadChatbots) {

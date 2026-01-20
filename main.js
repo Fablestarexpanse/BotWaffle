@@ -98,6 +98,25 @@ app.whenReady().then(() => {
     // Initialize file system
     initializeStorage();
 
+    // Check and run migration if needed
+    const { migrateToCharacterFolders, isMigrationNeeded } = require('./src/core/migration/migrate-to-character-folders');
+    (async () => {
+        try {
+            const needsMigration = await isMigrationNeeded();
+            if (needsMigration) {
+                info('[Startup] Migration needed - running migration to character folders...');
+                const result = await migrateToCharacterFolders();
+                if (result.success) {
+                    info(`[Startup] Migration completed: ${result.migrated} chatbots migrated`);
+                } else {
+                    logError('[Startup] Migration failed:', result.error);
+                }
+            }
+        } catch (error) {
+            logError('[Startup] Error checking/running migration:', error);
+        }
+    })();
+
     // Initialize dependency injection container
     initializeServices();
 
@@ -112,6 +131,21 @@ app.whenReady().then(() => {
     registerIpcHandler(ipcMain, 'chatbot:create', (_, data) => chatbotManager.createChatbot(data), { rethrow: true });
     registerIpcHandler(ipcMain, 'chatbot:update', (_, id, data) => chatbotManager.updateChatbot(id, data), { rethrow: true });
     registerIpcHandler(ipcMain, 'chatbot:delete', (_, id) => chatbotManager.deleteChatbot(id), { rethrow: true });
+    registerIpcHandler(ipcMain, 'chatbot:delete-all', async () => {
+        const allBots = await chatbotManager.listChatbots();
+        let deleted = 0;
+        let errors = 0;
+        for (const bot of allBots) {
+            try {
+                await chatbotManager.deleteChatbot(bot.id);
+                deleted++;
+            } catch (error) {
+                errors++;
+                logError(`[Delete All] Error deleting bot ${bot.id}`, error);
+            }
+        }
+        return { deleted, errors, total: allBots.length };
+    }, { rethrow: true });
     registerIpcHandler(ipcMain, 'chatbot:get', (_, id) => chatbotManager.getChatbot(id), { errorReturn: null });
     registerIpcHandler(ipcMain, 'chatbot:categories', () => chatbotManager.getUniqueCategories(), { errorReturn: [] });
 
@@ -144,9 +178,23 @@ app.whenReady().then(() => {
     // Asset Handlers
 
     // Data Management Handlers (Export/Import/Verify)
-    const { exportBotWaffleData, importBotWaffleData, verifyBotWaffleBackup } = require('./src/core/export-import');
+    const { exportBotWaffleData, exportCharacter, importBotWaffleData, verifyBotWaffleBackup } = require('./src/core/export-import');
     
+    // Export entire library
     registerIpcHandler(ipcMain, 'data:export', async (event) => {
+        return await exportBotWaffleData();
+    }, { errorReturn: { success: false, error: 'Export failed' } });
+
+    // Export individual character
+    registerIpcHandler(ipcMain, 'data:export-character', async (event, characterId, characterName) => {
+        if (!characterId) {
+            throw new Error('Character ID is required');
+        }
+        return await exportCharacter(characterId, characterName);
+    }, { errorReturn: { success: false, error: 'Character export failed' } });
+
+    // Legacy export handler (kept for compatibility, but uses new function)
+    registerIpcHandler(ipcMain, 'data:export-legacy', async (event) => {
         // Export handler needs to show save dialog
         const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
         const { dialog } = require('electron');
@@ -351,7 +399,7 @@ app.whenReady().then(() => {
         return { cancelled: false, filePath: result.filePaths[0] };
     }, { errorReturn: { cancelled: true } });
 
-    // Save text file handler (for character sheet export)
+    // Save text file handler (used for exports)
     // Completely rewritten to avoid EPIPE errors - no logging
     registerIpcHandler(ipcMain, 'saveTextFile', async (event, content, defaultFilename) => {
         // Validate inputs
@@ -369,11 +417,20 @@ app.whenReady().then(() => {
         try {
             const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
             
+            const ext = path.extname(sanitizedFilename).toLowerCase().replace('.', '');
+            const defaultFiltersByExt = {
+                txt: { name: 'Text Files', extensions: ['txt'] },
+                md: { name: 'Markdown', extensions: ['md'] },
+                json: { name: 'JSON', extensions: ['json'] },
+                chat: { name: 'Chat Files', extensions: ['chat'] }
+            };
+            const primaryFilter = defaultFiltersByExt[ext] || { name: 'Text Files', extensions: ['txt'] };
+
             const result = await dialog.showSaveDialog(parentWindow, {
-                title: 'Export Character Sheet',
+                title: 'Export File',
                 defaultPath: sanitizedFilename,
                 filters: [
-                    { name: 'Text Files', extensions: ['txt'] },
+                    primaryFilter,
                     { name: 'All Files', extensions: ['*'] }
                 ]
             });
@@ -401,6 +458,70 @@ app.whenReady().then(() => {
         }
     }, { errorReturn: { success: false, error: 'Unknown error' } });
 
+    // Save binary file handler (for Saved Chats exports like EPUB)
+    // Accepts base64 data (no data: prefix) and writes bytes to disk.
+    registerIpcHandler(ipcMain, 'saveBinaryFile', async (event, base64Data, defaultFilename) => {
+        // Validate inputs
+        if (typeof base64Data !== 'string' || base64Data.length === 0) {
+            return { success: false, error: 'Binary data must be a base64 string' };
+        }
+
+        if (!defaultFilename || typeof defaultFilename !== 'string') {
+            defaultFilename = 'export.bin';
+        }
+
+        // Sanitize filename
+        const sanitizedFilename = defaultFilename.replace(/[<>:"/\\|?*]/g, '_').substring(0, 255);
+
+        try {
+            const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+
+            const ext = path.extname(sanitizedFilename).toLowerCase().replace('.', '');
+            const defaultFiltersByExt = {
+                epub: { name: 'EPUB', extensions: ['epub'] },
+                json: { name: 'JSON', extensions: ['json'] },
+                bin: { name: 'Binary', extensions: ['bin'] }
+            };
+            const primaryFilter = defaultFiltersByExt[ext] || { name: 'All Files', extensions: ['*'] };
+
+            const result = await dialog.showSaveDialog(parentWindow, {
+                title: 'Export File',
+                defaultPath: sanitizedFilename,
+                filters: [
+                    primaryFilter,
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            if (result.canceled || !result.filePath) {
+                return { success: false, cancelled: true };
+            }
+
+            // Decode + write
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            // Guard against excessively large exports (base64 can balloon memory)
+            const MAX_BYTES = 25 * 1024 * 1024; // 25MB
+            if (buffer.length > MAX_BYTES) {
+                return { success: false, error: 'File too large to export (max 25MB)' };
+            }
+
+            const fs = require('fs').promises;
+            await fs.writeFile(result.filePath, buffer);
+
+            return {
+                success: true,
+                filePath: result.filePath,
+                filename: path.basename(result.filePath)
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message || 'Failed to save file'
+            };
+        }
+    }, { errorReturn: { success: false, error: 'Unknown error' } });
+
     // PromptWaffle Integration
     const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');
     registerPromptWaffleHandlers();
@@ -420,7 +541,46 @@ app.whenReady().then(() => {
         return multiple ? result.filePaths : result.filePaths[0];
     }, { errorReturn: null });
 
-    registerIpcHandler(ipcMain, 'assets:save', (_, sourcePath) => assetManager.saveAsset(sourcePath), { rethrow: true });
+    // Save asset (image) to character's images folder
+    registerIpcHandler(ipcMain, 'assets:save', (_, sourcePath, characterId) => {
+        if (!characterId) {
+            throw new Error('Character ID is required to save asset');
+        }
+        return assetManager.saveAsset(sourcePath, characterId);
+    }, { rethrow: true });
+
+    // Delete asset file from disk (only inside data/characters)
+    registerIpcHandler(ipcMain, 'assets:delete', async (_, filePath) => {
+        try {
+            if (!filePath || typeof filePath !== 'string') {
+                throw new Error('Invalid file path');
+            }
+
+            const fs = require('fs').promises;
+            const fsSync = require('fs');
+            const basePath = require('./src/core/storage').getDataDir();
+            const charactersRoot = path.join(basePath, 'characters');
+
+            const resolved = path.resolve(filePath);
+            const safeRoot = path.resolve(charactersRoot);
+
+            // Only allow deleting files inside characters directory
+            if (!resolved.startsWith(safeRoot + path.sep)) {
+                throw new Error('Refusing to delete file outside characters directory');
+            }
+
+            if (!fsSync.existsSync(resolved)) {
+                // File already gone; treat as success
+                return { success: true, skipped: 'not_found' };
+            }
+
+            await fs.unlink(resolved);
+            return { success: true };
+        } catch (error) {
+            logError('[Assets] Failed to delete asset', error);
+            return { success: false, error: error.message || 'Failed to delete asset' };
+        }
+    }, { errorReturn: { success: false, error: 'Asset delete failed' } });
 
     // Open External URL handler
     registerIpcHandler(ipcMain, 'openExternal', async (_, url) => {
@@ -443,6 +603,60 @@ app.whenReady().then(() => {
         await shell.openExternal(url);
         return true;
     }, { errorReturn: false });
+
+    // Open file path in system file manager
+    registerIpcHandler(ipcMain, 'openPath', async (_, filePath) => {
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('Invalid file path');
+        }
+
+        const { shell } = require('electron');
+        const fs = require('fs');
+        const path = require('path');
+
+        // Check if path exists
+        if (!fs.existsSync(filePath)) {
+            throw new Error('File or folder does not exist');
+        }
+
+        // Get stats to determine if it's a file or directory
+        const stats = fs.statSync(filePath);
+        
+        if (stats.isDirectory()) {
+            // Open directory
+            await shell.openPath(filePath);
+        } else {
+            // Show file in folder (reveal in file manager)
+            await shell.showItemInFolder(filePath);
+        }
+        
+        return true;
+    }, { errorReturn: false });
+
+    // Get character folder path
+    registerIpcHandler(ipcMain, 'getCharacterFolderPath', async (_, characterId, subfolder = null) => {
+        if (!characterId || typeof characterId !== 'string') {
+            throw new Error('Character ID is required');
+        }
+
+        const { findCharacterFolderById, getCharacterSubPath } = require('./src/core/storage');
+        const characterFolder = await findCharacterFolderById(characterId);
+        
+        if (!characterFolder) {
+            throw new Error('Character folder not found');
+        }
+
+        if (subfolder) {
+            const validSubfolders = ['images', 'scripts', 'saved-chats', 'image-prompts'];
+            if (!validSubfolders.includes(subfolder)) {
+                throw new Error(`Invalid subfolder: ${subfolder}`);
+            }
+            const path = require('path');
+            return path.join(characterFolder, subfolder);
+        }
+
+        return characterFolder;
+    }, { errorReturn: null });
 
     createWindow();
 

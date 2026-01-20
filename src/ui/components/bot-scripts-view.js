@@ -1,12 +1,15 @@
 /**
  * Bot Scripts View Component
  * Manages scripts (lorebook scripts, etc.) for this character
+ * Displays as cards in a grid with search and tagging support
  */
 class BotScriptsView extends HTMLElement {
     constructor() {
         super();
         this.botId = null;
         this.botData = null;
+        this.filteredScripts = [];
+        this.searchTerm = '';
     }
 
     escapeHtml(str) {
@@ -52,11 +55,52 @@ class BotScriptsView extends HTMLElement {
 
         try {
             this.botData = await window.api.chatbot.get(this.botId);
+            this.filterScripts();
             this.render();
         } catch (error) {
             console.error('Error loading bot data:', error);
             this.innerHTML = '<div class="error-message">Failed to load bot data</div>';
         }
+    }
+
+    getScripts() {
+        return this.botData?.metadata?.scripts || this.botData?.scripts || [];
+    }
+
+    normalizeScript(script, index) {
+        if (typeof script === 'string') {
+            return {
+                name: `Script ${index + 1}`,
+                content: script,
+                tags: [],
+                createdAt: null,
+                updatedAt: null
+            };
+        }
+        return {
+            name: script?.name || `Script ${index + 1}`,
+            content: script?.content || script?.text || '',
+            tags: script?.tags || [],
+            createdAt: script?.createdAt || null,
+            updatedAt: script?.updatedAt || null
+        };
+    }
+
+    filterScripts() {
+        const scripts = this.getScripts().map((s, i) => this.normalizeScript(s, i));
+        const term = this.searchTerm.toLowerCase().trim();
+
+        if (!term) {
+            this.filteredScripts = scripts;
+            return;
+        }
+
+        this.filteredScripts = scripts.filter(script => {
+            const name = (script.name || '').toLowerCase();
+            const content = (script.content || '').toLowerCase();
+            const tags = (script.tags || []).map(t => t.toLowerCase()).join(' ');
+            return name.includes(term) || content.includes(term) || tags.includes(term);
+        });
     }
 
     render() {
@@ -65,47 +109,79 @@ class BotScriptsView extends HTMLElement {
             return;
         }
 
-        // Get scripts from bot data (stored in metadata.scripts)
-        const scripts = this.botData.metadata?.scripts || this.botData.scripts || [];
+        const scripts = this.filteredScripts;
 
         this.innerHTML = `
             <div class="bot-scripts-view">
                 <div class="view-header">
                     <h2>Character Scripts</h2>
-                    <button id="add-script-btn" class="primary-btn">
-                        <i data-feather="plus"></i>
-                        Add Script
-                    </button>
+                    <div style="display: flex; gap: var(--spacing-sm);">
+                        <button id="open-scripts-location-btn" class="secondary-btn" title="Open scripts folder">
+                            <i data-feather="folder"></i>
+                            Open Location
+                        </button>
+                        <button id="add-script-btn" class="primary-btn">
+                            <i data-feather="plus"></i>
+                            Add Script
+                        </button>
+                    </div>
+                </div>
+
+                <div class="resource-toolbar">
+                    <div class="search-box">
+                        <i data-feather="search" class="search-icon"></i>
+                        <input type="text" id="script-search-input" placeholder="Search scripts..." value="${this.escapeHtml(this.searchTerm)}">
+                    </div>
                 </div>
 
                 ${scripts.length === 0 ? `
                     <div class="empty-state">
                         <i data-feather="file-text" style="width: 64px; height: 64px; opacity: 0.3; margin-bottom: 16px;"></i>
-                        <p>No scripts saved yet</p>
-                        <p class="empty-hint">Add scripts to store lorebook entries, activation systems, and other code for this character</p>
+                        <p>${this.searchTerm ? 'No scripts match your search' : 'No scripts saved yet'}</p>
+                        <p class="empty-hint">${this.searchTerm ? 'Try a different search term' : 'Add scripts to store lorebook entries, activation systems, and other code for this character'}</p>
                     </div>
                 ` : `
-                    <div class="scripts-list" id="scripts-list">
+                    <div class="resource-grid" id="scripts-grid">
                         ${scripts.map((script, index) => {
-                            const scriptContent = typeof script === 'string' ? script : (script.content || script.text || '');
-                            const scriptName = typeof script === 'object' && script.name ? script.name : `Script ${index + 1}`;
-                            // Show full content (scrollable)
+                            const allScripts = this.getScripts().map((s, i) => this.normalizeScript(s, i));
+                            const actualIndex = allScripts.findIndex(s => s.name === script.name && s.content === script.content);
+                            const previewLines = String(script.content || '').split(/\r\n|\r|\n/).slice(0, 10);
+                            const preview = previewLines.join('\n');
+                            const previewText = preview.length > 300 ? preview.substring(0, 300) + '...' : preview;
+                            const lineCount = Math.max(1, String(script.content || '').split(/\r\n|\r|\n/).length);
+                            const charCount = String(script.content || '').length;
+                            const tags = script.tags || [];
+
                             return `
-                                <div class="script-card" data-index="${index}">
-                                    <div class="script-header">
-                                        <h3>${this.escapeHtml(scriptName)}</h3>
-                                        <button class="icon-btn copy-script-btn" data-index="${index}" title="Copy script">
-                                            <i data-feather="copy"></i>
-                                        </button>
-                                        <button class="icon-btn edit-script-btn" data-index="${index}" title="Edit script">
-                                            <i data-feather="edit-2"></i>
-                                        </button>
-                                        <button class="icon-btn remove-script-btn" data-index="${index}" title="Remove script">
-                                            <i data-feather="trash-2"></i>
-                                        </button>
+                                <div class="resource-card" data-index="${actualIndex}">
+                                    <div class="resource-card-header">
+                                        <h3 title="${this.escapeHtml(script.name)}">${this.escapeHtml(script.name)}</h3>
+                                        <div class="resource-card-actions">
+                                            <button class="icon-btn view-script-btn" data-index="${actualIndex}" title="View script">
+                                                <i data-feather="eye"></i>
+                                            </button>
+                                            <button class="icon-btn copy-script-btn" data-index="${actualIndex}" title="Copy script">
+                                                <i data-feather="copy"></i>
+                                            </button>
+                                            <button class="icon-btn edit-script-btn" data-index="${actualIndex}" title="Edit script">
+                                                <i data-feather="edit-2"></i>
+                                            </button>
+                                            <button class="icon-btn remove-script-btn" data-index="${actualIndex}" title="Remove script">
+                                                <i data-feather="trash-2"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div class="script-content">
-                                        <div class="script-code">${this.renderCodeWithLineNumbers(scriptContent)}</div>
+                                    ${tags.length > 0 ? `
+                                        <div class="resource-card-tags">
+                                            ${tags.map(tag => `<span class="tag" data-tag="${this.escapeHtml(tag)}">${this.escapeHtml(tag)}</span>`).join('')}
+                                        </div>
+                                    ` : ''}
+                                    <div class="resource-card-meta">
+                                        <span>${lineCount} lines</span>
+                                        <span>${charCount.toLocaleString()} chars</span>
+                                    </div>
+                                    <div class="resource-card-preview">
+                                        <pre>${this.escapeHtml(previewText)}</pre>
                                     </div>
                                 </div>
                             `;
@@ -124,16 +200,56 @@ class BotScriptsView extends HTMLElement {
     }
 
     setupListeners() {
+        // Open location button
+        const openLocationBtn = this.querySelector('#open-scripts-location-btn');
+        if (openLocationBtn) {
+            openLocationBtn.addEventListener('click', () => this.openLocation());
+        }
+
         // Add script button
         const addBtn = this.querySelector('#add-script-btn');
         if (addBtn) {
             addBtn.addEventListener('click', () => this.handleAddScript());
         }
 
+        // Search input
+        const searchInput = this.querySelector('#script-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchTerm = e.target.value;
+                this.filterScripts();
+                this.render();
+            });
+        }
+
+        // Tag click handlers
+        this.querySelectorAll('.resource-card-tags .tag').forEach(tag => {
+            tag.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagValue = tag.getAttribute('data-tag');
+                if (tagValue && searchInput) {
+                    searchInput.value = tagValue;
+                    this.searchTerm = tagValue;
+                    this.filterScripts();
+                    this.render();
+                }
+            });
+        });
+
+        // View script buttons
+        this.querySelectorAll('.view-script-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.getAttribute('data-index'));
+                this.viewScript(index);
+            });
+        });
+
         // Copy script buttons
         this.querySelectorAll('.copy-script-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.closest('.copy-script-btn').getAttribute('data-index'));
+                e.stopPropagation();
+                const index = parseInt(btn.getAttribute('data-index'));
                 this.copyScript(index);
             });
         });
@@ -141,7 +257,8 @@ class BotScriptsView extends HTMLElement {
         // Edit script buttons
         this.querySelectorAll('.edit-script-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.closest('.edit-script-btn').getAttribute('data-index'));
+                e.stopPropagation();
+                const index = parseInt(btn.getAttribute('data-index'));
                 this.editScript(index);
             });
         });
@@ -149,7 +266,8 @@ class BotScriptsView extends HTMLElement {
         // Remove script buttons
         this.querySelectorAll('.remove-script-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.closest('.remove-script-btn').getAttribute('data-index'));
+                e.stopPropagation();
+                const index = parseInt(btn.getAttribute('data-index'));
                 this.removeScript(index);
             });
         });
@@ -169,6 +287,10 @@ class BotScriptsView extends HTMLElement {
                 return;
             }
 
+            // Get tags
+            const tagsInput = await this.showInputModal('Script Tags (Optional)', 'Enter tags separated by commas:', '');
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
             // Get current scripts
             const currentData = await window.api.chatbot.get(this.botId);
             const scripts = currentData.metadata?.scripts || currentData.scripts || [];
@@ -177,6 +299,7 @@ class BotScriptsView extends HTMLElement {
             const newScript = {
                 name: scriptName.trim(),
                 content: scriptContent.trim(),
+                tags: tags,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -205,13 +328,78 @@ class BotScriptsView extends HTMLElement {
         }
     }
 
+    viewScript(index) {
+        const scripts = this.getScripts().map((s, i) => this.normalizeScript(s, i));
+        const script = scripts[index];
+        if (!script) return;
+
+        const modal = document.createElement('div');
+        modal.className = 'script-view-modal';
+        modal.innerHTML = `
+            <div class="script-view-modal-content">
+                <div class="script-view-modal-header">
+                    <h3>${this.escapeHtml(script.name)}</h3>
+                    <button class="script-view-modal-close" title="Close">
+                        <i data-feather="x"></i>
+                    </button>
+                </div>
+                <div class="script-view-modal-body">
+                    ${this.renderCodeWithLineNumbers(script.content)}
+                </div>
+                <div class="script-view-modal-footer">
+                    <button class="secondary-btn script-view-modal-copy">
+                        <i data-feather="copy"></i>
+                        Copy
+                    </button>
+                    <button class="primary-btn script-view-modal-close-btn">Close</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+            feather.replace();
+        }
+
+        const close = () => modal.remove();
+        modal.querySelector('.script-view-modal-close')?.addEventListener('click', close);
+        modal.querySelector('.script-view-modal-close-btn')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) close();
+        });
+        modal.querySelector('.script-view-modal-copy')?.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(String(script.content ?? ''));
+                this.showToast('Script copied to clipboard!', 'success');
+            } catch (e) {
+                this.showToast('Failed to copy script', 'error');
+            }
+        });
+    }
+
+    async openLocation() {
+        if (!this.botId) return;
+
+        try {
+            const scriptsFolderPath = await window.api.getCharacterFolderPath(this.botId, 'scripts');
+            if (!scriptsFolderPath) {
+                alert('Character folder not found');
+                return;
+            }
+            await window.api.openPath(scriptsFolderPath);
+        } catch (error) {
+            console.error('Error opening location:', error);
+            alert('Error opening folder: ' + (error.message || 'Unknown error'));
+        }
+    }
+
     async copyScript(index) {
         try {
-            const scripts = this.botData.metadata?.scripts || this.botData.scripts || [];
+            const scripts = this.getScripts().map((s, i) => this.normalizeScript(s, i));
             const script = scripts[index];
             if (!script) return;
 
-            const scriptContent = typeof script === 'string' ? script : (script.content || script.text || '');
+            const scriptContent = String(script.content || '');
             
             await navigator.clipboard.writeText(scriptContent);
             this.showToast('Script copied to clipboard!', 'success');
@@ -223,14 +411,15 @@ class BotScriptsView extends HTMLElement {
 
     async editScript(index) {
         try {
-            const scripts = this.botData.metadata?.scripts || this.botData.scripts || [];
+            const scripts = this.getScripts().map((s, i) => this.normalizeScript(s, i));
             const script = scripts[index];
             if (!script) return;
 
-            const scriptContent = typeof script === 'string' ? script : (script.content || script.text || '');
-            const scriptName = typeof script === 'object' && script.name ? script.name : `Script ${index + 1}`;
+            const scriptContent = String(script.content || '');
+            const scriptName = String(script.name || `Script ${index + 1}`);
+            const currentTags = (script.tags || []).join(', ');
 
-            // Show edit modal
+            // Show edit modal for content
             const newContent = await this.showScriptInputModal('Edit Script', 'Edit script content:', scriptContent);
             if (newContent === null) {
                 return; // User cancelled
@@ -242,6 +431,10 @@ class BotScriptsView extends HTMLElement {
                 return;
             }
 
+            // Get tags
+            const tagsInput = await this.showInputModal('Script Tags (Optional)', 'Enter tags separated by commas:', currentTags);
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
             // Update script
             const currentData = await window.api.chatbot.get(this.botId);
             const updatedScripts = [...(currentData.metadata?.scripts || currentData.scripts || [])];
@@ -250,6 +443,7 @@ class BotScriptsView extends HTMLElement {
                 ...updatedScripts[index],
                 name: newName.trim(),
                 content: newContent.trim(),
+                tags: tags,
                 updatedAt: new Date().toISOString()
             };
 
@@ -496,10 +690,7 @@ class BotScriptsView extends HTMLElement {
         toast.textContent = message;
         document.body.appendChild(toast);
 
-        setTimeout(() => {
-            toast.classList.add('show');
-        }, 10);
-
+        setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 300);

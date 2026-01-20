@@ -1,7 +1,7 @@
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const { getDataPath } = require('./storage');
+const { getDataPath, getCharacterPath, ensureCharacterFolders, findCharacterFolderById } = require('./storage');
 const { generateId } = require('./utils/id-generator');
 const { exportToPng } = require('./utils/png-exporter');
 const { validateAndSanitizeId, validatePath } = require('./utils/security');
@@ -10,7 +10,10 @@ const { chatbotCache } = require('./cache');
 
 class ChatbotManager {
     constructor() {
+        // Legacy basePath for migration compatibility
         this.basePath = getDataPath('chatbots');
+        // New basePath for character folders
+        this.charactersPath = getDataPath('characters');
     }
 
     /**
@@ -29,40 +32,59 @@ class ChatbotManager {
     }
 
     /**
-     * Gets a secure file path for a chatbot
+     * Gets the character folder path for a chatbot
      * @private
-     * @param {Object} chatbot - Chatbot object with id and profile.name
-     * @returns {string} - Secure file path
-     * @throws {Error} If path is invalid
+     * @param {string} id - Chatbot ID
+     * @param {string} characterName - Character name (optional, for folder naming)
+     * @returns {string} - Character folder path
+     * @throws {Error} If ID is invalid
+     */
+    _getCharacterFolderPath(id, characterName = null) {
+        if (!id) {
+            throw new Error('Chatbot ID is required');
+        }
+        this._validateId(id);
+        return getCharacterPath(id, characterName);
+    }
+
+    /**
+     * Gets the character.json file path for a chatbot
+     * @private
+     * @param {string} id - Chatbot ID
+     * @param {string} characterName - Character name (optional, for folder naming)
+     * @returns {string} - Character.json file path
+     */
+    _getCharacterFilePath(id, characterName = null) {
+        return path.join(this._getCharacterFolderPath(id, characterName), 'character.json');
+    }
+
+    /**
+     * Legacy method: Gets a secure file path for a chatbot (old structure)
+     * @private
+     * @deprecated Use _getCharacterFilePath instead
      */
     _getChatbotFilePath(chatbot) {
         if (!chatbot || !chatbot.id) {
             throw new Error('Chatbot object with ID is required');
         }
         
-        // Use bot name for filename (readable), with short ID for uniqueness
         const botName = chatbot.profile?.name || 'unnamed';
-        const shortId = chatbot.id.substring(0, 8); // First 8 chars of UUID
+        const shortId = chatbot.id.substring(0, 8);
         
-        // Sanitize name for filesystem (lowercase, replace spaces with hyphens, remove invalid chars)
         let sanitizedName = botName.toLowerCase()
-            .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with hyphens
-            .replace(/-+/g, '-') // Replace multiple hyphens with single
-            .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+            .replace(/[^a-z0-9-]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
         
-        // Ensure name is not empty
         if (!sanitizedName || sanitizedName.length === 0) {
             sanitizedName = 'unnamed';
         }
         
-        // Limit length to prevent issues
         if (sanitizedName.length > 100) {
             sanitizedName = sanitizedName.substring(0, 100);
         }
         
         const filename = `${sanitizedName}-${shortId}.json`;
-        
-        // Ensure path is within basePath (prevent directory traversal)
         const validatedPath = validatePath(filename, this.basePath);
         if (!validatedPath) {
             throw new Error('Invalid file path: potential directory traversal detected');
@@ -72,30 +94,46 @@ class ChatbotManager {
     }
     
     /**
-     * Gets file path for a chatbot by ID (for backward compatibility and lookups)
+     * Gets file path for a chatbot by ID (checks new structure first, then legacy)
      * @private
      * @param {string} id - Chatbot ID
      * @returns {Promise<string|null>} - File path or null if not found
      */
     async _findChatbotFilePathById(id) {
         try {
-            const files = await fsPromises.readdir(this.basePath);
-            const jsonFiles = files.filter(file => file.endsWith('.json'));
-            
-            // Search through files to find the one with matching ID
-            for (const file of jsonFiles) {
-                const filePath = path.join(this.basePath, file);
+            // First, try to find existing character folder by ID
+            const existingFolder = await findCharacterFolderById(id);
+            if (existingFolder) {
+                const characterFilePath = path.join(existingFolder, 'character.json');
                 try {
-                    const data = await fsPromises.readFile(filePath, 'utf8');
-                    const chatbot = JSON.parse(data);
-                    if (chatbot.id === id) {
-                        return filePath;
-                    }
-                } catch (error) {
-                    // Skip corrupted files
-                    continue;
+                    await fsPromises.access(characterFilePath);
+                    return characterFilePath;
+                } catch {
+                    // File doesn't exist
                 }
             }
+
+            // Legacy: search in old chatbots folder
+            try {
+                const files = await fsPromises.readdir(this.basePath);
+                const jsonFiles = files.filter(file => file.endsWith('.json'));
+                
+                for (const file of jsonFiles) {
+                    const filePath = path.join(this.basePath, file);
+                    try {
+                        const data = await fsPromises.readFile(filePath, 'utf8');
+                        const chatbot = JSON.parse(data);
+                        if (chatbot.id === id) {
+                            return filePath;
+                        }
+                    } catch (error) {
+                        continue;
+                    }
+                }
+            } catch {
+                // Legacy folder doesn't exist
+            }
+            
             return null;
         } catch (error) {
             return null;
@@ -153,6 +191,9 @@ class ChatbotManager {
             ]
         };
 
+        // Ensure character folder structure exists before saving (with name)
+        const characterName = sanitizedData.name;
+        await ensureCharacterFolders(id, characterName);
         await this._saveChatbot(chatbot);
         // Cache the newly created chatbot
         chatbotCache.set(chatbot.id, chatbot);
@@ -269,26 +310,96 @@ class ChatbotManager {
     }
 
     /**
-     * Deletes a chatbot.
+     * Deletes a chatbot and its entire character folder.
      * @param {string} id 
      * @returns {Promise<boolean>}
      * @throws {Error} If ID is invalid
      */
     async deleteChatbot(id) {
-        const filePath = await this._findChatbotFilePathById(id);
-        if (!filePath) {
-            return false;
-        }
+        this._validateId(id);
         
         try {
-            await fsPromises.unlink(filePath);
-            // Remove from cache
-            chatbotCache.delete(id);
-            return true;
+            // Try to find existing character folder by ID
+            const existingFolder = await findCharacterFolderById(id);
+            if (existingFolder) {
+                // Verify folder exists before deletion
+                if (fs.existsSync(existingFolder)) {
+                    // Delete entire character folder recursively
+                    await fsPromises.rm(existingFolder, { recursive: true, force: true });
+                    chatbotCache.delete(id);
+                    // Verify deletion
+                    if (fs.existsSync(existingFolder)) {
+                        throw new Error(`Failed to delete folder: ${existingFolder} still exists after deletion attempt`);
+                    }
+                    return true;
+                } else {
+                    // Folder doesn't exist, but we found it in the search - might be a race condition
+                    chatbotCache.delete(id);
+                    return true;
+                }
+            }
+
+            // Legacy: delete just the JSON file
+            const filePath = await this._findChatbotFilePathById(id);
+            if (filePath) {
+                if (fs.existsSync(filePath)) {
+                    await fsPromises.unlink(filePath);
+                    chatbotCache.delete(id);
+                    return true;
+                } else {
+                    // File doesn't exist, but we found it - might already be deleted
+                    chatbotCache.delete(id);
+                    return true;
+                }
+            }
+            
+            // If we get here, the bot wasn't found in either location
+            // But it might still be in the list - let's try a more aggressive search
+            const allBots = await this.listChatbots();
+            const bot = allBots.find(b => b.id === id);
+            if (bot) {
+                // Bot exists in list but we can't find its folder - try aggressive folder search
+                const { error: logError } = require('./utils/logger');
+                logError(`[Delete] Bot ${id} found in list but folder not found. Attempting aggressive search...`);
+                
+                // Try to find folder by searching all character folders again
+                if (fs.existsSync(this.charactersPath)) {
+                    const characterDirs = await fsPromises.readdir(this.charactersPath, { withFileTypes: true });
+                    for (const dir of characterDirs) {
+                        if (!dir.isDirectory()) continue;
+                        const folderPath = path.join(this.charactersPath, dir.name);
+                        const characterFilePath = path.join(folderPath, 'character.json');
+                        if (fs.existsSync(characterFilePath)) {
+                            try {
+                                const data = await fsPromises.readFile(characterFilePath, 'utf8');
+                                const character = JSON.parse(data);
+                                if (character.id === id) {
+                                    // Found it! Delete it
+                                    await fsPromises.rm(folderPath, { recursive: true, force: true });
+                                    chatbotCache.delete(id);
+                                    return true;
+                                }
+                            } catch {
+                                continue;
+                            }
+                        }
+                    }
+                }
+                
+                // Still couldn't find it - this is a problem
+                throw new Error(`Bot with ID ${id} exists in list but folder/file not found. Bot name: ${bot.profile?.name || 'unknown'}. Please check the data directory manually.`);
+            }
+            
+            return false;
         } catch (error) {
             if (error.code === 'ENOENT') {
-                return false;
+                // File/folder doesn't exist - consider it deleted
+                chatbotCache.delete(id);
+                return true;
             }
+            // Log the error for debugging
+            const { error: logError } = require('./utils/logger');
+            logError(`[Delete] Error deleting chatbot ${id}`, error);
             throw error;
         }
     }
@@ -332,36 +443,68 @@ class ChatbotManager {
     }
 
     /**
-     * Lists all chatbots.
+     * Lists all chatbots (checks new structure first, then legacy).
      * @returns {Promise<Array<Object>>}
      */
     async listChatbots() {
+        const chatbots = [];
+        const seenIds = new Set();
+
         try {
-            const files = await fsPromises.readdir(this.basePath);
-            const jsonFiles = files.filter(file => file.endsWith('.json'));
-            
-            // Load all chatbots in parallel for better performance
-            const chatbots = await Promise.all(
-                jsonFiles.map(async (file) => {
-                    const filePath = path.join(this.basePath, file);
-                    try {
-                        const data = await fsPromises.readFile(filePath, 'utf8');
-                        const chatbot = JSON.parse(data);
-                        // Cache the result
-                        if (chatbot.id) {
-                            chatbotCache.set(chatbot.id, chatbot);
+            // First, load from new character folder structure
+            try {
+                if (fs.existsSync(this.charactersPath)) {
+                    const characterDirs = await fsPromises.readdir(this.charactersPath);
+                    
+                    for (const dir of characterDirs) {
+                        const characterFilePath = path.join(this.charactersPath, dir, 'character.json');
+                        try {
+                            const data = await fsPromises.readFile(characterFilePath, 'utf8');
+                            const chatbot = JSON.parse(data);
+                            if (chatbot.id && !seenIds.has(chatbot.id)) {
+                                chatbots.push(chatbot);
+                                seenIds.add(chatbot.id);
+                                chatbotCache.set(chatbot.id, chatbot);
+                            }
+                        } catch (error) {
+                            // Skip corrupted or missing files
+                            continue;
                         }
-                        return chatbot;
-                    } catch (error) {
-                        // Skip corrupted files
-                        return null;
                     }
-                })
-            );
+                }
+            } catch (error) {
+                // Characters folder doesn't exist yet (first run)
+            }
+
+            // Then, load from legacy chatbots folder (for migration)
+            try {
+                if (fs.existsSync(this.basePath)) {
+                    const files = await fsPromises.readdir(this.basePath);
+                    const jsonFiles = files.filter(file => file.endsWith('.json'));
+                    
+                    for (const file of jsonFiles) {
+                        const filePath = path.join(this.basePath, file);
+                        try {
+                            const data = await fsPromises.readFile(filePath, 'utf8');
+                            const chatbot = JSON.parse(data);
+                            // Only add if not already found in new structure
+                            if (chatbot.id && !seenIds.has(chatbot.id)) {
+                                chatbots.push(chatbot);
+                                seenIds.add(chatbot.id);
+                                chatbotCache.set(chatbot.id, chatbot);
+                            }
+                        } catch (error) {
+                            continue;
+                        }
+                    }
+                }
+            } catch (error) {
+                // Legacy folder doesn't exist
+            }
             
             return chatbots
                 .filter(bot => bot !== null && bot.id)
-                .sort((a, b) => new Date(b.metadata.updated) - new Date(a.metadata.updated));
+                .sort((a, b) => new Date(b.metadata.updated || 0) - new Date(a.metadata.updated || 0));
         } catch (error) {
             console.error('Error listing chatbots:', error);
             return [];
@@ -369,7 +512,8 @@ class ChatbotManager {
     }
 
     /**
-     * Internal helper to write file
+     * Internal helper to write file (saves to new character folder structure)
+     * Handles folder renaming if character name changed
      * @private
      * @param {Object} chatbot - Chatbot object to save
      * @returns {Promise<void>}
@@ -382,19 +526,31 @@ class ChatbotManager {
                 throw new Error('Chatbot ID is required');
             }
             
-            const newFilePath = this._getChatbotFilePath(chatbot);
+            const characterName = chatbot.profile?.name || null;
             
-            // If this is an update, check if file path changed (name changed) and delete old file
-            const oldFilePath = await this._findChatbotFilePathById(chatbot.id);
-            if (oldFilePath && oldFilePath !== newFilePath) {
+            // Check if folder needs to be renamed (name changed)
+            const existingFolder = await findCharacterFolderById(chatbot.id);
+            const newFolderPath = await this._getCharacterFolderPath(chatbot.id, characterName);
+            
+            // If folder exists and path is different, rename it
+            if (existingFolder && existingFolder !== newFolderPath) {
                 try {
-                    await fsPromises.unlink(oldFilePath);
+                    // Move entire folder to new location
+                    await fsPromises.rename(existingFolder, newFolderPath);
                 } catch (error) {
-                    // Ignore if old file doesn't exist
+                    // If rename fails, try copying and then deleting
+                    const { copyDirectory } = require('./export-import');
+                    await copyDirectory(existingFolder, newFolderPath);
+                    await fsPromises.rm(existingFolder, { recursive: true, force: true });
                 }
             }
             
-            await fsPromises.writeFile(newFilePath, JSON.stringify(chatbot, null, 2), 'utf8');
+            // Ensure character folder exists with new name
+            await ensureCharacterFolders(chatbot.id, characterName);
+            
+            // Save to new structure: data/characters/{name-id}/character.json
+            const characterFilePath = await this._getCharacterFilePath(chatbot.id, characterName);
+            await fsPromises.writeFile(characterFilePath, JSON.stringify(chatbot, null, 2), 'utf8');
         } catch (error) {
             console.error(`Error saving chatbot ${chatbot.id}:`, error);
             throw new Error(`Failed to save chatbot: ${error.message}`);

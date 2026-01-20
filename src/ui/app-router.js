@@ -242,9 +242,15 @@
         showList();
     });
 
-    // Listen for 'editor-save' to refresh list and return to it
+    // Listen for 'editor-save' - just refresh the list data but stay in editor
+    // (Don't navigate away - user should stay in editor after saving)
     document.addEventListener('editor-save', () => {
-        showList();
+        // Refresh the chatbot list in the background (if it exists)
+        const chatbotList = document.querySelector('chatbot-list');
+        if (chatbotList && chatbotList.loadChatbots) {
+            chatbotList.loadChatbots();
+        }
+        // Do NOT call showList() - stay in editor
     });
 
     // Listen for sidebar navigation (Library / Settings)

@@ -775,19 +775,48 @@
                     return;
                 }
 
+                // Disable button during deletion
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Deleting...';
+
                 try {
+                    console.log(`[Delete] Attempting to delete chatbot: ${chatbotId} (${chatbotName})`);
                     const result = await window.api.chatbot.delete(chatbotId);
+                    console.log(`[Delete] Delete result:`, result);
+                    
                     if (result === false) {
-                        alert('Failed to delete chatbot. Chatbot not found.');
+                        alert('Failed to delete chatbot. Chatbot not found. Check the console for details.');
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Delete';
                         return;
                     }
+                    
                     closeModal();
+                    
+                    // Close editor if it's open for this bot
+                    const editor = document.querySelector('chatbot-editor');
+                    if (editor && editor.currentId === chatbotId) {
+                        // Navigate back to library to close editor
+                        document.dispatchEvent(new CustomEvent('navigate-library', { bubbles: true }));
+                    }
+                    
+                    // Wait a moment for file system to sync
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
                     if (onDeleteCallback) {
                         onDeleteCallback();
                     }
                 } catch (error) {
-                    console.error('Error deleting chatbot:', error);
-                    alert(`Failed to delete chatbot: ${error.message}`);
+                    console.error('[Delete] Error deleting chatbot:', error);
+                    console.error('[Delete] Error details:', {
+                        message: error.message,
+                        stack: error.stack,
+                        chatbotId: chatbotId,
+                        chatbotName: chatbotName
+                    });
+                    alert(`Failed to delete chatbot: ${error.message || 'Unknown error'}\n\nCheck the browser console (F12) for more details.`);
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Delete';
                 }
             });
 

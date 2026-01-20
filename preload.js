@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
         create: (data) => ipcRenderer.invoke('chatbot:create', data),
         update: (id, data) => ipcRenderer.invoke('chatbot:update', id, data),
         delete: (id) => ipcRenderer.invoke('chatbot:delete', id),
+        deleteAll: () => ipcRenderer.invoke('chatbot:delete-all'),
         get: (id) => ipcRenderer.invoke('chatbot:get', id),
         categories: () => ipcRenderer.invoke('chatbot:categories'),
         export: (id) => ipcRenderer.invoke('chatbot:export', id)
@@ -18,14 +19,19 @@ contextBridge.exposeInMainWorld('api', {
     },
     assets: {
         select: (multiple = false) => ipcRenderer.invoke('assets:select', multiple),
-        save: (path) => ipcRenderer.invoke('assets:save', path)
+        save: (path, characterId) => ipcRenderer.invoke('assets:save', path, characterId),
+        delete: (filePath) => ipcRenderer.invoke('assets:delete', filePath)
     },
     data: {
         export: () => ipcRenderer.invoke('data:export'),
+        exportCharacter: (characterId, characterName) => ipcRenderer.invoke('data:export-character', characterId, characterName),
         import: () => ipcRenderer.invoke('data:import'),
         verifyBackup: (zipPath) => ipcRenderer.invoke('data:verify-backup', zipPath),
         openBackupDialog: () => ipcRenderer.invoke('data:open-backup-dialog')
     },
     openExternal: (url) => ipcRenderer.invoke('openExternal', url),
-    saveTextFile: (content, defaultFilename) => ipcRenderer.invoke('saveTextFile', content, defaultFilename)
+    openPath: (filePath) => ipcRenderer.invoke('openPath', filePath),
+    getCharacterFolderPath: (characterId, subfolder) => ipcRenderer.invoke('getCharacterFolderPath', characterId, subfolder),
+    saveTextFile: (content, defaultFilename) => ipcRenderer.invoke('saveTextFile', content, defaultFilename),
+    saveBinaryFile: (base64Data, defaultFilename) => ipcRenderer.invoke('saveBinaryFile', base64Data, defaultFilename)
 });

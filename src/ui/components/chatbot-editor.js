@@ -105,6 +105,10 @@ class ChatbotEditor extends HTMLElement {
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
+                        <button id="export-character-btn" class="secondary-btn" title="Export entire character with all assets">
+                            <i data-feather="download"></i>
+                            Export Character
+                        </button>
                         <button id="export-sheet-btn" class="secondary-btn">Export Character Sheet</button>
                         <button id="delete-btn" class="danger-btn">Delete</button>
                     ` : ''}
@@ -465,6 +469,13 @@ class ChatbotEditor extends HTMLElement {
             });
         }
 
+        const exportCharacterBtn = this.querySelector('#export-character-btn');
+        if (exportCharacterBtn) {
+            exportCharacterBtn.addEventListener('click', async () => {
+                await this.exportCharacter();
+            });
+        }
+
         const exportSheetBtn = this.querySelector('#export-sheet-btn');
         if (exportSheetBtn) {
             exportSheetBtn.addEventListener('click', async () => {
@@ -481,6 +492,11 @@ class ChatbotEditor extends HTMLElement {
         this.querySelector('#save-template-btn').addEventListener('click', async () => {
             window.EditorModals.showSaveTemplateModal(this);
         });
+
+        // Re-initialize feather icons for new buttons (like export-character-btn)
+        if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+            feather.replace();
+        }
 
         // Listen for section events
         this.addEventListener('remove-section', (e) => {
@@ -547,8 +563,9 @@ class ChatbotEditor extends HTMLElement {
             });
 
             otherSectionsAfterContainer.addEventListener('dragover', (e) => {
-                e.preventDefault();
+                // Only prevent default if we're actually dragging a section
                 if (draggedItem && targetContainer === otherSectionsAfterContainer) {
+                    e.preventDefault();
                     const afterElement = getDragAfterElement(otherSectionsAfterContainer, e.clientY);
                     if (afterElement == null) {
                         otherSectionsAfterContainer.appendChild(draggedItem);
@@ -691,6 +708,30 @@ class ChatbotEditor extends HTMLElement {
     async save() {
         // Update layout from DOM first
         this.updateLayoutFromDOM();
+        
+        // For edit mode, verify bot still exists before saving
+        if (this._mode === 'edit' && this.currentId) {
+            try {
+                const bot = await window.api.chatbot.get(this.currentId);
+                if (!bot) {
+                    console.warn('[Editor] Cannot save: Bot no longer exists (may have been deleted)');
+                    // Navigate back to library
+                    document.dispatchEvent(new CustomEvent('navigate-library', { bubbles: true }));
+                    return;
+                }
+            } catch (error) {
+                console.warn('[Editor] Cannot save: Error checking if bot exists', error);
+                // Navigate back to library
+                document.dispatchEvent(new CustomEvent('navigate-library', { bubbles: true }));
+                return;
+            }
+        }
+        
+        // For edit mode, require currentId
+        if (this._mode === 'edit' && !this.currentId) {
+            alert('Error: Cannot save - missing chatbot ID.');
+            return;
+        }
         
         // Ensure required sections are always in layout (profile must be first)
         const requiredSections = [
@@ -903,6 +944,41 @@ class ChatbotEditor extends HTMLElement {
         } catch (error) {
             console.error('Save failed:', error);
             alert('Failed to save chatbot. Check console for details.');
+        }
+    }
+
+    /**
+     * Exports the entire character with all assets (images, scripts, chats, etc.)
+     */
+    async exportCharacter() {
+        if (!this.currentId) {
+            alert('No character selected for export.');
+            return;
+        }
+
+        try {
+            // Get character data to get the name
+            const character = await window.api.chatbot.get(this.currentId);
+            if (!character) {
+                alert('Character not found.');
+                return;
+            }
+
+            const characterName = character.profile?.name || character.profile?.displayName || 'character';
+
+            // Call export function
+            const result = await window.api.data.exportCharacter(this.currentId, characterName);
+
+            if (result.success) {
+                alert(`Character exported successfully to:\n${result.filename}`);
+            } else if (result.cancelled) {
+                // User cancelled, do nothing
+            } else {
+                alert(`Export failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error exporting character:', error);
+            alert(`Export error: ${error.message || 'Failed to export character'}`);
         }
     }
 

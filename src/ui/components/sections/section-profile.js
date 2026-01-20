@@ -337,15 +337,26 @@ class SectionProfile extends customElements.get('section-base') {
         const body = this.querySelector('.section-body');
         if (!body) return;
 
-        // General Input Change
+        // General Input Change - ensure all inputs are clickable
         body.querySelectorAll('.input-field, input, textarea, select').forEach(input => {
+            // Ensure input is clickable with proper CSS
+            input.style.pointerEvents = 'auto';
+            input.style.cursor = 'text';
+            input.style.zIndex = '10';
+            input.style.position = 'relative';
+            
             // Stop propagation to prevent header click handler from interfering
-            // Use simple bubbling phase for better performance
             input.addEventListener('click', (e) => {
                 e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+            input.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
             });
             input.addEventListener('focus', (e) => {
                 e.stopPropagation();
+                e.stopImmediatePropagation();
             });
             input.addEventListener('input', () => {
                 this.dispatchEvent(new CustomEvent('section-change', { bubbles: true }));
@@ -523,7 +534,11 @@ class SectionProfile extends customElements.get('section-base') {
                     continue;
                 }
                 try {
-                    const savedPath = await window.api.assets.save(filePath);
+                    const botId = this._data?.id;
+                    if (!botId) {
+                        throw new Error('Bot ID not available');
+                    }
+                    const savedPath = await window.api.assets.save(filePath, botId);
                     if (savedPath) {
                         newImages.push(savedPath);
                     }

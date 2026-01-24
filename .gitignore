@@ -7,6 +7,8 @@ out/
 .DS_Store
 .idea/
 .vscode/
+.agent/
+.cursor/
 *.log
 
 # Ignore all .md files except essential ones

@@ -195,6 +195,87 @@ function generateCharacterSheet(chatbotData, layout = []) {
 }
 
 /**
+ * Helper: sanitize a name for use as a filename (without extension)
+ * @param {string} name
+ * @param {string} fallback
+ * @returns {string}
+ */
+function sanitizeFilename(name, fallback) {
+    const base = (name && String(name).trim().length > 0) ? String(name).trim() : fallback;
+    return base
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_') // remove invalid chars and control chars
+        .replace(/\s+/g, ' ') // collapse whitespace a bit
+        .substring(0, 80) || fallback;
+}
+
+/**
+ * Helper: normalize a script entry into a simple object
+ * (mirrors BotScriptsView.normalizeScript but without UI concerns)
+ */
+function normalizeScriptForExport(script, index) {
+    if (typeof script === 'string') {
+        return {
+            name: `Script ${index + 1}`,
+            content: script,
+            tags: []
+        };
+    }
+    return {
+        name: script?.name || `Script ${index + 1}`,
+        content: script?.content || script?.text || '',
+        tags: script?.tags || []
+    };
+}
+
+/**
+ * Helper: normalize a saved chat entry for export
+ * (text-only view; binary EPUBs get a small info stub)
+ */
+function normalizeSavedChatForExport(chat, index) {
+    if (typeof chat === 'string') {
+        return {
+            name: `Chat ${index + 1}`,
+            format: 'txt',
+            content: chat
+        };
+    }
+    const format = String(chat?.format || '').toLowerCase();
+    if (format === 'epub') {
+        const filename = chat?.originalFilename || `chat-${index + 1}.epub`;
+        const size = chat?.byteLength ? `${chat.byteLength.toLocaleString()} bytes` : 'unknown size';
+        return {
+            name: chat?.name || `Chat ${index + 1}`,
+            format,
+            content: `EPUB chat file\nOriginal filename: ${filename}\nSize: ${size}\n\n(Note: this EPUB is stored inside BotWaffle data; the full binary is not embedded in this text backup.)`
+        };
+    }
+    // For JSON / SillyTavern etc, we assume UI has already stored a readable transcript in content
+    return {
+        name: chat?.name || `Chat ${index + 1}`,
+        format: format || 'txt',
+        content: chat?.content || chat?.text || ''
+    };
+}
+
+/**
+ * Helper: normalize an image prompt entry for export
+ */
+function normalizeImagePromptForExport(prompt, index) {
+    if (typeof prompt === 'string') {
+        return {
+            name: `Prompt ${index + 1}`,
+            text: prompt,
+            tags: []
+        };
+    }
+    return {
+        name: prompt?.name || `Prompt ${index + 1}`,
+        text: prompt?.text || prompt?.prompt || '',
+        tags: prompt?.tags || []
+    };
+}
+
+/**
  * Recursively add files from a directory to a zip archive
  * @param {AdmZip} zip - The zip archive instance
  * @param {string} dirPath - Directory path to add
@@ -242,7 +323,7 @@ async function exportBotWaffleData() {
             // Use manual recursive function to ensure all files are included
             addDirectoryToZip(zip, charactersPath, 'characters');
             info(`[Export] Added characters folder`);
-            
+
             // Generate and add character sheets for all characters
             try {
                 const ChatbotManager = require('./chatbot-manager');
@@ -254,13 +335,72 @@ async function exportBotWaffleData() {
                     try {
                         // Find the character folder to get the correct path structure
                         const characterFolderPath = await findCharacterFolderById(bot.id);
-                        if (characterFolderPath) {
-                            const folderName = path.basename(characterFolderPath);
-                            const characterSheet = generateCharacterSheet(bot, bot.layout || []);
-                            const sheetPath = `characters/${folderName}/character_sheet.txt`;
-                            zip.addFile(sheetPath, Buffer.from(characterSheet, 'utf8'));
-                            info(`[Export] Added character sheet for: ${bot.profile?.name || bot.id}`);
+                        if (!characterFolderPath) {
+                            continue;
                         }
+
+                        const folderName = path.basename(characterFolderPath);
+                        const basePath = `characters/${folderName}`;
+
+                        // 1) Character sheet
+                        const characterSheet = generateCharacterSheet(bot, bot.layout || []);
+                        const sheetPath = `${basePath}/character_sheet.txt`;
+                        zip.addFile(sheetPath, Buffer.from(characterSheet, 'utf8'));
+                        info(`[Export] Added character sheet for: ${bot.profile?.name || bot.id}`);
+
+                        // 2) Scripts -> scripts/*.txt
+                        const scripts = (bot.metadata?.scripts || bot.scripts || []);
+                        scripts.forEach((rawScript, index) => {
+                            const script = normalizeScriptForExport(rawScript, index);
+                            if (!script.content || String(script.content).trim().length === 0) {
+                                return;
+                            }
+                            const safeName = sanitizeFilename(script.name, `script-${index + 1}`);
+                            const filePath = `${basePath}/scripts/${safeName}.txt`;
+                            const headerLines = [];
+                            headerLines.push(`# ${script.name || `Script ${index + 1}`}`);
+                            if (script.tags && script.tags.length > 0) {
+                                headerLines.push(`Tags: ${script.tags.join(', ')}`);
+                            }
+                            headerLines.push('');
+                            const body = String(script.content || '');
+                            const fileContent = headerLines.join('\n') + body;
+                            zip.addFile(filePath, Buffer.from(fileContent, 'utf8'));
+                        });
+
+                        // 3) Saved chats -> saved-chats/*.txt
+                        const savedChats = (bot.metadata?.savedChats || bot.savedChats || []);
+                        savedChats.forEach((rawChat, index) => {
+                            const chat = normalizeSavedChatForExport(rawChat, index);
+                            if (!chat.content || String(chat.content).trim().length === 0) {
+                                return;
+                            }
+                            const safeName = sanitizeFilename(chat.name, `chat-${index + 1}`);
+                            const filePath = `${basePath}/saved-chats/${safeName}.txt`;
+                            const header = `# ${chat.name || `Chat ${index + 1}`}\nFormat: ${chat.format || 'txt'}\n\n`;
+                            const body = String(chat.content || '');
+                            zip.addFile(filePath, Buffer.from(header + body, 'utf8'));
+                        });
+
+                        // 4) Image prompts -> image-prompts/*.txt
+                        const imagePrompts = (bot.metadata?.imagePrompts || bot.imagePrompts || []);
+                        imagePrompts.forEach((rawPrompt, index) => {
+                            const prompt = normalizeImagePromptForExport(rawPrompt, index);
+                            if (!prompt.text || String(prompt.text).trim().length === 0) {
+                                return;
+                            }
+                            const safeName = sanitizeFilename(prompt.name, `prompt-${index + 1}`);
+                            const filePath = `${basePath}/image-prompts/${safeName}.txt`;
+                            const headerLines = [];
+                            headerLines.push(`# ${prompt.name || `Prompt ${index + 1}`}`);
+                            if (prompt.tags && prompt.tags.length > 0) {
+                                headerLines.push(`Tags: ${prompt.tags.join(', ')}`);
+                            }
+                            headerLines.push('');
+                            const body = String(prompt.text || '');
+                            const fileContent = headerLines.join('\n') + body;
+                            zip.addFile(filePath, Buffer.from(fileContent, 'utf8'));
+                        });
                     } catch (error) {
                         logError(`[Export] Failed to generate character sheet for ${bot.id}`, error);
                     }
@@ -443,8 +583,8 @@ async function importBotWaffleData() {
             }
         }
 
-        // Backup current data before import
-        const backupDir = path.join(dataDir, '..', 'backup_before_import_' + Date.now());
+        // Backup current data before import (inside data/backups for portability)
+        const backupDir = path.join(dataDir, 'backups', 'backup_before_import_' + Date.now());
         try {
             await fs.mkdir(backupDir, { recursive: true });
             const foldersToBackup = ['characters', 'conversations', 'templates'];

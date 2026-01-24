@@ -4,7 +4,8 @@ const { STORAGE_DIRS } = require('./constants');
 const { info: logInfo, error: logError } = require('./utils/logger');
 
 // Base data directory - will be set when initializeStorage is called
-// This allows app to be ready before we try to access app.getPath()
+// We run in "portable" mode: data is stored in a ./data folder
+// next to the application, not in OS userData paths.
 let DATA_DIR = null;
 
 /**
@@ -15,9 +16,16 @@ function getDataDir() {
     if (!DATA_DIR) {
         try {
             const { app } = require('electron');
-            DATA_DIR = path.join(app.getPath('userData'), 'data');
+            // Prefer a portable-style data directory that lives alongside the app.
+            // getAppPath() points at the application folder (dev: project root,
+            // packaged: resources/app or similar), so "data" will be next to it.
+            const baseDir = typeof app.getAppPath === 'function'
+                ? app.getAppPath()
+                : process.cwd();
+            DATA_DIR = path.join(baseDir, 'data');
         } catch (error) {
             // Fallback for testing or if app is not available
+            // Still keep data relative to the current working directory.
             DATA_DIR = path.join(process.cwd(), 'data');
         }
     }

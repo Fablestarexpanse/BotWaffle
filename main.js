@@ -7,6 +7,10 @@ const { initializeLogging, info, error: logError } = require('./src/core/utils/l
 
 let mainWindow = null;
 
+// Disable GPU acceleration to avoid black-screen issues on some Windows setups
+// This must be called before app.whenReady()
+app.disableHardwareAcceleration();
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -16,7 +20,10 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            webviewTag: true
+            webviewTag: true,
+            // Prevent Electron from throttling timers/painting when the window is inactive,
+            // which can sometimes manifest as a blank/black screen after idle.
+            backgroundThrottling: false
         }
     });
 
@@ -339,7 +346,8 @@ app.whenReady().then(() => {
                 }
             }
 
-            const backupDir = path.join(path.dirname(dataDir), 'backup_before_import_' + Date.now());
+            // Store backups inside data/backups for a fully portable layout
+            const backupDir = path.join(dataDir, 'backups', 'backup_before_import_' + Date.now());
             try {
                 if (!fsSync.existsSync(backupDir)) {
                     fsSync.mkdirSync(backupDir, { recursive: true });

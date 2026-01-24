@@ -1,7 +1,7 @@
 /**
  * PromptWaffle Storage Utility
  * Manages file paths for user data files (snippets, boards, wildcards, profiles)
- * Uses Electron's userData directory for data persistence
+ * Uses BotWaffle's portable data directory (./data) for persistence.
  */
 
 const fs = require('fs');
@@ -17,11 +17,13 @@ let PROMPT_WAFFLE_DATA_DIR = null;
 function getPromptWaffleDataDir() {
     if (!PROMPT_WAFFLE_DATA_DIR) {
         try {
-            const { app } = require('electron');
-            const botWaffleDataDir = path.join(app.getPath('userData'), 'data');
+            // Reuse BotWaffle's portable data directory so all app data
+            // (bots, images, PromptWaffle data, etc.) lives under ./data
+            const { getDataDir } = require('../../core/storage');
+            const botWaffleDataDir = getDataDir();
             PROMPT_WAFFLE_DATA_DIR = path.join(botWaffleDataDir, 'prompt-waffle');
         } catch (error) {
-            // Fallback for testing or if app is not available
+            // Fallback for testing or if core storage is not available
             const fallbackDataDir = path.join(process.cwd(), 'data', 'prompt-waffle');
             PROMPT_WAFFLE_DATA_DIR = fallbackDataDir;
         }

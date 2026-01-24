@@ -1,9 +1,10 @@
 const { ipcMain, dialog, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { getPromptWaffleDataDir } = require('../tools/prompt-waffle/storage');
 
-// Root directory for PromptWuffel data
-const PROMPT_WAFFLE_ROOT = path.join(__dirname, '../tools/prompt-waffle');
+// Root directory for PromptWaffle user data (portable, under ./data/prompt-waffle)
+const PROMPT_WAFFLE_ROOT = getPromptWaffleDataDir();
 
 function getSafePath(target) {
     const resolvedBase = path.resolve(PROMPT_WAFFLE_ROOT);

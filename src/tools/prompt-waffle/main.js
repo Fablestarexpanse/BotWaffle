@@ -199,17 +199,17 @@ console.log('[Main] Setting up app event listeners...');
 app.whenReady().then(async () => {
   console.log('[Main] App is ready, initializing storage...');
   try {
-    // Initialize PromptWaffle storage (creates directories in userData)
+    // Initialize PromptWaffle storage (creates directories inside BotWaffle's portable data dir)
     initializePromptWaffleStorage();
     console.log('[Main] Storage initialized');
 
-    // Migrate existing files from __dirname to userData (if needed)
+    // Migrate existing files from __dirname to the new portable data dir (if needed)
     console.log('[Main] Checking for migration...');
     const migrationResults = await migratePromptWaffleData(__dirname);
     if (!migrationResults.alreadyMigrated && migrationResults.migrated.length > 0) {
       console.log('[Main] Migration completed:', migrationResults.migrated);
     } else if (migrationResults.alreadyMigrated) {
-      console.log('[Main] Data already in userData, no migration needed');
+      console.log('[Main] Data already in PromptWaffle data directory, no migration needed');
     }
 
     console.log('[Main] Creating window...');
@@ -253,7 +253,7 @@ app.on('will-quit', () => {
   console.log('[Main] Application will quit');
 });
 
-// Ensure snippets directory exists (uses userData now)
+// Ensure snippets directory exists (inside portable data dir)
 async function ensureSnippetsDir() {
   const snippetsDir = getPromptWaffleDataPath('snippets');
   try {
@@ -484,7 +484,7 @@ ipcMain.handle('save-image', async (event, imageId, imageBuffer, filename) => {
   try {
     console.log('[Main] save-image called with:', { imageId, filename, bufferSize: imageBuffer.byteLength });
 
-    // Create the images directory if it doesn't exist (uses userData now)
+    // Create the images directory if it doesn't exist (inside portable data dir)
     const imagesDir = path.join(getPromptWaffleDataPath('snippets'), 'characters', 'images');
     console.log('[Main] Images directory path:', imagesDir);
 
@@ -520,7 +520,7 @@ ipcMain.handle('save-board-image', async (event, boardId, imageBuffer, filename)
     const buffer = Buffer.from(imageBuffer);
     logger.info('[Main] save-board-image called with:', { boardId, filename, bufferSize: buffer.length });
 
-    // Create the board images directory if it doesn't exist (uses userData now)
+    // Create the board images directory if it doesn't exist (inside portable data dir)
     const imagesDir = path.join(getPromptWaffleDataPath('snippets'), 'boards', 'images', boardId);
     logger.info('[Main] Board images directory path:', imagesDir);
 
@@ -547,7 +547,7 @@ ipcMain.handle('save-board-image', async (event, boardId, imageBuffer, filename)
 // Delete board image from app directory
 ipcMain.handle('delete-board-image', async (event, imagePath) => {
   try {
-    // Resolve path using PromptWaffle storage (uses userData now)
+    // Resolve path using PromptWaffle storage (portable data dir)
     const fullPath = path.isAbsolute(imagePath) && validatePromptWafflePath(imagePath)
       ? imagePath
       : resolvePromptWafflePath(imagePath);
@@ -581,7 +581,7 @@ ipcMain.handle('delete-board-image', async (event, imagePath) => {
 
 ipcMain.handle('load-image', async (event, imagePath) => {
   try {
-    // Resolve path using PromptWaffle storage (uses userData now)
+    // Resolve path using PromptWaffle storage (portable data dir)
     const fullPath = resolvePromptWafflePath(imagePath);
     if (!validatePromptWafflePath(fullPath)) {
       console.error('[Main] Invalid path for image load:', imagePath);
@@ -641,7 +641,7 @@ ipcMain.handle('image-exists', async (event, imagePath) => {
   try {
     console.log('[Main] image-exists called with path:', imagePath);
 
-    // Resolve path using PromptWaffle storage (uses userData now)
+    // Resolve path using PromptWaffle storage (portable data dir)
     const fullPath = resolvePromptWafflePath(imagePath);
     if (!validatePromptWafflePath(fullPath)) {
       console.log('[Main] Image path outside data directory:', imagePath);
@@ -660,7 +660,7 @@ ipcMain.handle('image-exists', async (event, imagePath) => {
   }
 });
 
-// Ensure boards directory exists (uses userData now)
+// Ensure boards directory exists (inside portable data dir)
 async function ensureBoardsDir() {
   const boardsDir = getPromptWaffleDataPath('boards');
   try {
@@ -670,7 +670,7 @@ async function ensureBoardsDir() {
   }
 }
 
-// Ensure exports directory exists (uses userData now)
+// Ensure exports directory exists (inside portable data dir)
 async function ensureExportsDir() {
   const exportsDir = getPromptWaffleDataPath('exports');
   try {
@@ -680,7 +680,7 @@ async function ensureExportsDir() {
   }
 }
 
-// Ensure characters directory exists (uses userData now)
+// Ensure characters directory exists (inside portable data dir)
 async function ensureCharactersDir() {
   const charactersDir = path.join(getPromptWaffleDataPath('snippets'), 'characters');
   try {
@@ -1419,144 +1419,6 @@ ipcMain.handle('select-folder-and-save-prompt', async (event, prompt) => {
     };
   }
 });
-
-// Export/Import handlers - REMOVED
-/* ipcMain.handle('export-data', async () => {
-  try {
-    const AdmZip = require('adm-zip');
-    const zip = new AdmZip();
-    
-    const appDir = __dirname;
-    const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const zipFilename = `PromptWaffle_Backup_${timestamp}.zip`;
-    
-    // Add folders to ZIP
-    const foldersToExport = ['snippets', 'boards', 'profiles', 'wildcards'];
-    
-    for (const folder of foldersToExport) {
-      const folderPath = path.join(appDir, folder);
-      try {
-        await fs.access(folderPath);
-        zip.addLocalFolder(folderPath, folder);
-        logger.info(`[Export] Added folder: ${folder}`);
-      } catch (error) {
-        // Folder doesn't exist, skip it
-        logger.info(`[Export] Skipping non-existent folder: ${folder}`);
-      }
-    }
-    
-    // Create export manifest
-    const manifest = {
-      version: '1.0',
-      exportDate: new Date().toISOString(),
-      appVersion: app.getVersion(),
-      folders: foldersToExport.filter(async (f) => {
-        try {
-          await fs.access(path.join(appDir, f));
-          return true;
-        } catch {
-          return false;
-        }
-      })
-    };
-    
-    zip.addFile('export_manifest.json', Buffer.from(JSON.stringify(manifest, null, 2)));
-    
-    // Show save dialog
-    const result = await dialog.showSaveDialog({
-      title: 'Export PromptWaffle Data',
-      defaultPath: zipFilename,
-      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
-    });
-    
-    if (result.canceled) {
-      return { success: false, cancelled: true };
-    }
-    
-    // Write ZIP file
-    zip.writeZip(result.filePath);
-    logger.info(`[Export] Data exported to: ${result.filePath}`);
-    
-    return {
-      success: true,
-      filePath: result.filePath,
-      filename: path.basename(result.filePath)
-    };
-  } catch (error) {
-    logger.error('[Export] Error exporting data:', error);
-    return { success: false, error: error.message || 'Failed to export data' };
-  }
-}); */
-
-ipcMain.handle('import-data', async () => {
-  try {
-    const AdmZip = require('adm-zip');
-    
-    // Show open dialog
-    const result = await dialog.showOpenDialog({
-      title: 'Import PromptWaffle Data',
-      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
-      properties: ['openFile']
-    });
-    
-    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-      return { success: false, cancelled: true };
-    }
-    
-    const zipPath = result.filePaths[0];
-    const zip = new AdmZip(zipPath);
-    const appDir = __dirname;
-    
-    // Extract ZIP entries
-    const zipEntries = zip.getEntries();
-    
-    // Validate manifest if present
-    const manifestEntry = zipEntries.find(e => e.entryName === 'export_manifest.json');
-    if (manifestEntry) {
-      try {
-        const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
-        logger.info('[Import] Importing backup from:', manifest.exportDate);
-      } catch (e) {
-        logger.warn('[Import] Could not parse manifest:', e);
-      }
-    }
-    
-    // Backup current data before import
-    const backupDir = path.join(appDir, 'backup_before_import_' + Date.now());
-    try {
-      await fs.mkdir(backupDir, { recursive: true });
-      const foldersToBackup = ['snippets', 'boards', 'profiles', 'wildcards'];
-      for (const folder of foldersToBackup) {
-        const folderPath = path.join(appDir, folder);
-        try {
-          await fs.access(folderPath);
-          // Copy folder recursively
-          await copyDirectory(folderPath, path.join(backupDir, folder));
-          logger.info(`[Import] Backed up: ${folder}`);
-        } catch (e) {
-          // Folder doesn't exist, skip
-          logger.info(`[Import] Skipping non-existent folder: ${folder}`);
-        }
-      }
-      logger.info(`[Import] Current data backed up to: ${backupDir}`);
-    } catch (backupError) {
-      logger.warn('[Import] Failed to backup current data:', backupError);
-    }
-    
-    // Extract ZIP to app directory
-    zip.extractAllTo(appDir, true); // Overwrite existing files
-    
-    logger.info('[Import] Data imported successfully');
-    
-    return {
-      success: true,
-      backupLocation: backupDir
-    };
-  } catch (error) {
-    logger.error('[Import] Error importing data:', error);
-    return { success: false, error: error.message || 'Failed to import data' };
-  }
-}); */
 
 ipcMain.handle('show-save-dialog', async (event, options) => {
   try {

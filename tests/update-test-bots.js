@@ -1,10 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+const { getDataPath } = require('../src/core/storage');
 
-// Get userData directory
-const userDataPath = app ? app.getPath('userData') : path.join(process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME + '/.config'), 'BotWaffle');
-const chatbotsPath = path.join(userDataPath, 'data', 'chatbots');
+// Use the same portable data directory as the main app
+const chatbotsPath = getDataPath('chatbots');
 
 function updateBotFile(filePath) {
     try {

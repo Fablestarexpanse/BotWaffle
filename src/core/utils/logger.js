@@ -35,13 +35,18 @@ let logFilePath = null;
 function initializeLogging() {
     try {
         // Check if Electron app is available (might not be in tests)
-        if (typeof app === 'undefined' || !app || typeof app.getPath !== 'function') {
+        if (typeof app === 'undefined' || !app) {
             // In test environment, skip file logging
             return;
         }
         
-        const userDataPath = app.getPath('userData');
-        const logsDir = path.join(userDataPath, 'logs');
+        // Store logs alongside the portable app data by default.
+        // Use app.getAppPath() so logs live next to the application,
+        // not in OS-specific userData folders.
+        const baseDir = typeof app.getAppPath === 'function'
+            ? app.getAppPath()
+            : process.cwd();
+        const logsDir = path.join(baseDir, 'logs');
         
         // Create logs directory if it doesn't exist
         if (!fs.existsSync(logsDir)) {

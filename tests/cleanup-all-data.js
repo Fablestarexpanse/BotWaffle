@@ -14,21 +14,9 @@ async function cleanupAllData() {
     console.log('[Cleanup] Initializing storage...');
     initializeStorage();
     
-    // Get the actual data directory (uses app.getPath('userData') when Electron is available)
-    let dataDir;
-    try {
-        const { app } = require('electron');
-        // Need to wait for app to be ready
-        if (!app.isReady()) {
-            await app.whenReady();
-        }
-        dataDir = path.join(app.getPath('userData'), 'data');
-        console.log(`[Cleanup] Using Electron userData path`);
-    } catch (error) {
-        // Fallback to local data directory
-        dataDir = getDataDir();
-        console.log(`[Cleanup] Using fallback data path`);
-    }
+    // Always use the same portable data directory as the app
+    const dataDir = getDataDir();
+    console.log(`[Cleanup] Using portable data path`);
     
     console.log(`[Cleanup] Data directory: ${dataDir}`);
     

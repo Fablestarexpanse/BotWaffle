@@ -268,23 +268,37 @@ console.log('[Main] Registering IPC handlers...');
 
 ipcMain.handle('fs-rm', async (event, filePath, options = {}) => {
   try {
+    await ensureSnippetsDir();
+
+    // Sanitize paths using security utility
     const sanitizedPath = validateAndSanitizePath(filePath);
     if (!sanitizedPath) {
       logSecurityEvent('invalid_file_path', { filePath, operation: 'fs-rm' });
       throw new Error('Invalid file path');
     }
 
-    const fullPath = path.join(__dirname, filePath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
 
-    // Ensure path is within app directory
-    const appDir = path.resolve(__dirname);
-    if (!fullPath.startsWith(appDir)) {
-      logSecurityEvent('path_traversal_attempt', { filePath: filePath, operation: 'fs-rm' });
-      throw new Error('Access denied: Path outside application directory');
+    // Ensure paths are within PromptWaffle data directory
+    if (!validatePromptWafflePath(fullPath)) {
+      throw new Error('Access denied: Path outside PromptWaffle data directory');
     }
 
     // Use fs.rm for both files and folders, with options for recursive deletion
     await fs.rm(fullPath, { recursive: true, force: true, ...options });
+    
+    // Verify deletion succeeded
+    try {
+      await fs.access(fullPath);
+      // File still exists - deletion may have failed
+      console.warn('[fs-rm] File still exists after deletion attempt:', fullPath);
+      // Try one more time with a short delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await fs.rm(fullPath, { recursive: true, force: true, ...options });
+    } catch {
+      // File doesn't exist - deletion succeeded
+    }
+    
     return true;
   } catch (error) {
     console.error('Error deleting file or folder:', {
@@ -319,8 +333,87 @@ ipcMain.handle('fs-rename', async (event, oldPath, newPath) => {
 
     const newDir = path.dirname(fullNewPath);
     await fs.mkdir(newDir, { recursive: true });
-    await fs.rename(fullOldPath, fullNewPath);
-    return true;
+    
+    // Try rename first (atomic move operation)
+    try {
+      await fs.rename(fullOldPath, fullNewPath);
+      
+      // Wait a moment for file system to sync
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify the move worked: new file exists AND old file is gone
+      let newExists = false;
+      let oldExists = false;
+      
+      try {
+        await fs.access(fullNewPath);
+        newExists = true;
+      } catch {
+        newExists = false;
+      }
+      
+      try {
+        await fs.access(fullOldPath);
+        oldExists = true;
+      } catch {
+        oldExists = false;
+      }
+      
+      if (newExists && !oldExists) {
+        // Move succeeded perfectly
+        console.log('[Rename] Move succeeded:', { oldPath: fullOldPath, newPath: fullNewPath });
+        return true;
+      } else if (newExists && oldExists) {
+        // Both exist - rename copied instead of moved, manually delete old file
+        console.warn('[Rename] Both files exist after rename (copy instead of move), deleting old file:', fullOldPath);
+        try {
+          await fs.unlink(fullOldPath);
+          // Verify deletion
+          await new Promise(resolve => setTimeout(resolve, 50));
+          const stillExists = await fs.access(fullOldPath).then(() => true).catch(() => false);
+          if (stillExists) {
+            throw new Error('Old file still exists after deletion attempt');
+          }
+          console.log('[Rename] Successfully deleted old file after copy');
+          return true;
+        } catch (deleteError) {
+          console.error('[Rename] Failed to delete old file:', deleteError);
+          throw new Error(`Move operation incomplete: old file still exists: ${deleteError.message}`);
+        }
+      } else if (!newExists && oldExists) {
+        // New doesn't exist but old does - rename failed
+        throw new Error('Rename failed: new file does not exist but old file still exists');
+      } else {
+        // Neither exists - something went wrong
+        throw new Error('Rename failed: both files are missing');
+      }
+    } catch (renameError) {
+      // If rename fails (e.g., cross-device, permission issue), use copy + delete as fallback
+      console.warn('[Rename] fs.rename failed, using copy+delete fallback:', renameError.message);
+      try {
+        // Copy the file
+        await fs.copyFile(fullOldPath, fullNewPath);
+        // Verify copy succeeded
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const newExists = await fs.access(fullNewPath).then(() => true).catch(() => false);
+        if (!newExists) {
+          throw new Error('Copy failed: new file does not exist');
+        }
+        // Delete the old file
+        await fs.unlink(fullOldPath);
+        // Verify old file is gone
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const oldExists = await fs.access(fullOldPath).then(() => true).catch(() => false);
+        if (oldExists) {
+          throw new Error('Delete failed: old file still exists');
+        }
+        console.log('[Rename] Copy+delete fallback succeeded');
+        return true;
+      } catch (fallbackError) {
+        console.error('[Rename] Copy+delete fallback also failed:', fallbackError);
+        throw new Error(`Move operation failed: ${fallbackError.message}`);
+      }
+    }
   } catch (error) {
     console.error('Error renaming file:', error);
     throw error;

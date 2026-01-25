@@ -10,6 +10,39 @@ import { showToast } from '../utils/index.js';
 import { loadInitialData } from './load-initial-data.js';
 import { showDeleteConfirmation } from '../utils/confirmationModal.js';
 import { onBoardSwitch } from './ui.js';
+/**
+ * Recursively remove a path from the sidebar tree
+ * @param {Array} tree - The sidebar tree array
+ * @param {string} pathToRemove - The path to remove (normalized, without snippets/ prefix)
+ * @param {string} fullPathToRemove - The full path to remove (with snippets/ prefix)
+ * @returns {Array} - Filtered tree with the path removed
+ */
+function removePathFromTree(tree, pathToRemove, fullPathToRemove) {
+  if (!Array.isArray(tree)) return tree;
+  
+  const normalize = p => p.replace(/\\/g, '/');
+  
+  return tree.filter(item => {
+    const itemPath = normalize(item.path || '');
+    const itemFullPath = itemPath.startsWith('snippets/') ? itemPath : `snippets/${itemPath}`;
+    
+    // Skip this item if it matches the path to remove
+    if (normalize(itemPath) === normalize(pathToRemove) || 
+        normalize(itemPath) === normalize(fullPathToRemove) ||
+        normalize(itemFullPath) === normalize(fullPathToRemove)) {
+      console.log('[Move] Filtering out old path from tree:', itemPath);
+      return false;
+    }
+    
+    // Recursively filter children
+    if (item.children && Array.isArray(item.children)) {
+      item.children = removePathFromTree(item.children, pathToRemove, fullPathToRemove);
+    }
+    
+    return true;
+  });
+}
+
 function sortEntries(entries) {
   if (!entries) return [];
   const sortConfig = AppState.getSortConfig();
@@ -146,124 +179,252 @@ async function handleSnippetDrop(data, targetFolderPath) {
       showToast('Invalid snippet data', 'error');
       return;
     }
-    // Log the value of data.path at the start
 
     // Normalize all paths to use forward slashes
     const normalize = p => p.replace(/\\/g, '/');
-    // Handle the case where data.path might already include 'snippets/'
-    let normalizedPath = normalize(data.path);
-    if (normalizedPath.startsWith('snippets/')) {
-      normalizedPath = normalizedPath.substring(9); // Remove 'snippets/' prefix
+    
+    // Parse the source path
+    let sourcePath = normalize(data.path);
+    if (sourcePath.startsWith('snippets/')) {
+      sourcePath = sourcePath.substring(9); // Remove 'snippets/' prefix
     }
-    const oldPath = `snippets/${normalizedPath}`;
-    const fileName = normalizedPath.split('/').pop();
-    const currentFolder = normalizedPath.includes('/')
-      ? normalizedPath.split('/').slice(0, -1).join('/')
-      : '';
-    const newFolderPath = targetFolderPath
-      ? `snippets/${targetFolderPath}`
-      : 'snippets';
+    
+    const oldPath = `snippets/${sourcePath}`;
+    const fileName = sourcePath.split('/').pop();
+    
+    // Build the new path
     const newPath = targetFolderPath
-      ? `${newFolderPath}/${fileName}`
+      ? `snippets/${targetFolderPath}/${fileName}`
       : `snippets/${fileName}`;
-    // Only return early if the paths are actually the same (after normalization)
+    
+    // Check if source and destination are the same
     if (normalize(oldPath) === normalize(newPath)) {
-      return;
+      return; // No move needed
     }
-    // Prevent moving a snippet into itself or a subpath of itself
+    
+    // Prevent moving into a subpath of itself
     if (newPath.startsWith(`${oldPath}/`)) {
       showToast('Cannot move snippet into itself or its subpath', 'error');
       return;
     }
-    // Ensure the target folder exists
-    if (window.electronAPI && window.electronAPI.createFolder) {
-      await window.electronAPI.createFolder(newFolderPath);
+    
+    // Ensure target folder exists
+    if (targetFolderPath && window.electronAPI?.createFolder) {
+      await window.electronAPI.createFolder(`snippets/${targetFolderPath}`);
     }
-    // Check if the source file exists before trying to move it
+    
+    // Verify source file exists
+    let sourceContent;
     try {
-      await window.electronAPI.readFile(oldPath);
+      sourceContent = await window.electronAPI.readFile(oldPath);
     } catch (error) {
-      console.error('Source snippet file not found:', oldPath, error);
+      console.error('Source file not found:', oldPath, error);
       showToast('Source file not found. Cannot move snippet.', 'error');
       return;
     }
     
-    // Check if target file already exists to prevent overwriting
+    // Check if target already exists
+    // Use a more robust check that also verifies the file is actually readable
+    let targetExists = false;
     try {
-      await window.electronAPI.readFile(newPath);
+      const targetContent = await window.electronAPI.readFile(newPath);
+      if (targetContent !== undefined && targetContent !== null) {
+        targetExists = true;
+        // If target exists and has the same content as source, it might be a stale reference
+        // In that case, we can proceed (it's likely the same file)
+        if (targetContent === sourceContent) {
+          console.log('[Move] Target file exists with same content - likely stale reference, proceeding');
+          targetExists = false; // Treat as safe to overwrite
+        } else {
+          // Different content - real conflict
+          console.warn('[Move] Target file exists with different content:', newPath);
+          showToast('A file with this name already exists in the target folder', 'error');
+          return;
+        }
+      }
+    } catch (error) {
+      // File doesn't exist or can't be read - good, we can proceed
+      targetExists = false;
+    }
+    
+    if (targetExists) {
       showToast('A file with this name already exists in the target folder', 'error');
       return;
-    } catch (error) {
-      // File doesn't exist, which is good - we can proceed
     }
     
-    // Move the file
-    await window.electronAPI.rename(oldPath, newPath);
-    
-    // Verify the file was moved successfully
+    // STEP 1: Write the file to the new location
+    // If target exists with same content, delete it first to avoid conflicts
     try {
-      await window.electronAPI.readFile(newPath);
-      // New file exists, good
-    } catch (error) {
-      console.error('Snippet move verification failed:', error);
-      // Try to check if old file still exists (rename might have failed)
-      try {
-        await window.electronAPI.readFile(oldPath);
-        showToast('Failed to move snippet. Source file still exists.', 'error');
-      } catch (oldError) {
-        showToast('Failed to verify snippet move. File may be lost.', 'error');
+      const existingContent = await window.electronAPI.readFile(newPath);
+      if (existingContent === sourceContent) {
+        console.log('[Move] Target file exists with same content, deleting it first:', newPath);
+        await window.electronAPI.deleteFile(newPath);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Wait for deletion
       }
+    } catch {
+      // File doesn't exist or can't be read - that's fine, proceed
+    }
+    
+    console.log('[Move] Copying snippet to new location:', { oldPath, newPath });
+    try {
+      await window.electronAPI.writeFile(newPath, sourceContent);
+    } catch (error) {
+      console.error('[Move] Failed to write to new location:', error);
+      showToast('Failed to copy snippet to new location', 'error');
       return;
     }
-    // Update the snippet in AppState to reflect the new path
+    
+    // STEP 2: Verify new file exists
+    try {
+      await window.electronAPI.readFile(newPath);
+      console.log('[Move] New file verified to exist');
+    } catch (error) {
+      console.error('[Move] New file verification failed:', error);
+      showToast('Failed to verify new file was created', 'error');
+      return;
+    }
+    
+    // STEP 3: Delete the old file (CRITICAL - this prevents duplication)
+    console.log('[Move] Deleting old file:', oldPath);
+    let oldFileDeleted = false;
+    let deletionAttempts = 0;
+    const maxDeletionAttempts = 3;
+    
+    while (!oldFileDeleted && deletionAttempts < maxDeletionAttempts) {
+      deletionAttempts++;
+      try {
+        await window.electronAPI.deleteFile(oldPath);
+        console.log(`[Move] Delete attempt ${deletionAttempts} completed`);
+        
+        // Wait for file system to sync
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Verify deletion
+        try {
+          await window.electronAPI.readFile(oldPath);
+          // File still exists
+          console.warn(`[Move] Old file still exists after deletion attempt ${deletionAttempts}`);
+          if (deletionAttempts < maxDeletionAttempts) {
+            console.log(`[Move] Retrying deletion...`);
+            continue;
+          } else {
+            throw new Error('Old file still exists after all deletion attempts');
+          }
+        } catch (verifyError) {
+          // File is gone - success!
+          oldFileDeleted = true;
+          console.log('[Move] Old file successfully deleted and verified');
+        }
+      } catch (error) {
+        console.error(`[Move] Delete attempt ${deletionAttempts} failed:`, error);
+        if (deletionAttempts >= maxDeletionAttempts) {
+          // All attempts failed - this is critical
+          console.error('[Move] CRITICAL: Failed to delete old file after all attempts:', oldPath);
+          
+          // Try to delete the new file to prevent duplication
+          try {
+            await window.electronAPI.deleteFile(newPath);
+            console.log('[Move] Cleaned up new file after failed old file deletion');
+          } catch (cleanupError) {
+            console.error('[Move] Failed to cleanup new file:', cleanupError);
+          }
+          
+          showToast('Failed to delete old file. Move cancelled to prevent duplication. Check console for details.', 'error');
+          return;
+        }
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    if (!oldFileDeleted) {
+      console.error('[Move] CRITICAL: Could not delete old file after all attempts');
+      showToast('Failed to delete old file. Move cancelled.', 'error');
+      return;
+    }
+    
+    // STEP 5: Update AppState
     const snippets = AppState.getSnippets();
+    const normalizedOldPath = normalize(oldPath);
+    const normalizedNewPath = normalize(newPath);
+    
     const oldSnippetKey = Object.keys(snippets).find(
-      key => normalize(key) === oldPath
+      key => normalize(key) === normalizedOldPath
     );
+    
     if (oldSnippetKey) {
       const snippetData = snippets[oldSnippetKey];
       delete snippets[oldSnippetKey];
-      snippets[newPath] = snippetData;
+      snippets[normalizedNewPath] = snippetData;
       AppState.setSnippets(snippets);
+      console.log('[Move] Updated AppState');
     }
-    // Update all board card references to the new snippet path
+    
+    // STEP 6: Update board card references
     const boards = AppState.getBoards();
-    let updated = false;
+    let boardsUpdated = false;
     for (const board of boards) {
       if (Array.isArray(board.cards)) {
         for (const card of board.cards) {
-          // Log every card's path
-          if (normalize(card.snippetPath) === normalizedPath) {
-            card.snippetPath =
-              (targetFolderPath ? `${targetFolderPath}/` : '') + fileName;
-            updated = true;
+          if (normalize(card.snippetPath) === sourcePath) {
+            card.snippetPath = targetFolderPath
+              ? `${targetFolderPath}/${fileName}`
+              : fileName;
+            boardsUpdated = true;
           }
         }
       }
     }
-    if (updated) {
+    if (boardsUpdated) {
       const { saveApplicationState } = await import('./state.js');
       await saveApplicationState();
     }
-    // Update the sidebar tree to reflect the move
-    if (window.sidebarTree) {
-      // Preserve expanded/collapsed state
-      const currentState = getSidebarState();
-      const { loadInitialData } = await import('./load-initial-data.js');
-      const initialData = await loadInitialData();
-      const foldersContainer = document.getElementById('foldersContainer');
-      if (foldersContainer && initialData && initialData.sidebarTree) {
-        renderSidebar(initialData.sidebarTree, foldersContainer);
-        // Restore expanded/collapsed state
-        applySidebarState(currentState);
-      }
+    
+    // STEP 7: Remove dragged element from DOM immediately
+    const snippetId = `snippet-${sourcePath.replace(/[\\/]/g, '-')}`;
+    const oldSnippetId = `snippet-${oldPath.replace(/[\\/]/g, '-')}`;
+    
+    const draggedElement = document.getElementById(snippetId) ||
+                          document.getElementById(oldSnippetId) ||
+                          document.querySelector(`[data-path="${sourcePath}"]`) ||
+                          document.querySelector(`[data-path="${oldPath}"]`);
+    
+    if (draggedElement) {
+      console.log('[Move] Removing element from DOM:', draggedElement.id);
+      draggedElement.remove();
     }
-    const { showToast } = await import('../utils/index.js');
+    
+    // STEP 8: Refresh sidebar with fresh data
+    await new Promise(resolve => setTimeout(resolve, 150)); // Wait for file system
+    
+    const currentState = getSidebarState();
+    AppState.setSnippets({}); // Clear cache
+    
+    const { loadInitialData } = await import('./load-initial-data.js');
+    const initialData = await loadInitialData();
+    
+    if (initialData?.sidebarTree) {
+      window.sidebarTree = initialData.sidebarTree;
+      
+      // Filter out any stale old paths
+      const filteredTree = removePathFromTree(initialData.sidebarTree, sourcePath, oldPath);
+      window.sidebarTree = filteredTree;
+      initialData.sidebarTree = filteredTree;
+    }
+    
+    const foldersContainer = document.getElementById('foldersContainer');
+    if (foldersContainer && initialData?.sidebarTree) {
+      foldersContainer.innerHTML = '';
+      renderSidebar(initialData.sidebarTree, foldersContainer);
+      applySidebarState(currentState);
+    }
+    
     showToast('Snippet moved successfully!', 'success');
+    console.log('[Move] Snippet move completed successfully');
+    
   } catch (error) {
-    console.error('Error moving snippet:', error);
-    const { showToast } = await import('../utils/index.js');
-    showToast('Failed to move snippet', 'error');
+    console.error('[Move] Error moving snippet:', error);
+    showToast('Failed to move snippet: ' + (error.message || 'Unknown error'), 'error');
   }
 }
 async function handleBoardDrop(data, targetFolderPath) {
@@ -388,18 +549,28 @@ async function handleBoardDrop(data, targetFolderPath) {
     const { saveBoards } = await import('./state.js');
     await saveBoards();
     
+    // Immediately remove the dragged board element from the DOM to prevent duplicate display
+    const boardFileName = oldPath.split('/').pop();
+    const normalizedBoardPath = normalize(oldPath);
+    const draggedElement = document.querySelector(`[data-board-path="${normalizedBoardPath}"], [id*="board-${boardFileName.replace(/[\\/]/g, '-')}"]`);
+    if (draggedElement && draggedElement.parentNode) {
+      draggedElement.parentNode.removeChild(draggedElement);
+    }
+    
     // Reload sidebar tree from disk to reflect the changes
-    if (window.sidebarTree) {
-      // Preserve expanded/collapsed state
-      const currentState = getSidebarState();
-      const { loadInitialData } = await import('./load-initial-data.js');
-      const initialData = await loadInitialData();
-      const foldersContainer = document.getElementById('foldersContainer');
-      if (foldersContainer && initialData && initialData.sidebarTree) {
-        renderSidebar(initialData.sidebarTree, foldersContainer);
-        // Restore expanded/collapsed state
-        applySidebarState(currentState);
-      }
+    // Preserve expanded/collapsed state
+    const currentState = getSidebarState();
+    const { loadInitialData } = await import('./load-initial-data.js');
+    const initialData = await loadInitialData();
+    // Update window.sidebarTree to ensure it reflects the new state
+    if (initialData && initialData.sidebarTree) {
+      window.sidebarTree = initialData.sidebarTree;
+    }
+    const foldersContainer = document.getElementById('foldersContainer');
+    if (foldersContainer && initialData && initialData.sidebarTree) {
+      renderSidebar(initialData.sidebarTree, foldersContainer);
+      // Restore expanded/collapsed state
+      applySidebarState(currentState);
     }
     showToast(`Board "${data.board.name}" moved successfully`, 'success');
   } catch (error) {
@@ -503,17 +674,19 @@ async function handleFolderDrop(sourcePath, targetPath) {
       await renderBoard();
     }
     // Reload sidebar tree from disk to ensure only the selected folder is moved
-    if (window.sidebarTree) {
-      // Preserve expanded/collapsed state
-      const currentState = getSidebarState();
-      const { loadInitialData } = await import('./load-initial-data.js');
-      const initialData = await loadInitialData();
-      const foldersContainer = document.getElementById('foldersContainer');
-      if (foldersContainer && initialData && initialData.sidebarTree) {
-        renderSidebar(initialData.sidebarTree, foldersContainer);
-        // Restore expanded/collapsed state
-        applySidebarState(currentState);
-      }
+    // Preserve expanded/collapsed state
+    const currentState = getSidebarState();
+    const { loadInitialData } = await import('./load-initial-data.js');
+    const initialData = await loadInitialData();
+    // Update window.sidebarTree to ensure it reflects the new state
+    if (initialData && initialData.sidebarTree) {
+      window.sidebarTree = initialData.sidebarTree;
+    }
+    const foldersContainer = document.getElementById('foldersContainer');
+    if (foldersContainer && initialData && initialData.sidebarTree) {
+      renderSidebar(initialData.sidebarTree, foldersContainer);
+      // Restore expanded/collapsed state
+      applySidebarState(currentState);
     }
     showToast('Folder moved successfully', 'success');
   } catch (error) {
@@ -1352,6 +1525,23 @@ export async function deleteSnippetByPath(snippetPath) {
   try {
     // Preserve the current expanded state of folders
     const currentState = getSidebarState();
+    
+    // Check if this is a default snippet that should be tracked as deleted
+    const defaultSnippetIds = ['default_photorealistic', 'default_cyberpunk', 'default_space'];
+    const snippetFileName = snippetPath.split('/').pop().replace('.json', '').replace('.txt', '');
+    if (defaultSnippetIds.includes(snippetFileName)) {
+      // Mark this default snippet as intentionally deleted
+      try {
+        const { markSnippetAsDeleted } = await import('./default-snippets.js');
+        if (typeof markSnippetAsDeleted === 'function') {
+          await markSnippetAsDeleted(snippetFileName);
+          console.log('[Delete] Marked default snippet as deleted:', snippetFileName);
+        }
+      } catch (error) {
+        console.warn('[Delete] Could not mark default snippet as deleted:', error);
+      }
+    }
+    
     // Delete the file from disk
     if (window.electronAPI && window.electronAPI.rm) {
       await window.electronAPI.rm(`snippets/${snippetPath}`);

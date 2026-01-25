@@ -253,6 +253,18 @@
         // Do NOT call showList() - stay in editor
     });
 
+    // Listen for bot creation notifications from PromptWaffle
+    if (window.api && window.api.onBotListRefresh) {
+        window.api.onBotListRefresh((data) => {
+            console.log('[App Router] Bot created notification received:', data);
+            // Refresh the chatbot list if it's visible
+            const chatbotList = document.querySelector('chatbot-list');
+            if (chatbotList && chatbotList.loadChatbots) {
+                chatbotList.loadChatbots();
+            }
+        });
+    }
+
     // Listen for sidebar navigation (Library / Settings)
     document.addEventListener('navigate-library', () => {
         if (checkUnsavedChanges()) return;

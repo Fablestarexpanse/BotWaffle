@@ -631,14 +631,8 @@
 
             const modal = overlay.querySelector('.modal');
             if (modal) {
+                // Prevent clicks on modal from closing it (only overlay background should close)
                 modal.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'INPUT' || 
-                        e.target.tagName === 'TEXTAREA' || 
-                        e.target.tagName === 'SELECT' ||
-                        e.target.tagName === 'BUTTON' ||
-                        e.target.closest('input, textarea, select, button')) {
-                        return;
-                    }
                     e.stopPropagation();
                 });
             }
@@ -647,12 +641,7 @@
             const confirmBtn = overlay.querySelector('.confirm-delete-btn');
 
             if (confirmInput) {
-                confirmInput.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-                confirmInput.addEventListener('focus', (e) => {
-                    e.stopPropagation();
-                });
+                // Ensure input can receive focus and clicks properly
                 confirmInput.addEventListener('input', (e) => {
                     const inputValue = e.target.value.trim();
                     if (inputValue === chatbotName) {
@@ -660,6 +649,11 @@
                     } else {
                         confirmBtn.disabled = true;
                     }
+                });
+                
+                // Prevent input clicks from bubbling to overlay (which would close modal)
+                confirmInput.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
                 });
             }
 
@@ -682,11 +676,16 @@
 
             document.body.appendChild(overlay);
 
-            setTimeout(() => {
-                if (confirmInput) {
-                    confirmInput.focus();
-                }
-            }, 100);
+            // Focus the input after a short delay to ensure DOM is ready
+            // Use requestAnimationFrame for better timing
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (confirmInput) {
+                        confirmInput.focus();
+                        confirmInput.select();
+                    }
+                }, 50);
+            });
         },
 
         /**
@@ -736,14 +735,8 @@
 
             const modal = overlay.querySelector('.modal');
             if (modal) {
+                // Prevent clicks on modal from closing it (only overlay background should close)
                 modal.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'INPUT' || 
-                        e.target.tagName === 'TEXTAREA' || 
-                        e.target.tagName === 'SELECT' ||
-                        e.target.tagName === 'BUTTON' ||
-                        e.target.closest('input, textarea, select, button')) {
-                        return;
-                    }
                     e.stopPropagation();
                 });
             }
@@ -752,12 +745,7 @@
             const confirmBtn = overlay.querySelector('.confirm-delete-btn-card');
 
             if (confirmInput) {
-                confirmInput.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-                confirmInput.addEventListener('focus', (e) => {
-                    e.stopPropagation();
-                });
+                // Ensure input can receive focus and clicks properly
                 confirmInput.addEventListener('input', (e) => {
                     const inputValue = e.target.value.trim();
                     if (inputValue === chatbotName) {
@@ -765,6 +753,11 @@
                     } else {
                         confirmBtn.disabled = true;
                     }
+                });
+                
+                // Prevent input clicks from bubbling to overlay (which would close modal)
+                confirmInput.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
                 });
             }
 
@@ -822,11 +815,16 @@
 
             document.body.appendChild(overlay);
 
-            setTimeout(() => {
-                if (confirmInput) {
-                    confirmInput.focus();
-                }
-            }, 100);
+            // Focus the input after a short delay to ensure DOM is ready
+            // Use requestAnimationFrame for better timing
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (confirmInput) {
+                        confirmInput.focus();
+                        confirmInput.select();
+                    }
+                }, 50);
+            });
         },
 
         /**

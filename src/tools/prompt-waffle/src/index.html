@@ -43,7 +43,7 @@
         <div class="sidebar-logo">
           <img src="assets/logo.png" alt="PromptWaffle Logo" />
           <p class="tagline">Break it. Remix it. Generate better.</p>
-          <p class="version">v<span id="currentVersion">1.5.2</span></p>
+          <p class="version">v<span id="currentVersion">1.5.3</span></p>
           <a href="#" id="kofiLink" class="kofi-link" title="Support PromptWaffle development">
             <i data-feather="heart"></i>
             <span>Support on Ko-fi</span>
@@ -184,7 +184,11 @@
             <div class="section-label">Tools</div>
             <div class="section-controls">
               <div class="control-group">
-                <button id="openCharacterBuilderBtn" class="control-btn" title="Open Character Builder">
+                <button id="openCharacterBuilderBtn" class="control-btn" title="Open Character Builder" 
+                  style="pointer-events: auto !important; cursor: pointer !important; z-index: 99999 !important; position: relative !important;"
+                  onmousedown="console.log('MOUSEDOWN INLINE'); return false;"
+                  onmouseup="console.log('MOUSEUP INLINE'); return false;"
+                  onclick="console.log('INLINE ONCLICK FIRED'); alert('INLINE CLICK WORKS'); if(window.openCharacterBuilder) { window.openCharacterBuilder(); } else { alert('openCharacterBuilder not available'); } return false;">
                   <i data-feather="user-plus"></i>
                   <span>Character Builder</span>
                 </button>
@@ -247,7 +251,7 @@
             </button>
             <div class="metadata-header">
               <div class="metadata-header-title-group">
-                <h3>Image Metadata</h3>
+                <h3>Metadata Notes panel</h3>
                 <button id="lockMetadataBtn" class="metadata-lock-btn" title="Lock metadata fields (prevent editing)">
                   <i data-feather="unlock"></i>
                 </button>
@@ -553,8 +557,11 @@
           <!-- Character Library Section -->
           <div class="character-builder-section">
             <h3>Character Library</h3>
+            <div class="character-library-search">
+              <input type="text" id="characterLibrarySearch" class="character-library-search-input" placeholder="Search bots...">
+            </div>
             <div id="characterLibrary" class="character-library">
-              <!-- Saved characters will be populated here -->
+              <!-- BotWaffle bots will be populated here -->
             </div>
           </div>
         </div>
@@ -617,27 +624,16 @@
               </div>
 
               <div class="form-group">
-                <label>Reference Images:</label>
-                <div class="character-image-sections">
-                  <div class="character-image-section">
-                    <div class="character-image-preview" id="characterImagePreview1"></div>
-                    <input type="file" id="characterImage1" accept="image/*" style="display: none;">
-                    <div class="image-section-buttons">
-                      <button type="button" id="characterImageBtn1" class="character-image-btn">Choose Image 1</button>
-                      <button type="button" id="removeImageBtn1" class="character-image-remove"
-                        style="display: none;">Remove</button>
-                      <button type="button" id="updateImageBtn1" class="character-image-btn">Update</button>
+                <label>Avatar:</label>
+                <div class="character-avatar-section">
+                  <div class="character-avatar-preview" id="characterAvatarPreview">
+                    <div class="character-avatar-placeholder">
+                      <i data-feather="user"></i>
+                      <span>No avatar</span>
                     </div>
                   </div>
-                  <div class="character-image-section">
-                    <div class="character-image-preview" id="characterImagePreview2"></div>
-                    <input type="file" id="characterImage2" accept="image/*" style="display: none;">
-                    <div class="image-section-buttons">
-                      <button type="button" id="characterImageBtn2" class="character-image-btn">Choose Image 2</button>
-                      <button type="button" id="removeImageBtn2" class="character-image-remove"
-                        style="display: none;">Remove</button>
-                      <button type="button" id="updateImageBtn2" class="character-image-btn">Update</button>
-                    </div>
+                  <div class="character-builder-note">
+                    <p><strong>Note:</strong> The Character Builder creates reusable image prompt snippets that can be added to your prompts. Fill in the character details above to generate a prompt snippet.</p>
                   </div>
                 </div>
               </div>
@@ -662,10 +658,8 @@
                 <!-- Update buttons moved to individual image sections -->
               </div>
               <div class="main-actions">
-                <button id="saveCharacterBtn" class="character-builder-btn character-builder-btn-primary">Add
-                  Character</button>
-                <button id="updateCharacterBtn" class="character-builder-btn character-builder-btn-secondary">Update
-                  Character</button>
+                <button id="createNewCharacterBtn" class="character-builder-btn character-builder-btn-primary">Create New Character</button>
+                <button id="updateCharacterBtn" class="character-builder-btn character-builder-btn-secondary">Save</button>
                 <button id="clearCharacterBtn"
                   class="character-builder-btn character-builder-btn-warning">Clear</button>
                 <button id="addToBoardBtn" class="character-builder-btn character-builder-btn-success">Add to
@@ -876,7 +870,8 @@
     </div>
   </div>
 
-  <script type="module" src="utils/characterBuilder.js"></script>
+  <!-- Character Builder is loaded via app.js, don't load it here to avoid duplicate declarations -->
+  <script type="module" src="utils/character-builder-button.js"></script>
 </body>
 
 </html>

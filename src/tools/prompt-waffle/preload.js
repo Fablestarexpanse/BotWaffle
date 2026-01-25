@@ -81,7 +81,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // BotWaffle chatbot APIs
   listChatbots: () => ipcRenderer.invoke('chatbot:list'),
   getChatbot: (id) => ipcRenderer.invoke('chatbot:get', id),
-  updateChatbot: (id, data) => ipcRenderer.invoke('chatbot:update', id, data)
+  updateChatbot: (id, data) => ipcRenderer.invoke('chatbot:update', id, data),
+  createChatbot: (data) => ipcRenderer.invoke('chatbot:create', data),
+  getCharacterFolderPath: (characterId, subfolder) => ipcRenderer.invoke('getCharacterFolderPath', characterId, subfolder),
+  // Notify parent window of bot changes
+  notifyBotCreated: (botId, botName) => {
+    // Send message to parent window via IPC
+    ipcRenderer.send('bot-created-notification', { botId, botName });
+  }
 });
 
 // Auto-updater IPC bridge

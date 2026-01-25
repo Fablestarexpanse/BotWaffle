@@ -534,6 +534,14 @@ app.whenReady().then(() => {
     const { registerPromptWaffleHandlers } = require('./src/core/prompt-waffle-handler');
     registerPromptWaffleHandlers();
 
+    // Listen for bot creation notifications from PromptWaffle webview
+    ipcMain.on('bot-created-notification', (event, data) => {
+        // Send message to main window to refresh bot list
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('refresh-bot-list', data);
+        }
+    });
+
     // Asset select handler requires special handling for dialog
     registerIpcHandler(ipcMain, 'assets:select', async (event, multiple = false) => {
         const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;

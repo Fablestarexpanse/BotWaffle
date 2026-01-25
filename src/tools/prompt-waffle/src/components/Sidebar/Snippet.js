@@ -246,6 +246,8 @@ export function createSnippetElement({
       try {
         // Set global drag state
         window.isDragging = true;
+        // Set drag effect to 'move' to indicate this is a move operation, not a copy
+        e.dataTransfer.effectAllowed = 'move';
         // Hide tooltip during drag
         if (tooltip) {
           tooltip.remove();

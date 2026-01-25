@@ -9,12 +9,15 @@ import { showConfirmationModal, showDeleteConfirmation } from './confirmationMod
 class CharacterBuilder {
   constructor() {
     this.characters = [];
+    this.filteredCharacters = [];
     this.currentCharacter = null;
     this.isInitialized = false;
     this.modal = null;
     this.characterLibrary = null;
+    this.characterLibrarySearch = null;
     this.characterEditor = null;
     this.characterPreview = null;
+    this.searchTerm = '';
   }
 
   /**
@@ -32,6 +35,7 @@ class CharacterBuilder {
       // Get modal elements
       this.modal = document.getElementById('characterBuilderModal');
       this.characterLibrary = document.getElementById('characterLibrary');
+      this.characterLibrarySearch = document.getElementById('characterLibrarySearch');
       this.characterEditor = document.getElementById('characterEditor');
       this.characterPreview = document.getElementById('characterPreview');
 
@@ -48,8 +52,19 @@ class CharacterBuilder {
       // Setup draggable functionality
       this.setupDraggable();
 
-      // Load existing characters
+      // Setup search functionality
+      if (this.characterLibrarySearch) {
+        this.characterLibrarySearch.addEventListener('input', (e) => {
+          this.searchTerm = e.target.value;
+          this.filterCharacters();
+        });
+      }
+
+      // Load bots from BotWaffle
       await this.loadCharacters();
+      
+      // Initialize filtered characters
+      this.filteredCharacters = [...this.characters];
 
       // Update UI
       this.updateCharacterLibrary();
@@ -141,14 +156,14 @@ class CharacterBuilder {
 
 
     // Character editor controls
-    const saveCharacterBtn = document.getElementById('saveCharacterBtn');
-    if (saveCharacterBtn) {
-      saveCharacterBtn.addEventListener('click', () => {
-        console.log('Add Character button clicked');
-      this.saveCharacter();
-    });
+    const createNewCharacterBtn = document.getElementById('createNewCharacterBtn');
+    if (createNewCharacterBtn) {
+      createNewCharacterBtn.addEventListener('click', () => {
+        console.log('Create New Character button clicked');
+        this.createNewCharacter();
+      });
     } else {
-      console.warn('Character Builder: saveCharacterBtn button not found');
+      console.warn('Character Builder: createNewCharacterBtn button not found');
     }
 
     const clearCharacterBtn = document.getElementById('clearCharacterBtn');
@@ -189,102 +204,8 @@ class CharacterBuilder {
       });
     });
 
-    // Image upload functionality
-    const imageBtn1 = document.getElementById('characterImageBtn1');
-    const imageInput1 = document.getElementById('characterImage1');
-    const imagePreview1 = document.getElementById('characterImagePreview1');
-    const imageBtn2 = document.getElementById('characterImageBtn2');
-    const imageInput2 = document.getElementById('characterImage2');
-    const imagePreview2 = document.getElementById('characterImagePreview2');
-    const removeImageBtn1 = document.getElementById('removeImageBtn1');
-    const removeImageBtn2 = document.getElementById('removeImageBtn2');
-    const updateImageBtn1 = document.getElementById('updateImageBtn1');
-    const updateImageBtn2 = document.getElementById('updateImageBtn2');
-
-    if (imageBtn1 && imageInput1 && imagePreview1) {
-      imageBtn1.addEventListener('click', () => {
-        imageInput1.click();
-      });
-
-      imageInput1.addEventListener('change', (e) => {
-        this.handleImageUpload(e.target.files[0], 1);
-      });
-    }
-
-    if (imageBtn2 && imageInput2 && imagePreview2) {
-      imageBtn2.addEventListener('click', () => {
-        imageInput2.click();
-      });
-
-      imageInput2.addEventListener('change', (e) => {
-        this.handleImageUpload(e.target.files[0], 2);
-      });
-    }
-
-    if (removeImageBtn1) {
-      removeImageBtn1.addEventListener('click', () => {
-        this.removeCharacterImage(1);
-      });
-    }
-    if (removeImageBtn2) {
-      removeImageBtn2.addEventListener('click', () => {
-        this.removeCharacterImage(2);
-      });
-    }
-
-    // Update buttons for individual image sections
-    if (updateImageBtn1) {
-      updateImageBtn1.addEventListener('click', async () => {
-        console.log('Update button 1 clicked - refreshing character library');
-        
-        // Check if character is saved (has filePath) before allowing image updates
-        if (!this.currentCharacter || !this.currentCharacter.filePath) {
-          const { showToast } = await import('./index.js');
-          showToast('Please save the character first before updating images', 'warning');
-          return;
-        }
-        
-        // If there's a current character with images, update it first
-        if (this.currentCharacter && (this.currentCharacterImage1 || this.currentCharacterImage2)) {
-          console.log('Updating current character images before refreshing library');
-          await this.updateCharacter();
-          // Small delay to ensure file operations complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        // Update the character library display
-        this.updateCharacterLibrary();
-        console.log('Character library updated from editor');
-      });
-    }
-    if (updateImageBtn2) {
-      updateImageBtn2.addEventListener('click', async () => {
-        console.log('Update button 2 clicked - refreshing character library');
-        
-        // Check if character is saved (has filePath) before allowing image updates
-        if (!this.currentCharacter || !this.currentCharacter.filePath) {
-          const { showToast } = await import('./index.js');
-          showToast('Please save the character first before updating images', 'warning');
-          return;
-        }
-        
-        // If there's a current character with images, update it first
-        if (this.currentCharacter && (this.currentCharacterImage1 || this.currentCharacterImage2)) {
-          console.log('Updating current character images before refreshing library');
-          await this.updateCharacter();
-          // Small delay to ensure file operations complete
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        // Update the character library display
-        this.updateCharacterLibrary();
-        console.log('Character library updated from editor');
-      });
-    }
-    if (!updateImageBtn1) {
-      console.warn('Character Builder: updateImageBtn1 button not found');
-    }
-    if (!updateImageBtn2) {
-      console.warn('Character Builder: updateImageBtn2 button not found');
-    }
+    // Avatar preview (read-only, no buttons needed)
+    // Avatar is loaded from BotWaffle bot data and displayed for reference only
 
     // Copy to clipboard button
     const copyToClipboardBtn = document.getElementById('copyToClipboardBtn');
@@ -321,46 +242,157 @@ class CharacterBuilder {
    */
   async loadCharacters() {
     try {
-      // Ensure characters directory exists
-      await this.ensureCharactersDirectory();
+      // Load bots from BotWaffle instead of local characters
+      if (!window.electronAPI || !window.electronAPI.listChatbots) {
+        console.error('BotWaffle API not available - window.electronAPI:', window.electronAPI);
+        this.characters = [];
+        this.filteredCharacters = [];
+        return;
+      }
 
-      // Read characters directory
-      const charactersPath = 'snippets/characters';
-      const files = await window.electronAPI.readdir(charactersPath);
+      console.log('Loading bots from BotWaffle...');
+      const bots = await window.electronAPI.listChatbots();
       
+      if (!bots || !Array.isArray(bots)) {
+        console.warn('No bots returned or invalid format:', bots);
+        this.characters = [];
+        this.filteredCharacters = [];
+        return;
+      }
+      
+      console.log(`Found ${bots.length} bots from BotWaffle`);
+      
+      // Clear existing characters to prevent duplicates
       this.characters = [];
       
-      for (const file of files) {
-        if (file.isFile && file.name.endsWith('.json')) {
-          try {
-            const filePath = `${charactersPath}/${file.name}`;
-            const content = await window.electronAPI.readFile(filePath);
-            const data = JSON.parse(content);
-            
-            // Handle both old format (raw character data) and new format (snippet format)
-            let character;
-            if (data.type === 'character' && data.characterData) {
-              // New snippet format - extract character data
-              character = data.characterData;
-            } else {
-              // Old format - use data directly
-              character = data;
-            }
-            
-            // Add file path for saving
-            character.filePath = filePath;
-            this.characters.push(character);
-          } catch (error) {
-            console.error(`Error loading character ${file.name}:`, error);
+      // Track IDs to prevent duplicates
+      const seenIds = new Set();
+      
+      // Convert BotWaffle bots to character format for Character Builder
+      for (const bot of bots) {
+        try {
+          // Skip if we've already seen this bot ID
+          if (seenIds.has(bot.id)) {
+            console.warn(`Skipping duplicate bot ID: ${bot.id}`);
+            continue;
           }
+          seenIds.add(bot.id);
+          
+          // Get full bot data if needed
+          const fullBot = await window.electronAPI.getChatbot(bot.id);
+          const botData = fullBot || bot;
+          
+          // Convert bot to character format
+          const character = {
+            id: botData.id,
+            name: botData.profile?.displayName || botData.profile?.name || 'Unnamed Bot',
+            description: botData.profile?.description || '',
+            category: botData.profile?.category || '',
+            tags: botData.profile?.tags || [],
+            status: botData.metadata?.status || 'draft',
+            // Avatar from bot's images
+            avatar: this.getBotAvatar(botData),
+            // Character data from personality section
+            gender: this.extractCharacterField(botData, 'gender'),
+            age: this.extractCharacterField(botData, 'age'),
+            hair: this.extractCharacterField(botData, 'hair'),
+            eyes: this.extractCharacterField(botData, 'eyes'),
+            clothing: this.extractCharacterField(botData, 'clothing'),
+            style: this.extractCharacterField(botData, 'style'),
+            personality: this.extractPersonality(botData),
+            // Store full bot data for reference
+            botData: botData
+          };
+          
+          this.characters.push(character);
+        } catch (error) {
+          console.error(`Error loading bot ${bot.id}:`, error);
         }
       }
 
-      console.log(`Loaded ${this.characters.length} characters`);
+      // Initialize filtered characters
+      this.filteredCharacters = [...this.characters];
+      // Apply current search filter if there's a search term
+      if (this.searchTerm) {
+        this.filterCharacters();
+      }
+      console.log(`Loaded ${this.characters.length} bots from BotWaffle`);
     } catch (error) {
-      console.error('Error loading characters:', error);
+      console.error('Error loading bots from BotWaffle:', error);
+      console.error('Error stack:', error.stack);
       this.characters = [];
+      this.filteredCharacters = [];
     }
+  }
+
+  /**
+   * Get bot avatar image path
+   */
+  getBotAvatar(bot) {
+    if (bot.profile?.images && bot.profile.images.length > 0) {
+      const thumbnailIndex = bot.profile.thumbnailIndex !== undefined ? bot.profile.thumbnailIndex : 0;
+      return bot.profile.images[thumbnailIndex] || bot.profile.images[0];
+    } else if (bot.profile?.image) {
+      return bot.profile.image;
+    }
+    return null;
+  }
+
+  /**
+   * Extract character field from bot personality data
+   */
+  extractCharacterField(bot, fieldName) {
+    if (!bot.personality || typeof bot.personality !== 'object') return '';
+    
+    const characterData = bot.personality.characterData || bot.personality;
+    if (characterData && typeof characterData === 'object') {
+      return characterData[fieldName] || '';
+    }
+    return '';
+  }
+
+  /**
+   * Extract personality text from bot
+   */
+  extractPersonality(bot) {
+    if (!bot.personality) return '';
+    
+    if (typeof bot.personality === 'string') {
+      return bot.personality;
+    }
+    
+    if (bot.personality.characterData) {
+      return bot.personality.characterData.personality || '';
+    }
+    
+    if (bot.personality.personality) {
+      return bot.personality.personality;
+    }
+    
+    return '';
+  }
+
+  /**
+   * Filter characters based on search term
+   */
+  filterCharacters() {
+    if (!this.searchTerm || this.searchTerm.trim() === '') {
+      this.filteredCharacters = [...this.characters];
+    } else {
+      const searchLower = this.searchTerm.toLowerCase().trim();
+      this.filteredCharacters = this.characters.filter(character => {
+        const name = (character.name || '').toLowerCase();
+        const description = (character.description || '').toLowerCase();
+        const category = (character.category || '').toLowerCase();
+        const tags = (character.tags || []).join(' ').toLowerCase();
+        
+        return name.includes(searchLower) ||
+               description.includes(searchLower) ||
+               category.includes(searchLower) ||
+               tags.includes(searchLower);
+      });
+    }
+    this.updateCharacterLibrary();
   }
 
   /**
@@ -381,97 +413,114 @@ class CharacterBuilder {
   }
 
   /**
-   * Update character library display
+   * Update character library display with BotWaffle bots as cards
    */
   updateCharacterLibrary() {
     if (!this.characterLibrary) return;
 
     this.characterLibrary.innerHTML = '';
 
-    if (this.characters.length === 0) {
+    // Use filtered characters if search is active, otherwise use all characters
+    const charactersToDisplay = (this.searchTerm && this.filteredCharacters.length >= 0) 
+      ? this.filteredCharacters 
+      : this.characters;
+
+    if (charactersToDisplay.length === 0) {
       const emptyMessage = document.createElement('div');
-      emptyMessage.className = 'character-item';
+      emptyMessage.className = 'character-library-empty';
       emptyMessage.innerHTML = `
-        <div class="character-info">
-          <div class="character-name">No characters yet</div>
-          <div class="character-description">Use the Character Editor to create your first character</div>
+        <div class="character-library-empty-content">
+          <i data-feather="inbox"></i>
+          <div class="character-library-empty-text">
+            <div class="character-library-empty-title">${this.searchTerm ? 'No bots found' : 'No bots yet'}</div>
+            <div class="character-library-empty-description">${this.searchTerm ? 'Try a different search term' : 'Create bots in BotWaffle to see them here'}</div>
+          </div>
         </div>
       `;
       this.characterLibrary.appendChild(emptyMessage);
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
       return;
     }
 
-    this.characters.forEach(character => {
-      const characterItem = document.createElement('div');
-      characterItem.className = 'character-item';
+    // Track rendered IDs to prevent duplicates
+    const renderedIds = new Set();
+
+    charactersToDisplay.forEach(character => {
+      // Skip if already rendered
+      if (renderedIds.has(character.id)) {
+        console.warn(`Skipping duplicate character in display: ${character.id} - ${character.name}`);
+        return;
+      }
+      renderedIds.add(character.id);
+      const characterCard = document.createElement('div');
+      characterCard.className = 'character-library-card';
       if (this.currentCharacter && this.currentCharacter.id === character.id) {
-        characterItem.classList.add('selected');
+        characterCard.classList.add('selected');
       }
 
-      // Get character image if available (use imagePath1 as the display image)
-      let characterImage;
-      if (character.imagePath1) {
-        // Use a placeholder that will be replaced with the actual image
-        characterImage = `<img src="" alt="${character.name}" class="character-library-image" data-image-path="${character.imagePath1}">`;
-      } else {
-        characterImage = '<div class="character-library-image-placeholder"><i data-feather="user"></i></div>';
+      // Get avatar image
+      let avatarHtml = '';
+      if (character.avatar) {
+        const isLocalFile = !character.avatar.startsWith('http://') && 
+                           !character.avatar.startsWith('https://') && 
+                           !character.avatar.startsWith('file://');
+        let imageSrc = character.avatar;
+        if (isLocalFile) {
+          const normalizedPath = character.avatar.replace(/\\/g, '/');
+          imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
+        }
+        avatarHtml = `<img src="${imageSrc}" alt="${this.escapeHtml(character.name)}" class="character-card-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
       }
+      
+      // Status badge
+      const statusValue = character.status || 'draft';
+      const statusDisplay = statusValue === 'to-delete' ? 'To Delete' : 
+                           statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
+      const statusClass = `status-badge status-${statusValue}`;
+      
+      // Tags
+      const tagsHtml = character.tags && character.tags.length > 0
+        ? `<div class="character-card-tags">${character.tags.slice(0, 3).map(tag => `<span class="character-card-tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
+        : '';
 
-      characterItem.innerHTML = `
-        <div class="character-image-container">
-          ${characterImage}
+      characterCard.innerHTML = `
+        <div class="character-card-image-container">
+          ${avatarHtml}
+          <div class="character-card-avatar-placeholder" style="${character.avatar ? 'display: none;' : ''}">
+            <i data-feather="user"></i>
+          </div>
         </div>
-        <div class="character-info">
-          <div class="character-name">${character.name || 'Unnamed Character'}</div>
-          <div class="character-description">${this.generateCharacterDescription(character)}</div>
-        </div>
-        <div class="character-actions">
-          <button class="character-action-btn secondary" data-action="duplicate" data-character-id="${character.id}">Duplicate</button>
-          <button class="character-action-btn danger" data-action="delete" data-character-id="${character.id}">Delete</button>
+        <div class="character-card-content">
+          <div class="character-card-header">
+            <h4 class="character-card-name" title="${this.escapeHtml(character.name)}">${this.escapeHtml(character.name)}</h4>
+            <span class="${statusClass}">${this.escapeHtml(statusDisplay)}</span>
+          </div>
         </div>
       `;
 
-      characterItem.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('character-action-btn')) {
-          this.selectCharacter(character.id);
-        }
+      characterCard.addEventListener('click', async () => {
+        await this.selectCharacter(character.id);
       });
 
-      // Add event listeners for action buttons
-      const actionButtons = characterItem.querySelectorAll('.character-action-btn');
-      actionButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const action = button.dataset.action;
-          const characterId = button.dataset.characterId;
-          
-          if (action === 'delete') {
-            this.deleteCharacter(characterId);
-          } else if (action === 'duplicate') {
-            this.duplicateCharacter(characterId);
-          }
-        });
-      });
-
-      // Add error handler for character images and load the image
-      const characterImg = characterItem.querySelector('.character-library-image');
-      if (characterImg) {
-        characterImg.addEventListener('error', () => {
-          characterImg.style.display = 'none';
-        });
-        
-        // Load the character image if it has a path
-        const imagePath = characterImg.dataset.imagePath;
-        if (imagePath) {
-          console.log('Loading character image for:', character.name, 'Path:', imagePath);
-          this.loadCharacterImage(characterImg, imagePath);
-        } else {
-          console.log('No image path for character:', character.name);
-        }
-      }
-
-      this.characterLibrary.appendChild(characterItem);
+      this.characterLibrary.appendChild(characterCard);
     });
+
+    // Replace feather icons
+    if (typeof feather !== 'undefined') {
+      feather.replace();
+    }
+  }
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   /**
@@ -571,14 +620,34 @@ class CharacterBuilder {
   /**
    * Select a character
    */
-  selectCharacter(characterId) {
-    const character = this.characters.find(c => c.id === characterId);
+  async selectCharacter(characterId) {
+    // Search in both characters and filteredCharacters
+    const character = this.characters.find(c => c.id === characterId) || 
+                     this.filteredCharacters.find(c => c.id === characterId);
     if (character) {
+      // If we have botData, use it to get fresh data
+      if (character.botData && window.electronAPI?.getChatbot) {
+        try {
+          const freshBot = await window.electronAPI.getChatbot(characterId);
+          if (freshBot) {
+            // Update character with fresh bot data
+            character.botData = freshBot;
+            character.avatar = this.getBotAvatar(freshBot);
+            character.name = freshBot.profile?.displayName || freshBot.profile?.name || character.name;
+            character.description = freshBot.profile?.description || character.description;
+            character.category = freshBot.profile?.category || character.category;
+            character.tags = freshBot.profile?.tags || character.tags;
+            character.status = freshBot.metadata?.status || character.status;
+          }
+        } catch (error) {
+          console.error('Error loading fresh bot data:', error);
+        }
+      }
+      
       this.currentCharacter = { ...character };
       this.populateEditor();
       this.updateCharacterLibrary();
       this.updatePreview();
-      // Both buttons are always visible now
     }
   }
 
@@ -597,8 +666,10 @@ class CharacterBuilder {
    */
   async updateCharacter() {
     try {
-      if (!this.currentCharacter || !this.currentCharacter.id) {
+      if (!this.currentCharacter) {
         console.error('No character selected for update');
+        const { showToast } = await import('./index.js');
+        showToast('No character selected to update', 'error');
         return;
       }
 
@@ -611,6 +682,14 @@ class CharacterBuilder {
         const { showToast } = await import('./index.js');
         showToast('Please enter a character name before updating the character', 'warning');
         return;
+      }
+
+      // If character doesn't have a filePath (e.g., from BotWaffle), create one
+      if (!this.currentCharacter.filePath) {
+        const safeName = formData.name.replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'character';
+        const fileName = `${safeName}_${this.currentCharacter.id}.json`;
+        this.currentCharacter.filePath = `snippets/characters/${fileName}`;
+        console.log('Created filePath for character:', this.currentCharacter.filePath);
       }
 
       // Update current character with new data
@@ -645,19 +724,19 @@ class CharacterBuilder {
       }
 
       // Show success notification
-      const { showToast } = await import('./index.js');
       showToast(`Character "${this.currentCharacter.name || 'Unnamed'}" updated successfully!`, 'success');
 
       console.log('Character updated successfully');
     } catch (error) {
       console.error('Error updating character:', error);
-      const { showToast } = await import('./index.js');
       showToast('Error updating character', 'error');
     }
   }
 
   /**
    * Populate the editor with current character data
+   * Note: For BotWaffle bots, only show the name and avatar - don't populate prompt fields
+   * The prompt fields should be empty so users can type their own image prompts
    */
   populateEditor() {
     if (!this.currentCharacter) {
@@ -667,45 +746,70 @@ class CharacterBuilder {
 
     console.log('Populating editor with character:', this.currentCharacter);
 
-    const fields = [
-      'characterName', 'characterGender', 'characterAge', 'characterHair',
-      'characterEyes', 'characterClothing', 'characterStyle', 'characterPersonality', 'characterGenitals', 'characterTags'
+    // Only populate the name field (for reference)
+    const nameElement = document.getElementById('characterName');
+    if (nameElement) {
+      nameElement.value = this.currentCharacter.name || '';
+    }
+
+    // Load prompt fields from bot's resources if available, otherwise leave empty
+    const promptFields = [
+      'characterGender', 'characterAge', 'characterHair',
+      'characterEyes', 'characterClothing', 'characterStyle', 
+      'characterPersonality', 'characterGenitals', 'characterTags'
     ];
 
-    fields.forEach(fieldId => {
+    // Check if bot has saved image prompt data
+    let imagePrompts = null;
+    if (this.currentCharacter.botData?.resources?.imagePrompts) {
+      imagePrompts = this.currentCharacter.botData.resources.imagePrompts;
+    }
+
+    promptFields.forEach(fieldId => {
       const element = document.getElementById(fieldId);
       if (element) {
-        const propertyName = fieldId.replace('character', '').toLowerCase();
-        const value = this.currentCharacter[propertyName] || '';
-        console.log(`Setting ${fieldId} (${propertyName}) to:`, value);
-        element.value = value;
-      } else {
-        console.warn(`Element not found: ${fieldId}`);
+        if (imagePrompts) {
+          // Load from saved bot data
+          const propertyName = fieldId.replace('character', '').toLowerCase();
+          element.value = imagePrompts[propertyName] || '';
+        } else {
+          // Leave empty for new prompts
+          element.value = '';
+        }
       }
     });
 
-    // Clear image previews first
-    this.clearImagePreviews();
+    // Clear avatar preview first
+    this.clearAvatarPreview();
     
-    // Handle character images
-    if (this.currentCharacter.imagePath1) {
-      this.loadCharacterImageForEditor(this.currentCharacter.imagePath1, 1);
+    // Load avatar if available (for visual reference only)
+    if (this.currentCharacter.avatar) {
+      this.loadAvatarPreview(this.currentCharacter.avatar);
     }
-    if (this.currentCharacter.imagePath2) {
-      this.loadCharacterImageForEditor(this.currentCharacter.imagePath2, 2);
-    }
+    
+    // Update preview to show empty (since fields are cleared)
+    this.updatePreview();
   }
 
   /**
-   * Update the character preview
+   * Update the character preview - shows only prompt fields
    */
   updatePreview() {
     if (!this.characterPreview) return;
 
     const character = this.getCharacterFromForm();
-    const description = this.generateCharacterPrompt(character);
+    const prompt = this.generateCharacterPrompt(character);
     
-    this.characterPreview.textContent = description;
+    // Format the preview nicely - show prompt fields only
+    if (!prompt || prompt.trim() === '') {
+      this.characterPreview.textContent = 'No prompt fields filled. Fill in the fields above to generate a prompt.';
+      this.characterPreview.style.color = 'var(--text-secondary)';
+      this.characterPreview.style.fontStyle = 'italic';
+    } else {
+      this.characterPreview.textContent = prompt;
+      this.characterPreview.style.color = 'var(--text-primary)';
+      this.characterPreview.style.fontStyle = 'normal';
+    }
   }
 
   /**
@@ -774,9 +878,10 @@ class CharacterBuilder {
     try {
       const characterData = this.getCharacterFromForm();
       
+      const { showToast } = await import('./index.js');
+      
       // Validate that character has a name
       if (!characterData.name || characterData.name.trim() === '') {
-        const { showToast } = await import('./index.js');
         showToast('Please enter a character name before adding the character', 'warning');
         return;
       }
@@ -790,8 +895,7 @@ class CharacterBuilder {
       );
       
       if (existingCharacter) {
-        const { showToast } = await import('./index.js');
-        showToast(`Character "${characterName}" already exists! Use "Update Character" to modify it, or choose a different name.`, 'warning');
+        showToast(`Character "${characterName}" already exists! Use "Save" to update it, or choose a different name.`, 'warning');
         return;
       }
       
@@ -904,6 +1008,193 @@ class CharacterBuilder {
         this.characters.push({ ...this.currentCharacter });
       }
 
+      // Check if character is linked to a BotWaffle bot, or if we need to create one
+      let botId = null;
+      let botData = null;
+
+      // If character already has botData, use it
+      if (this.currentCharacter.botData && this.currentCharacter.botData.id) {
+        botId = this.currentCharacter.botData.id;
+        botData = this.currentCharacter.botData;
+      } else {
+        // Check if a bot with this name already exists
+        try {
+          const allBots = await window.electronAPI.listChatbots();
+          const existingBot = allBots.find(bot => 
+            bot.profile?.name?.toLowerCase() === characterName.toLowerCase()
+          );
+
+          if (existingBot) {
+            // Link to existing bot
+            botId = existingBot.id;
+            botData = existingBot;
+            this.currentCharacter.botData = existingBot;
+            console.log('Linked character to existing BotWaffle bot:', botId);
+          } else {
+            // Create a new bot in BotWaffle
+            try {
+              // Prepare avatar image path if available
+              const avatarImages = [];
+              if (this.currentCharacter.avatar) {
+                avatarImages.push(this.currentCharacter.avatar);
+              }
+
+              // Prepare tags from character data
+              const botTags = [];
+              if (characterData.tags && characterData.tags.trim()) {
+                const tagArray = characterData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+                botTags.push(...tagArray);
+              }
+
+              // Create bot profile data
+              const newBotData = {
+                name: characterName,
+                category: 'Character', // Default category
+                tags: botTags,
+                images: avatarImages,
+                description: prompt || '', // Use generated prompt as description
+                thumbnailIndex: avatarImages.length > 0 ? 0 : -1
+              };
+
+              const newBot = await window.electronAPI.createChatbot(newBotData);
+              botId = newBot.id;
+              botData = newBot;
+              this.currentCharacter.botData = newBot;
+              // Also update the character's botId reference
+              this.currentCharacter.botId = newBot.id;
+              console.log('Created new BotWaffle bot for character:', botId);
+              showToast(`Created new bot "${characterName}" in BotWaffle`, 'success');
+              
+              // Notify main window to refresh bot list
+              try {
+                if (window.electronAPI && typeof window.electronAPI.notifyBotCreated === 'function') {
+                  window.electronAPI.notifyBotCreated(newBot.id, characterName);
+                }
+              } catch (error) {
+                console.warn('Could not notify main window of bot creation:', error);
+              }
+              
+              // Reload characters to include the new bot
+              await this.loadCharacters();
+            } catch (createError) {
+              console.warn('Could not create BotWaffle bot:', createError);
+              // Continue without bot - character will still be saved as snippet
+            }
+          }
+        } catch (error) {
+          console.warn('Could not check/create BotWaffle bot:', error);
+          // Continue without bot - character will still be saved as snippet
+        }
+      }
+
+      // If we have a bot, save the prompt data to it
+      if (botId && botData && window.electronAPI?.updateChatbot) {
+        try {
+          const updatedBot = { ...botData };
+          
+          // Store character prompt data in bot's resources
+          if (!updatedBot.resources) {
+            updatedBot.resources = {};
+          }
+          if (!updatedBot.resources.imagePrompts) {
+            updatedBot.resources.imagePrompts = {};
+          }
+          
+          // Save the prompt fields
+          updatedBot.resources.imagePrompts = {
+            gender: characterData.gender || '',
+            age: characterData.age || '',
+            hair: characterData.hair || '',
+            eyes: characterData.eyes || '',
+            clothing: characterData.clothing || '',
+            style: characterData.style || '',
+            personality: characterData.personality || '',
+            genitals: characterData.genitals || '',
+            tags: characterData.tags || '',
+            prompt: prompt, // The generated prompt
+            lastUpdated: Date.now()
+          };
+          
+          // Also add to bot's metadata.imagePrompts array (for Image Prompts view)
+          if (!updatedBot.metadata) {
+            updatedBot.metadata = {};
+          }
+          if (!Array.isArray(updatedBot.metadata.imagePrompts)) {
+            updatedBot.metadata.imagePrompts = [];
+          }
+          
+          // Check if this character snippet already exists in imagePrompts
+          const characterPromptName = `[Character Snippet] ${characterData.name || 'Unnamed'}`;
+          const existingIndex = updatedBot.metadata.imagePrompts.findIndex(
+            p => typeof p === 'object' && p.name === characterPromptName
+          );
+          
+          // Create date tag in format YYYY-MM-DD for sorting
+          const now = new Date();
+          const dateTag = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          // Create timestamp tag for precise sorting (hidden, sortable format: YYYY-MM-DD-HH-MM-SS)
+          const timestampTag = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+          
+          // Create the prompt object with character snippet indicator
+          const characterPrompt = {
+            name: characterPromptName,
+            text: prompt,
+            tags: ['character-snippet', 'character-builder', dateTag, timestampTag, ...(characterData.tags ? characterData.tags.split(',').map(t => t.trim()).filter(t => t) : [])],
+            createdAt: this.currentCharacter.created ? new Date(this.currentCharacter.created).toISOString() : new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            source: 'character-builder',
+            characterId: this.currentCharacter.id
+          };
+          
+          if (existingIndex >= 0) {
+            // Update existing prompt
+            updatedBot.metadata.imagePrompts[existingIndex] = characterPrompt;
+            console.log('Updated existing character snippet in imagePrompts:', existingIndex);
+          } else {
+            // Add new prompt
+            updatedBot.metadata.imagePrompts.push(characterPrompt);
+            console.log('Added new character snippet to imagePrompts');
+          }
+          
+          // Update the bot in BotWaffle
+          await window.electronAPI.updateChatbot(botId, updatedBot);
+          console.log('Character prompt data saved to BotWaffle bot:', botId);
+          
+          // Also save as .txt file in image-prompts folder
+          try {
+            const characterFolderPath = await window.electronAPI.getCharacterFolderPath(botId, 'image-prompts');
+            if (characterFolderPath) {
+              const safeName = (characterData.name || 'character').replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'character';
+              const fileName = `character-snippet-${safeName}-${this.currentCharacter.id}.txt`;
+              const filePath = require('path').join(characterFolderPath, fileName);
+              
+              // Create file content with header indicating it's a character snippet
+              const fileContent = `# Character Snippet: ${characterData.name || 'Unnamed'}
+# Generated by Character Builder
+# Character ID: ${this.currentCharacter.id}
+# Created: ${new Date().toISOString()}
+
+Tags: character-snippet, character-builder${characterData.tags ? ', ' + characterData.tags : ''}
+
+${prompt}
+`;
+              
+              // Note: We need to use the Electron API to write to the character folder
+              // Since we're in PromptWaffle webview, we'll need to use IPC
+              // For now, we'll rely on the metadata.imagePrompts array
+              // The file can be created when viewing in BotWaffle's Image Prompts view
+              console.log('Character snippet would be saved to:', filePath);
+            }
+          } catch (fileError) {
+            console.warn('Could not save character snippet file:', fileError);
+            // Non-critical, continue
+          }
+        } catch (error) {
+          console.warn('Could not save character data to BotWaffle bot:', error);
+          // Don't fail the save if this doesn't work
+        }
+      }
+
       // Update UI
       this.updateCharacterLibrary();
       this.updatePreview();
@@ -911,9 +1202,8 @@ class CharacterBuilder {
       // Also add to sidebar as a snippet (pass the snippetData to avoid re-reading)
       await this.addCharacterToSidebar(snippetData);
 
-      // Show success notification
-      const { showToast } = await import('./index.js');
-      showToast(`Character "${characterData.name || 'Unnamed'}" added successfully!`, 'success');
+      // Show success notification (showToast already imported at top of function)
+      showToast(`Character "${characterData.name || 'Unnamed'}" saved successfully!`, 'success');
 
       console.log('Character saved successfully');
     } catch (error) {
@@ -925,6 +1215,7 @@ class CharacterBuilder {
    * Delete a character
    */
   async deleteCharacter(characterId = null) {
+    const { showToast } = await import('./index.js');
     const id = characterId || (this.currentCharacter ? this.currentCharacter.id : null);
     if (!id) return;
 
@@ -942,6 +1233,7 @@ class CharacterBuilder {
         if (character.filePath) {
           try {
             await window.electronAPI.deleteFile(character.filePath);
+            console.log('Character file deleted:', character.filePath);
           } catch (error) {
             console.warn('Could not delete character file:', error);
           }
@@ -949,6 +1241,7 @@ class CharacterBuilder {
 
         // Remove from characters array
         this.characters = this.characters.filter(c => c.id !== id);
+        this.filteredCharacters = this.filteredCharacters.filter(c => c.id !== id);
 
         // Clear current character if it was deleted
         if (this.currentCharacter && this.currentCharacter.id === id) {
@@ -961,7 +1254,41 @@ class CharacterBuilder {
           const snippets = AppState.getSnippets();
           delete snippets[character.filePath];
           AppState.setSnippets(snippets);
-          console.log('Character removed from AppState snippets');
+          console.log('Character removed from AppState snippets:', character.filePath);
+          
+          // Also remove from sidebar tree if it exists
+          try {
+            if (window.sidebarTree && character.filePath) {
+              // Use the same removal logic as sidebar.js
+              const removeSnippetFromTree = (tree, path) => {
+                if (!tree || !Array.isArray(tree)) return null;
+                for (let i = 0; i < tree.length; i++) {
+                  if (tree[i].type === 'snippet' && tree[i].path === path) {
+                    return tree.splice(i, 1)[0];
+                  } else if (tree[i].type === 'folder' && tree[i].children) {
+                    const found = removeSnippetFromTree(tree[i].children, path);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+              
+              const removed = removeSnippetFromTree(window.sidebarTree, character.filePath);
+              if (removed) {
+                console.log('Character removed from sidebar tree');
+                // Refresh sidebar
+                const { renderSidebar } = await import('../bootstrap/sidebar.js');
+                if (renderSidebar) {
+                  const foldersContainer = document.getElementById('foldersContainer');
+                  if (foldersContainer) {
+                    renderSidebar(window.sidebarTree, foldersContainer);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Could not remove from sidebar tree:', error);
+          }
         }
 
         // Remove from sidebar tree and refresh sidebar
@@ -1024,7 +1351,6 @@ class CharacterBuilder {
         this.updatePreview();
 
         // Show success notification
-        const { showToast } = await import('./index.js');
         showToast(`Character "${character.name || 'Unnamed'}" deleted successfully!`, 'success');
 
         console.log('Character deleted successfully');
@@ -1038,6 +1364,7 @@ class CharacterBuilder {
    * Duplicate a character
    */
   async duplicateCharacter(characterId) {
+    const { showToast } = await import('./index.js');
     const character = this.characters.find(c => c.id === characterId);
     if (!character) {
       console.warn('Character not found for duplication:', characterId);
@@ -1128,13 +1455,11 @@ class CharacterBuilder {
       this.updateCharacterLibrary();
 
       // Show success notification
-      const { showToast } = await import('./index.js');
       showToast(`Character "${duplicatedCharacter.name}" duplicated successfully!`, 'success');
 
       console.log('Character duplicated successfully:', duplicatedCharacter.name);
     } catch (error) {
       console.error('Error duplicating character:', error);
-      const { showToast } = await import('./index.js');
       showToast('Error duplicating character: ' + error.message, 'error');
     }
   }
@@ -1205,10 +1530,10 @@ class CharacterBuilder {
    * Add character to board as a snippet
    */
   async addCharacterToBoard() {
+    const { showToast } = await import('./index.js');
     console.log('addCharacterToBoard called, currentCharacter:', this.currentCharacter);
     if (!this.currentCharacter) {
       console.warn('No current character to add to board');
-      const { showToast } = await import('./index.js');
       showToast('No character selected to add to board', 'error');
       return;
     }
@@ -1220,68 +1545,138 @@ class CharacterBuilder {
 
     if (!prompt.trim()) {
       console.warn('No prompt generated for character');
-      const { showToast } = await import('./index.js');
-      showToast('Character has no content to add to board', 'error');
+      showToast('Please fill in at least one prompt field to add to board', 'error');
       return;
     }
 
     try {
-      console.log('Current character file path:', this.currentCharacter.filePath);
-      
-      // Check if character already exists in AppState
-      let snippetData;
-      const snippets = AppState.getSnippets();
-      console.log('Current AppState snippets:', Object.keys(snippets));
-      snippetData = snippets[this.currentCharacter.filePath];
-      console.log('Snippet data from AppState:', snippetData);
-
-      // Always ensure the snippet is in AppState before adding to board
-      if (!snippetData) {
-        console.log('Reading snippet data from file...');
-        const content = await window.electronAPI.readFile(this.currentCharacter.filePath);
-        snippetData = JSON.parse(content);
-        console.log('Snippet data read from file:', snippetData);
+      // Ensure character has a name
+      if (!characterData.name || characterData.name.trim() === '') {
+        showToast('Please enter a character name before adding to board', 'warning');
+        return;
       }
 
-      // Always add to AppState snippets (even if it exists, to ensure it's current)
+      // Update current character with form data
+      Object.assign(this.currentCharacter, characterData);
+      this.currentCharacter.modified = Date.now();
+
+      // Generate file path if new character (doesn't have one yet)
+      if (!this.currentCharacter.filePath) {
+        const safeName = this.currentCharacter.name.replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'character';
+        const fileName = `${safeName}_${this.currentCharacter.id}.json`;
+        this.currentCharacter.filePath = `snippets/characters/${fileName}`;
+        console.log('Generated file path for new character:', this.currentCharacter.filePath);
+      }
+
+      console.log('Current character file path:', this.currentCharacter.filePath);
+      
+      // Build tags array
+      const tags = ['character'];
+      if (characterData.name && characterData.name.trim()) {
+        tags.push(characterData.name.trim());
+      }
+      if (characterData.tags && characterData.tags.trim()) {
+        const additionalTags = characterData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        tags.push(...additionalTags);
+      }
+      
+      // Create snippet data
+      const snippetData = {
+        name: characterData.name || 'Character',
+        text: prompt,
+        tags: tags,
+        type: 'character',
+        created: this.currentCharacter.created || Date.now(),
+        modified: Date.now(),
+        characterData: this.currentCharacter
+      };
+
+      // Save snippet to file
+      console.log('Saving snippet to file:', this.currentCharacter.filePath);
+      await window.electronAPI.writeFile(this.currentCharacter.filePath, JSON.stringify(snippetData, null, 2));
+      console.log('Snippet saved to file successfully');
+
+      // Add to AppState snippets
       const currentSnippets = AppState.getSnippets();
       currentSnippets[this.currentCharacter.filePath] = snippetData;
       AppState.setSnippets(currentSnippets);
       console.log('Character added to AppState snippets');
-      console.log('Updated AppState snippets:', Object.keys(currentSnippets));
       
-      // Verify it was added
-      const updatedSnippets = AppState.getSnippets();
-      const verifySnippet = updatedSnippets[this.currentCharacter.filePath];
-      console.log('Verification - snippet in AppState:', !!verifySnippet);
-      if (!verifySnippet) {
-        console.error('Failed to add snippet to AppState!');
-        throw new Error('Failed to add snippet to AppState');
-        }
+      // Add to sidebar tree
+      await this.addCharacterToSidebar(snippetData);
+      console.log('Character added to sidebar');
 
-        // Add to board using the existing system
+      // Add to board using the existing system
       console.log('Importing addCardToBoard...');
-        const { addCardToBoard } = await import('../bootstrap/boards.js');
+      const { addCardToBoard } = await import('../bootstrap/boards.js');
       console.log('addCardToBoard imported successfully');
       
-        const x = 100 + (Math.random() * 200); // Random position
-        const y = 100 + (Math.random() * 200);
+      const x = 100 + (Math.random() * 200); // Random position
+      const y = 100 + (Math.random() * 200);
       console.log('Calling addCardToBoard with path:', this.currentCharacter.filePath, 'x:', x, 'y:', y);
       
       await addCardToBoard(this.currentCharacter.filePath, x, y);
       console.log('addCardToBoard completed successfully');
 
-        this.closeModal();
-        console.log('Character added to board successfully');
+      // Also save to BotWaffle image prompts if character is linked to a bot
+      if (this.currentCharacter.botData && this.currentCharacter.botData.id && window.electronAPI?.updateChatbot) {
+        try {
+          const botId = this.currentCharacter.botData.id;
+          const bot = await window.electronAPI.getChatbot(botId);
+          if (bot) {
+            if (!bot.metadata) {
+              bot.metadata = {};
+            }
+            if (!Array.isArray(bot.metadata.imagePrompts)) {
+              bot.metadata.imagePrompts = [];
+            }
+            
+            const characterPromptName = `[Character Snippet] ${characterData.name || 'Unnamed'}`;
+            const existingIndex = bot.metadata.imagePrompts.findIndex(
+              p => typeof p === 'object' && p.name === characterPromptName
+            );
+            
+            // Create date tag in format YYYY-MM-DD for sorting
+            const now = new Date();
+            const dateTag = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            // Create timestamp tag for precise sorting (hidden, sortable format: YYYY-MM-DD-HH-MM-SS)
+            const timestampTag = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+            
+            const characterPrompt = {
+              name: characterPromptName,
+              text: prompt,
+              tags: ['character-snippet', 'character-builder', dateTag, timestampTag, ...(characterData.tags ? characterData.tags.split(',').map(t => t.trim()).filter(t => t) : [])],
+              createdAt: this.currentCharacter.created ? new Date(this.currentCharacter.created).toISOString() : new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              source: 'character-builder',
+              characterId: this.currentCharacter.id
+            };
+            
+            if (existingIndex >= 0) {
+              bot.metadata.imagePrompts[existingIndex] = characterPrompt;
+            } else {
+              bot.metadata.imagePrompts.push(characterPrompt);
+            }
+            
+            await window.electronAPI.updateChatbot(botId, { metadata: bot.metadata });
+            console.log('Character snippet saved to BotWaffle image prompts');
+          }
+        } catch (imagePromptError) {
+          console.warn('Could not save to image prompts:', imagePromptError);
+          // Non-critical, continue
+        }
+      }
+
+      // Show success message but don't close the modal
+      showToast(`Character "${characterData.name || 'Unnamed'}" added to board successfully!`, 'success');
       
-      const { showToast } = await import('./index.js');
-      showToast('Character added to board successfully!', 'success');
-      } catch (error) {
-        console.error('Error adding character to board:', error);
-      const { showToast } = await import('./index.js');
+      console.log('Character added to board successfully');
+    } catch (error) {
+      console.error('Error adding character to board:', error);
+      console.error('Error stack:', error.stack);
       showToast('Error adding character to board: ' + error.message, 'error');
       
-        // Fallback: copy to clipboard
+      // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(prompt);
         console.log('Character prompt copied to clipboard as fallback');
@@ -1477,6 +1872,7 @@ class CharacterBuilder {
     // Clear images
     this.currentCharacterImage1 = null;
     this.currentCharacterImage2 = null;
+    this.currentAvatarFile = null;
     
     // Clear image previews
     this.clearImagePreviews();
@@ -1505,22 +1901,75 @@ class CharacterBuilder {
   /**
    * Open the character builder modal
    */
-  openModal() {
-    console.log('Opening character builder modal...');
-    if (this.modal) {
-      // Create a new character when opening the modal
+  async openModal() {
+    console.log('=== openModal() called ===');
+    console.log('Modal element:', this.modal);
+    console.log('isInitialized:', this.isInitialized);
+    
+    // Always try to find modal element fresh
+    if (!this.modal) {
+      this.modal = document.getElementById('characterBuilderModal');
+      console.log('Modal found via fresh search:', !!this.modal);
+    }
+    
+    if (!this.modal) {
+      console.error('Character builder modal not found - attempting to re-initialize...');
+      // Try to re-initialize
+      try {
+        await this.init();
+      } catch (initError) {
+        console.error('Error during re-initialization:', initError);
+      }
+      
+      // Try again after init
+      if (!this.modal) {
+        this.modal = document.getElementById('characterBuilderModal');
+      }
+      
+      if (!this.modal) {
+        console.error('Character builder modal still not found after re-initialization');
+        alert('ERROR: Character Builder modal not found in DOM. Please refresh the page.');
+        return;
+      }
+    }
+    
+    try {
+      console.log('Reloading bots from BotWaffle...');
+      // Reload bots from BotWaffle to get latest data
+      await this.loadCharacters();
+      console.log('Bots loaded, count:', this.characters.length);
+      
+      // Create a new character when opening the modal (for editing)
       this.createNewCharacter();
       this.populateEditor();
       
+      console.log('Setting modal display to block...');
       this.modal.style.display = 'block';
-      // Focus on the first input
-      const firstInput = this.characterEditor.querySelector('input');
-      if (firstInput) {
-        firstInput.focus();
-      }
-      console.log('Character builder modal opened');
-    } else {
-      console.error('Character builder modal not found');
+      console.log('Modal display set, current style:', this.modal.style.display);
+      
+      // Force visibility
+      this.modal.style.visibility = 'visible';
+      this.modal.style.opacity = '1';
+      
+      // Focus on search input if available, otherwise first input
+      setTimeout(() => {
+        if (this.characterLibrarySearch) {
+          this.characterLibrarySearch.focus();
+        } else {
+          const firstInput = this.characterEditor?.querySelector('input');
+          if (firstInput) {
+            firstInput.focus();
+          }
+        }
+      }, 100);
+      
+      console.log('=== Character builder modal opened successfully ===');
+    } catch (error) {
+      console.error('=== ERROR opening character builder modal ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Full error:', error);
+      alert('Error opening Character Builder: ' + error.message);
     }
   }
 
@@ -1618,6 +2067,121 @@ class CharacterBuilder {
     }
   }
 
+
+  /**
+   * Clear avatar preview
+   */
+  clearAvatarPreview() {
+    const avatarPreview = document.getElementById('characterAvatarPreview');
+    
+    if (avatarPreview) {
+      avatarPreview.innerHTML = `
+        <div class="character-avatar-placeholder">
+          <i data-feather="user"></i>
+          <span>No avatar</span>
+        </div>
+      `;
+      
+      // Refresh feather icons
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+    }
+    
+    const removeAvatarBtn = document.getElementById('removeAvatarBtn');
+    if (removeAvatarBtn) {
+      removeAvatarBtn.style.display = 'none';
+    }
+    
+    console.log('Avatar preview cleared');
+  }
+
+  /**
+   * Load avatar preview
+   */
+  async loadAvatarPreview(avatarPath) {
+    const avatarPreview = document.getElementById('characterAvatarPreview');
+    if (!avatarPreview) return;
+    
+    try {
+      const isLocalFile = !avatarPath.startsWith('http://') && 
+                         !avatarPath.startsWith('https://') && 
+                         !avatarPath.startsWith('file://');
+      
+      let imageSrc = avatarPath;
+      if (isLocalFile) {
+        const normalizedPath = avatarPath.replace(/\\/g, '/');
+        imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
+      }
+      
+      avatarPreview.innerHTML = `<img src="${imageSrc}" alt="Avatar" class="character-avatar-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
+      
+      const placeholder = document.createElement('div');
+      placeholder.className = 'character-avatar-placeholder';
+      placeholder.style.display = 'none';
+      placeholder.innerHTML = '<i data-feather="user"></i><span>No avatar</span>';
+      avatarPreview.appendChild(placeholder);
+      
+      const removeAvatarBtn = document.getElementById('removeAvatarBtn');
+      if (removeAvatarBtn) {
+        removeAvatarBtn.style.display = 'inline-block';
+      }
+      
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+    } catch (error) {
+      console.error('Error loading avatar preview:', error);
+      this.clearAvatarPreview();
+    }
+  }
+
+  /**
+   * Handle avatar upload
+   */
+  async handleAvatarUpload(file) {
+    if (!file) return;
+    
+    const avatarPreview = document.getElementById('characterAvatarPreview');
+    if (!avatarPreview) return;
+    
+    try {
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        avatarPreview.innerHTML = `<img src="${e.target.result}" alt="Avatar" class="character-avatar-image">`;
+        const removeAvatarBtn = document.getElementById('removeAvatarBtn');
+        if (removeAvatarBtn) {
+          removeAvatarBtn.style.display = 'inline-block';
+        }
+      };
+      reader.readAsDataURL(file);
+      
+      // Store file for later use (if needed to save to BotWaffle)
+      this.currentAvatarFile = file;
+    } catch (error) {
+      console.error('Error handling avatar upload:', error);
+    }
+  }
+
+  /**
+   * Remove avatar
+   */
+  async removeAvatar() {
+    const confirmed = await showConfirmationModal(
+      'Remove Avatar',
+      'Are you sure you want to remove the avatar?'
+    );
+    
+    if (!confirmed) return;
+    
+    this.currentAvatarFile = null;
+    if (this.currentCharacter) {
+      this.currentCharacter.avatar = null;
+    }
+    
+    this.clearAvatarPreview();
+  }
 
   /**
    * Clear image previews
@@ -1862,10 +2426,10 @@ class CharacterBuilder {
    * Copy character prompt to clipboard
    */
   async copyToClipboard() {
+    const { showToast } = await import('./index.js');
     try {
       if (!this.currentCharacter) {
         console.warn('No current character to copy');
-        const { showToast } = await import('./index.js');
         showToast('No character selected to copy', 'error');
         return;
       }
@@ -1875,16 +2439,13 @@ class CharacterBuilder {
       
       if (prompt.trim()) {
         await navigator.clipboard.writeText(prompt);
-        const { showToast } = await import('./index.js');
         showToast('Character prompt copied to clipboard!', 'success');
         console.log('Character prompt copied to clipboard:', prompt);
       } else {
-        const { showToast } = await import('./index.js');
         showToast('No character data to copy', 'error');
       }
     } catch (error) {
       console.error('Error copying to clipboard:', error);
-      const { showToast } = await import('./index.js');
       showToast('Failed to copy to clipboard', 'error');
     }
   }
@@ -1893,10 +2454,10 @@ class CharacterBuilder {
    * Export character to markdown format
    */
   async exportToMarkdown() {
+    const { showToast } = await import('./index.js');
     try {
       if (!this.currentCharacter) {
         console.warn('No current character to export');
-        const { showToast } = await import('./index.js');
         showToast('No character selected to export', 'error');
         return;
       }
@@ -1905,7 +2466,6 @@ class CharacterBuilder {
       const prompt = this.generateCharacterPrompt(characterData);
       
       if (!prompt.trim()) {
-        const { showToast } = await import('./index.js');
         showToast('No character data to export', 'error');
         return;
       }
@@ -1924,12 +2484,10 @@ class CharacterBuilder {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      const { showToast } = await import('./index.js');
       showToast('Character exported to markdown!', 'success');
       console.log('Character exported to markdown:', markdown);
     } catch (error) {
       console.error('Error exporting to markdown:', error);
-      const { showToast } = await import('./index.js');
       showToast('Failed to export to markdown', 'error');
     }
   }

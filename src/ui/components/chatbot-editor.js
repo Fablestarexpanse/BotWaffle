@@ -3,6 +3,9 @@ class ChatbotEditor extends HTMLElement {
         super();
         this.currentId = null;
         this._isDirty = false;
+        this._listenersSetup = false;
+        this._eventHandlers = new Map();
+        this._mutationObservers = [];
     }
 
     get hasUnsavedChanges() {
@@ -25,6 +28,11 @@ class ChatbotEditor extends HTMLElement {
 
     connectedCallback() {
         this.render();
+    }
+
+    disconnectedCallback() {
+        // Clean up all listeners when element is removed from DOM
+        this.cleanupListeners();
     }
 
     render() {
@@ -424,18 +432,50 @@ class ChatbotEditor extends HTMLElement {
         }
     }
 
+    cleanupListeners() {
+        // Remove all stored event handlers
+        this._eventHandlers.forEach((handler, element) => {
+            if (element && handler) {
+                const [event, callback, options] = handler;
+                element.removeEventListener(event, callback, options);
+            }
+        });
+        this._eventHandlers.clear();
+
+        // Disconnect all mutation observers
+        this._mutationObservers.forEach(observer => {
+            if (observer) observer.disconnect();
+        });
+        this._mutationObservers = [];
+
+        this._listenersSetup = false;
+    }
+
     setupListeners() {
+        // Clean up existing listeners first to prevent duplicates
+        if (this._listenersSetup) {
+            this.cleanupListeners();
+        }
+
+        // Helper to store event handlers for cleanup
+        const addStoredListener = (element, event, callback, options = false) => {
+            if (!element) return;
+            element.addEventListener(event, callback, options);
+            this._eventHandlers.set(element, [event, callback, options]);
+        };
+
         // Character sheet removed - no collapse/expand needed
 
         // Listen for section changes to update display name
-        this.addEventListener('section-change', () => {
+        const sectionChangeHandler = () => {
             this.updateDisplayName();
-        });
+        };
+        addStoredListener(this, 'section-change', sectionChangeHandler);
 
         // Max token input handler
         const maxTokenInput = this.querySelector('#max-token-input');
         if (maxTokenInput) {
-            maxTokenInput.addEventListener('input', () => {
+            const maxTokenHandler = () => {
                 const otherSectionsContainer = this.querySelector('#other-sections-container');
                 const otherSectionsAfterContainer = this.querySelector('#other-sections-after-container');
                 if (otherSectionsContainer && otherSectionsAfterContainer) {
@@ -451,47 +491,63 @@ class ChatbotEditor extends HTMLElement {
                     });
                     this.updateTokenStatus(totalTokens);
                 }
-            });
+            };
+            addStoredListener(maxTokenInput, 'input', maxTokenHandler);
         }
 
         // Set up token counting updates (container declared below for drag/drop)
 
-        this.querySelector('#save-btn').addEventListener('click', async () => {
-            await this.save();
-        });
+        const saveBtn = this.querySelector('#save-btn');
+        if (saveBtn) {
+            const saveHandler = async () => {
+                await this.save();
+            };
+            addStoredListener(saveBtn, 'click', saveHandler);
+        }
 
 
         const deleteBtn = this.querySelector('#delete-btn');
         if (deleteBtn) {
-            deleteBtn.addEventListener('click', () => {
+            const deleteHandler = () => {
                 const chatbotName = this._data?.name || this._data?.profile?.name || 'this chatbot';
                 window.EditorModals.showDeleteConfirmationModal(this, chatbotName);
-            });
+            };
+            addStoredListener(deleteBtn, 'click', deleteHandler);
         }
 
         const exportCharacterBtn = this.querySelector('#export-character-btn');
         if (exportCharacterBtn) {
-            exportCharacterBtn.addEventListener('click', async () => {
+            const exportCharacterHandler = async () => {
                 await this.exportCharacter();
-            });
+            };
+            addStoredListener(exportCharacterBtn, 'click', exportCharacterHandler);
         }
 
         const exportSheetBtn = this.querySelector('#export-sheet-btn');
         if (exportSheetBtn) {
-            exportSheetBtn.addEventListener('click', async () => {
+            const exportSheetHandler = async () => {
                 await this.exportCharacterSheet();
-            });
+            };
+            addStoredListener(exportSheetBtn, 'click', exportSheetHandler);
         }
 
         // Load Template Logic
-        this.querySelector('#load-template-btn').addEventListener('click', async () => {
-            await window.EditorModals.showLoadTemplateModal(this);
-        });
+        const loadTemplateBtn = this.querySelector('#load-template-btn');
+        if (loadTemplateBtn) {
+            const loadTemplateHandler = async () => {
+                await window.EditorModals.showLoadTemplateModal(this);
+            };
+            addStoredListener(loadTemplateBtn, 'click', loadTemplateHandler);
+        }
 
         // Save Template Logic
-        this.querySelector('#save-template-btn').addEventListener('click', async () => {
-            window.EditorModals.showSaveTemplateModal(this);
-        });
+        const saveTemplateBtn = this.querySelector('#save-template-btn');
+        if (saveTemplateBtn) {
+            const saveTemplateHandler = async () => {
+                window.EditorModals.showSaveTemplateModal(this);
+            };
+            addStoredListener(saveTemplateBtn, 'click', saveTemplateHandler);
+        }
 
         // Re-initialize feather icons for new buttons (like export-character-btn)
         if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
@@ -499,7 +555,7 @@ class ChatbotEditor extends HTMLElement {
         }
 
         // Listen for section events
-        this.addEventListener('remove-section', (e) => {
+        const removeSectionHandler = (e) => {
             const section = e.target;
             // Don't allow removing required sections
             const tagName = section.tagName.toLowerCase();
@@ -513,7 +569,8 @@ class ChatbotEditor extends HTMLElement {
                 section.remove();
                 this.updateTokenCounts();
             }
-        });
+        };
+        addStoredListener(this, 'remove-section', removeSectionHandler);
 
         // DRAG AND DROP HANDLERS
         const otherSectionsContainer = this.querySelector('#other-sections-container');
@@ -524,18 +581,21 @@ class ChatbotEditor extends HTMLElement {
             if (!container) return;
             
             // Update tokens when content changes
-            container.addEventListener('input', () => {
+            const inputHandler = () => {
                 setTimeout(() => this.updateTokenCounts(), 100);
-            });
-            container.addEventListener('change', () => {
+            };
+            const changeHandler = () => {
                 setTimeout(() => this.updateTokenCounts(), 100);
-            });
+            };
+            addStoredListener(container, 'input', inputHandler);
+            addStoredListener(container, 'change', changeHandler);
             
             // Also update when sections are added/removed
             const observer = new MutationObserver(() => {
                 setTimeout(() => this.updateTokenCounts(), 200);
             });
             observer.observe(container, { childList: true, subtree: true });
+            this._mutationObservers.push(observer);
         });
         
         let draggedItem = null;
@@ -543,7 +603,7 @@ class ChatbotEditor extends HTMLElement {
 
         // Set up drag and drop for sections in after-container
         if (otherSectionsAfterContainer) {
-            otherSectionsAfterContainer.addEventListener('dragstart', (e) => {
+            const dragStartHandler = (e) => {
                 if (e.target.getAttribute('draggable') === 'true') {
                     draggedItem = e.target;
                     targetContainer = otherSectionsAfterContainer;
@@ -551,18 +611,18 @@ class ChatbotEditor extends HTMLElement {
                     e.dataTransfer.setData('text/plain', e.target.id);
                     setTimeout(() => e.target.style.opacity = '0.5', 0);
                 }
-            });
+            };
 
-            otherSectionsAfterContainer.addEventListener('dragend', (e) => {
+            const dragEndHandler = (e) => {
                 if (e.target.getAttribute('draggable') === 'true') {
                     e.target.style.opacity = '1';
                     draggedItem = null;
                     targetContainer = null;
                     this.updateLayoutFromDOM();
                 }
-            });
+            };
 
-            otherSectionsAfterContainer.addEventListener('dragover', (e) => {
+            const dragOverHandler = (e) => {
                 // Only prevent default if we're actually dragging a section
                 if (draggedItem && targetContainer === otherSectionsAfterContainer) {
                     e.preventDefault();
@@ -573,21 +633,26 @@ class ChatbotEditor extends HTMLElement {
                         otherSectionsAfterContainer.insertBefore(draggedItem, afterElement);
                     }
                 }
-            });
+            };
+
+            addStoredListener(otherSectionsAfterContainer, 'dragstart', dragStartHandler);
+            addStoredListener(otherSectionsAfterContainer, 'dragend', dragEndHandler);
+            addStoredListener(otherSectionsAfterContainer, 'dragover', dragOverHandler);
         }
 
         // Monitor changes from sections
-        this.addEventListener('section-change', () => {
+        const sectionChangeDirtyHandler = () => {
             this._isDirty = true;
             // Optional: visual indicator on Save button
             const saveBtn = this.querySelector('#save-btn');
             if (saveBtn) saveBtn.textContent = 'Save*';
             // Update token counts when sections change
             this.updateTokenCounts();
-        });
+        };
+        addStoredListener(this, 'section-change', sectionChangeDirtyHandler);
 
         // Handle status changes - save immediately without requiring full save
-        this.addEventListener('status-change', async (e) => {
+        const statusChangeHandler = async (e) => {
             if (this._mode === 'edit' && this.currentId && e.detail.status) {
                 try {
                     await window.api.chatbot.update(this.currentId, {
@@ -607,7 +672,10 @@ class ChatbotEditor extends HTMLElement {
                     alert('Failed to update status. Please try again.');
                 }
             }
-        });
+        };
+        addStoredListener(this, 'status-change', statusChangeHandler);
+
+        this._listenersSetup = true;
 
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('[draggable="true"]:not([style*="opacity: 0.5"])')];
@@ -940,7 +1008,11 @@ class ChatbotEditor extends HTMLElement {
             // Update display name after save
             this.updateDisplayName();
 
-            this.dispatchEvent(new CustomEvent('editor-save', { bubbles: true }));
+            // Dispatch save event with bot ID so sidebar can update
+            this.dispatchEvent(new CustomEvent('editor-save', { 
+                bubbles: true,
+                detail: { botId: this.currentId }
+            }));
         } catch (error) {
             console.error('Save failed:', error);
             alert('Failed to save chatbot. Check console for details.');

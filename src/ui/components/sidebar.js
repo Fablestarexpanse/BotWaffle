@@ -19,7 +19,15 @@ class Sidebar {
             this.hideBotSpecificOptions();
         });
 
-        document.addEventListener('editor-save', () => {
+        document.addEventListener('editor-save', (e) => {
+            // Update current bot ID if provided (e.g., when a new bot is created and saved)
+            if (e.detail && e.detail.botId) {
+                this.currentBotId = e.detail.botId;
+                // Show bot-specific options if they don't exist yet (for newly created bots)
+                if (!this.navLinksContainer.querySelector('.bot-specific-section')) {
+                    this.showBotSpecificOptions();
+                }
+            }
             // Keep bot-specific options visible after save
         });
 

@@ -42,7 +42,7 @@ class DataManagement {
         const versionElement = document.getElementById('currentVersion');
         if (versionElement) {
             // Get version from package.json or use default
-            versionElement.textContent = '1.3.1';
+            versionElement.textContent = '1.4.0';
         }
     }
 

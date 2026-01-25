@@ -40,11 +40,47 @@ export function createDefaultSnippets() {
     id: snippet.id // Use the predefined IDs for consistency
   }));
 }
+// Track which default snippets have been intentionally deleted by the user
+const DELETED_SNIPPETS_FILE = 'snippets/.deleted-default-snippets.json';
+
+async function getDeletedSnippetsList() {
+  try {
+    const content = await window.electronAPI.readFile(DELETED_SNIPPETS_FILE);
+    const deleted = JSON.parse(content);
+    return Array.isArray(deleted) ? deleted : [];
+  } catch (e) {
+    // File doesn't exist yet - no snippets have been deleted
+    return [];
+  }
+}
+
+export async function markSnippetAsDeleted(snippetId) {
+  try {
+    const deleted = await getDeletedSnippetsList();
+    if (!deleted.includes(snippetId)) {
+      deleted.push(snippetId);
+      await window.electronAPI.writeFile(
+        DELETED_SNIPPETS_FILE,
+        JSON.stringify(deleted, null, 2)
+      );
+    }
+  } catch (error) {
+    console.error('Error marking snippet as deleted:', error);
+  }
+}
+
 // Function to check if default snippets already exist
 export async function checkDefaultSnippetsExist() {
   try {
     const existingSnippets = [];
+    const deletedSnippets = await getDeletedSnippetsList();
+    
     for (const snippet of DEFAULT_SNIPPETS) {
+      // Skip if this snippet was intentionally deleted by the user
+      if (deletedSnippets.includes(snippet.id)) {
+        continue;
+      }
+      
       const filePath = `snippets/Start Here/${snippet.id}.json`;
       try {
         const content = await window.electronAPI.readFile(filePath);

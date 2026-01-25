@@ -229,6 +229,8 @@ export function createBoardElement({
   boardElement.addEventListener('dragstart', e => {
     // Set global drag state
     window.isDragging = true;
+    // Set drag effect to 'move' to indicate this is a move operation, not a copy
+    e.dataTransfer.effectAllowed = 'move';
     // Hide any image previews when dragging starts
     eventHandlers.hideImagePreview();
     // Create enhanced drag image with better cleanup

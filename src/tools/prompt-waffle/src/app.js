@@ -128,17 +128,128 @@ async function init() {
     // Initialize character builder after board system is ready
     // Initialize character builder
     try {
+      console.log('Starting Character Builder initialization...');
       const { characterBuilder } = await import('./utils/characterBuilder.js');
-      await characterBuilder.init();
-
-      // Setup character builder event listeners
-      const openCharacterBuilderBtn = document.getElementById('openCharacterBuilderBtn');
-
-      if (openCharacterBuilderBtn) {
-        openCharacterBuilderBtn.addEventListener('click', () => {
-          characterBuilder.openModal();
-        });
+      console.log('Character Builder module imported:', !!characterBuilder);
+      
+      if (!characterBuilder) {
+        throw new Error('Character Builder module is undefined');
       }
+
+      await characterBuilder.init();
+      console.log('Character Builder init() completed, isInitialized:', characterBuilder.isInitialized);
+
+      // Setup character builder event listeners - try multiple times if button not found
+      let openCharacterBuilderBtn = document.getElementById('openCharacterBuilderBtn');
+      
+      if (!openCharacterBuilderBtn) {
+        console.warn('Character Builder button not found immediately, waiting 500ms and retrying...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        openCharacterBuilderBtn = document.getElementById('openCharacterBuilderBtn');
+      }
+      
+      if (!openCharacterBuilderBtn) {
+        console.error('Character Builder button STILL not found after retry!');
+        console.error('Available buttons with "character" in id:', 
+          Array.from(document.querySelectorAll('[id*="character"], [id*="Character"]')).map(el => el.id));
+        throw new Error('Character Builder button not found in DOM');
+      }
+
+      console.log('Character Builder button found:', !!openCharacterBuilderBtn);
+      console.log('Button element:', openCharacterBuilderBtn);
+      console.log('Character Builder instance:', characterBuilder);
+
+      // Remove any existing listeners first
+      const newBtn = openCharacterBuilderBtn.cloneNode(true);
+      openCharacterBuilderBtn.parentNode.replaceChild(newBtn, openCharacterBuilderBtn);
+      openCharacterBuilderBtn = newBtn;
+
+      const clickHandler = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('=== Character Builder button clicked! ===');
+        console.log('Event:', e);
+        console.log('Character Builder isInitialized:', characterBuilder.isInitialized);
+        console.log('Button element:', openCharacterBuilderBtn);
+        
+        try {
+          // Ensure initialization before opening
+          if (!characterBuilder.isInitialized) {
+            console.log('Character Builder not initialized, initializing now...');
+            await characterBuilder.init();
+          }
+          
+          console.log('Calling characterBuilder.openModal()...');
+          const result = await characterBuilder.openModal();
+          console.log('characterBuilder.openModal() completed, result:', result);
+          
+          // Double-check modal is visible
+          const modal = document.getElementById('characterBuilderModal');
+          if (modal) {
+            console.log('Modal found after openModal, display:', modal.style.display);
+            console.log('Modal computed display:', window.getComputedStyle(modal).display);
+            if (modal.style.display !== 'block' && window.getComputedStyle(modal).display === 'none') {
+              console.warn('Modal display is not block, forcing it...');
+              modal.style.display = 'block';
+            }
+          } else {
+            console.error('Modal not found after openModal call!');
+          }
+        } catch (error) {
+          console.error('=== ERROR opening Character Builder ===');
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+          console.error('Full error:', error);
+          
+          try {
+            const { showToast } = await import('./utils/index.js');
+            showToast('Error opening Character Builder: ' + error.message, 'error');
+          } catch (toastError) {
+            console.error('Could not show toast:', toastError);
+            alert('Error opening Character Builder: ' + error.message);
+          }
+        }
+      };
+      
+      openCharacterBuilderBtn.addEventListener('click', clickHandler);
+      
+      console.log('Character Builder button click handler attached successfully');
+      
+      // Also try direct assignment as fallback
+      if (openCharacterBuilderBtn) {
+        openCharacterBuilderBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('=== Character Builder button clicked (onclick fallback)! ===');
+          try {
+            if (!characterBuilder.isInitialized) {
+              await characterBuilder.init();
+            }
+            await characterBuilder.openModal();
+          } catch (error) {
+            console.error('Error in onclick fallback:', error);
+            alert('Error: ' + error.message);
+          }
+        };
+      }
+      
+      // Also add a global click handler as ultimate fallback
+      document.addEventListener('click', async (e) => {
+        if (e.target.closest('#openCharacterBuilderBtn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('=== Character Builder button clicked (global handler)! ===');
+          try {
+            if (!characterBuilder.isInitialized) {
+              await characterBuilder.init();
+            }
+            await characterBuilder.openModal();
+          } catch (error) {
+            console.error('Error in global handler:', error);
+            alert('Error: ' + error.message);
+          }
+        }
+      }, true);
 
       // Setup wildcard studio event listeners
       const openWildcardStudioBtn = document.getElementById('openWildcardStudioBtn');
@@ -156,8 +267,52 @@ async function init() {
         });
       }
 
+      // Expose openCharacterBuilder globally as fallback
+      window.openCharacterBuilder = async () => {
+        console.log('=== openCharacterBuilder called from global function ===');
+        try {
+          const { characterBuilder } = await import('./utils/characterBuilder.js');
+          if (!characterBuilder.isInitialized) {
+            await characterBuilder.init();
+          }
+          await characterBuilder.openModal();
+        } catch (error) {
+          console.error('Error in global openCharacterBuilder:', error);
+          alert('Error opening Character Builder: ' + error.message);
+        }
+      };
+      
+      // Test button immediately
+      setTimeout(() => {
+        const testBtn = document.getElementById('openCharacterBuilderBtn');
+        console.log('=== BUTTON TEST ===');
+        console.log('Button found:', !!testBtn);
+        console.log('Button element:', testBtn);
+        if (testBtn) {
+          console.log('Button parent:', testBtn.parentElement);
+          console.log('Button computed style:', window.getComputedStyle(testBtn));
+          console.log('Button pointer-events:', window.getComputedStyle(testBtn).pointerEvents);
+          console.log('Button z-index:', window.getComputedStyle(testBtn).zIndex);
+          
+          // Try to manually trigger click
+          testBtn.addEventListener('mousedown', (e) => {
+            console.log('=== MOUSEDOWN DETECTED ON BUTTON ===', e);
+          });
+          testBtn.addEventListener('mouseup', (e) => {
+            console.log('=== MOUSEUP DETECTED ON BUTTON ===', e);
+          });
+          testBtn.addEventListener('click', (e) => {
+            console.log('=== CLICK DETECTED ON BUTTON (direct) ===', e);
+          }, true); // Use capture phase
+        }
+      }, 2000);
+
       console.log('Character Builder initialized successfully');
     } catch (error) {
+      console.error('=== FATAL ERROR initializing Character Builder ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Full error:', error);
       console.warn('Character Builder not available:', error);
     }
 

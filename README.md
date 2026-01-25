@@ -140,11 +140,14 @@ BotWaffle uses a **Hybrid WebView Architecture**:
 
 #### Character Builder
 - **Character Creation**: Build detailed character profiles with customizable attributes
-- **Reference Images**: Upload and manage character reference images
-- **Character Library**: Organize characters with visual thumbnails
-- **Automatic Prompt Generation**: Generate AI-ready character descriptions
+- **BotWaffle Integration**: Character Builder now integrates with BotWaffle bots - create new bots directly from characters
+- **Character Library**: Displays all BotWaffle bots as selectable character cards with search functionality
+- **Avatar Support**: Uses bot avatars from BotWaffle for character visualization
+- **Automatic Prompt Generation**: Generate AI-ready character descriptions from form fields
+- **Image Prompts Integration**: Character snippets automatically save to BotWaffle's Image Prompts section with date tags
 - **Character Duplication**: Clone existing characters with automatic naming
 - **Export Options**: Copy character prompts to clipboard or export as Markdown
+- **Board Integration**: Add character snippets directly to PromptWaffle boards
 
 #### Wildcard Studio
 - **Dynamic Prompt Building**: Create complex prompts using wildcards and profiles
@@ -191,18 +194,26 @@ BotWaffle uses a **Hybrid WebView Architecture**:
 
 ## Data Storage
 
-All user data is stored locally in platform-specific directories:
+**Note**: BotWaffle now uses **portable storage** - all data is stored in the `data/` folder within the application directory, making it fully portable and easy to backup.
 
-- **Windows**: `%APPDATA%\BotWaffle\data\`
-- **macOS**: `~/Library/Application Support/BotWaffle/data/`
-- **Linux**: `~/.config/BotWaffle/data/`
+All user data is stored locally in the application's `data/` directory:
+
+- **Portable Mode**: `[Application Folder]/data/`
+- This makes the entire application portable - just copy the folder to move it
 
 ### Data Structure
 ```
 data/
-├── chatbots/          # Chatbot JSON files
+├── characters/        # Per-character folders (new structure)
+│   └── [character-name]_[id]/
+│       ├── character.json
+│       ├── images/          # Character images
+│       ├── scripts/         # Character scripts
+│       ├── saved-chats/     # Saved conversations
+│       └── image-prompts/   # Image prompt snippets
+├── chatbots/          # Legacy chatbot JSON files (for migration)
 ├── templates/         # Layout templates
-├── assets/           # User-uploaded images/files
+├── assets/           # Legacy assets folder (for migration)
 └── prompt-waffle/    # PromptWaffle data
     ├── snippets/     # Prompt snippets
     ├── boards/       # Prompt boards

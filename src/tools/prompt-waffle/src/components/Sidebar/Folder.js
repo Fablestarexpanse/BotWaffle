@@ -234,6 +234,8 @@ export function createFolderElement({
     // Make only the header draggable, not the entire folder element
     header.draggable = true;
     header.addEventListener('dragstart', e => {
+      // Set drag effect to 'move' to indicate this is a move operation, not a copy
+      e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData(
         'application/json',
         JSON.stringify({

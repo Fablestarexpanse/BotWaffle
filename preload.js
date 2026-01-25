@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('api', {
         get: (id) => ipcRenderer.invoke('template:get', id),
         delete: (id) => ipcRenderer.invoke('template:delete', id)
     },
+    // Listen for refresh notifications
+    onBotListRefresh: (callback) => {
+        ipcRenderer.on('refresh-bot-list', (event, data) => callback(data));
+    },
+    removeBotListRefreshListener: () => {
+        ipcRenderer.removeAllListeners('refresh-bot-list');
+    },
     assets: {
         select: (multiple = false) => ipcRenderer.invoke('assets:select', multiple),
         save: (path, characterId) => ipcRenderer.invoke('assets:save', path, characterId),

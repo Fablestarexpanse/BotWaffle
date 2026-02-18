@@ -35,6 +35,7 @@ A desktop app built primarily for backing up and managing AI chatbot characters 
 - [Installation](#installation)
 - [Your First Bot: A Walkthrough](#your-first-bot-a-walkthrough)
 - [PromptWaffle: Building Image Prompts](#promptwaffle-building-image-prompts)
+  - [Wildcard Studio](#wildcard-studio)
 - [ComfyUI Integration](#comfyui-integration)
 - [Data & Backups](#data--backups)
 - [Project Structure](#project-structure)
@@ -169,6 +170,47 @@ From the compiled prompt bar you can:
 ### Boards
 
 You can create multiple boards for different projects or styles. Use the board tabs at the top to switch between them.
+
+### Wildcard Studio
+
+The Wildcard Studio lets you randomly roll values from `.txt` lists to vary your prompts. Click the **Wildcard Studio** button in PromptWaffle to open it.
+
+Each wildcard is a `.txt` file — one item per line. Lines starting with `#` are treated as comments and ignored. For example:
+
+```
+# Hair color wildcards
+blonde hair
+brown hair
+black hair
+red hair
+silver hair
+```
+
+Wildcards are organized into **category folders**. BotWaffle comes with starter categories to get you going:
+
+| Category | Example wildcards |
+|---|---|
+| **character** | gender, age, hair color, hair style, eye color, body shape, hair length |
+| **clothing** | style, type |
+| **scene** | setting, lighting, perspective |
+| **art_style** | style, quality |
+
+**To add your own wildcards:**
+
+1. Navigate to `data/prompt-waffle/wildcards/` inside your BotWaffle folder.
+2. Open an existing category folder (e.g. `character/`) — or create a new folder for a new category.
+3. Create a new `.txt` file inside it (e.g. `species.txt`).
+4. Add one item per line. Save the file.
+5. Reopen the Wildcard Studio — your new wildcard will appear automatically.
+
+> **Tip:** Folder names become category headers in the UI. Underscores in names are replaced with spaces (e.g. `art_style` → **Art Style**).
+
+**Using wildcards in the studio:**
+
+- Click the **dice icon** on any wildcard to roll a random value from that list.
+- Use the **section selector** (Top / Middle / Bottom) to control where in the compiled prompt that value appears.
+- Lock a wildcard to keep its current rolled value while re-rolling others.
+- The rolled values are combined with your board cards in the final compiled prompt.
 
 <table>
   <tr>

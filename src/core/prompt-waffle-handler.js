@@ -248,7 +248,7 @@ function registerPromptWaffleHandlers() {
         }
     });
 
-    ipcMain.handle('get-app-version', () => '1.5.3');
+    ipcMain.handle('get-app-version', () => '1.5.4');
 
     // Image handling handlers
     ipcMain.handle('pw-load-image', async (_, imagePath) => {

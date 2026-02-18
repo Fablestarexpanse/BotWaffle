@@ -19,15 +19,11 @@ A desktop app built primarily for backing up and managing AI chatbot characters 
 <table>
   <tr>
     <td align="center"><strong>Bot Library</strong><br/><img src="assets/screenshots/library.png" alt="Bot Library" width="460"/></td>
-    <td align="center"><strong>Character Bio Editor</strong><br/><img src="assets/screenshots/character-bio.png" alt="Character Bio" width="460"/></td>
+    <td align="center"><strong>Character Bio Editor</strong><br/><img src="assets/screenshots/Character-bio.png" alt="Character Bio" width="460"/></td>
   </tr>
   <tr>
     <td align="center"><strong>Character Images</strong><br/><img src="assets/screenshots/pictures.png" alt="Character Images" width="460"/></td>
     <td align="center"><strong>Scripts</strong><br/><img src="assets/screenshots/scripts.png" alt="Scripts" width="460"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Saved Chats</strong><br/><img src="assets/screenshots/saved-chats.png" alt="Saved Chats" width="460"/></td>
-    <td align="center"></td>
   </tr>
 </table>
 

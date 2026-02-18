@@ -95,13 +95,18 @@ Fill in as much or as little as you want — all fields are optional. Click **Sa
 
 ---
 
-### Step 4 — Save a Chat (Optional)
+### Step 4 — Character Resources
 
-If you use this character in a chat session elsewhere, you can log it here:
+Each character has dedicated sections in the left nav for storing related content:
 
-1. Click **Saved Chats** in the left nav.
-2. Click **+ New Chat** and paste or type the conversation.
-3. Saved chats are stored locally with the character's data.
+| Section | What it stores |
+|---|---|
+| **Images** | Reference and profile images |
+| **Image Prompts** | Saved AI image generation prompts |
+| **Scripts** | Notes, dialogue scripts, or any text files |
+| **Saved Chats** | Logged conversations with this character |
+
+All of these are optional — fill in whichever are useful for your workflow.
 
 ---
 

@@ -426,7 +426,7 @@ ipcMain.handle('fs-listFiles', async (event, dirPath) => {
       logSecurityEvent('invalid_file_path', { dirPath, operation: 'fs-listFiles' });
       return [];
     }
-    const fullPath = path.join(__dirname, sanitizedPath);
+    const fullPath = resolvePromptWafflePath(sanitizedPath);
     const items = await fs.readdir(fullPath, { withFileTypes: true });
     return items.map(item => ({
       name: item.name,
@@ -498,10 +498,10 @@ ipcMain.handle('fs-rmdir', async (event, dirPath) => {
 
 ipcMain.handle('fs-readdir', async (event, dirPath) => {
   try {
-    // Handle absolute paths correctly
+    // Handle absolute paths correctly; relative paths resolve to the portable data dir
     const fullPath = path.isAbsolute(dirPath)
       ? dirPath
-      : path.join(__dirname, dirPath);
+      : resolvePromptWafflePath(dirPath);
     const items = await fs.readdir(fullPath, { withFileTypes: true });
     return items.map(item => ({
       name: item.name,

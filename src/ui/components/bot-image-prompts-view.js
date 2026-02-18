@@ -141,6 +141,9 @@ class BotImagePromptsView extends HTMLElement {
                                             <button class="icon-btn copy-prompt-btn" data-index="${actualIndex}" title="Copy prompt">
                                                 <i data-feather="copy"></i>
                                             </button>
+                                            <button class="icon-btn send-to-comfyui-btn" data-index="${actualIndex}" title="Send to ComfyUI">
+                                                <i data-feather="send"></i>
+                                            </button>
                                             <button class="icon-btn edit-prompt-btn" data-index="${actualIndex}" title="Edit prompt">
                                                 <i data-feather="edit-2"></i>
                                             </button>
@@ -255,6 +258,15 @@ class BotImagePromptsView extends HTMLElement {
                 e.stopPropagation();
                 const index = parseInt(btn.getAttribute('data-index'));
                 this.removePrompt(index);
+            });
+        });
+
+        // Send to ComfyUI buttons
+        this.querySelectorAll('.send-to-comfyui-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.getAttribute('data-index'));
+                this.sendToComfyUI(index);
             });
         });
     }
@@ -731,6 +743,41 @@ class BotImagePromptsView extends HTMLElement {
             textareaElement.addEventListener('keydown', handleCtrlEnter);
             modal.addEventListener('click', handleBackdropClick);
         });
+    }
+
+    async sendToComfyUI(index) {
+        try {
+            const imagePrompts = this.botData.metadata?.imagePrompts || this.botData.imagePrompts || [];
+            if (index < 0 || index >= imagePrompts.length) return;
+
+            const prompt = imagePrompts[index];
+            const promptText = typeof prompt === 'string' ? prompt : (prompt.text || prompt.prompt || '');
+
+            if (!promptText.trim()) {
+                this.showToast('Prompt is empty, nothing to send', 'error');
+                return;
+            }
+
+            if (!window.api.comfyui) {
+                this.showToast('ComfyUI integration not available', 'error');
+                return;
+            }
+
+            // Get the ComfyUI folder path
+            const folderPath = await window.api.comfyui.getFolder();
+
+            // Save the prompt to the file
+            const result = await window.api.comfyui.savePrompt(promptText, folderPath, 'promptwaffle_prompt.txt');
+
+            if (result.success) {
+                this.showToast(`Sent to ComfyUI → ${result.filePath}`, 'success');
+            } else {
+                this.showToast(`Failed to send: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error sending prompt to ComfyUI:', error);
+            this.showToast(`Error: ${error.message || 'Failed to send prompt'}`, 'error');
+        }
     }
 
     showToast(message, type = 'info') {

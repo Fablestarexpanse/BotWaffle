@@ -312,25 +312,27 @@ async function saveExportToFile(exportData, formattedContent) {
   const boardName = exportData.boardName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
   const safeBoardName = boardName || 'Untitled';
   const defaultFilename = `${safeBoardName}.md`;
-  
-  // Show save dialog to let user choose location
-  if (window.electronAPI && typeof window.electronAPI.showSaveDialog === 'function') {
-    const result = await window.electronAPI.showSaveDialog({
-      title: 'Export Markdown File',
-      defaultPath: defaultFilename,
-      filters: [
-        { name: 'Markdown Files', extensions: ['md'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    });
-    
-    if (result.canceled || result.cancelled || !result.filePath) {
+
+  // Use the combined dialog+write IPC call so the main process can write to
+  // any absolute path chosen by the user (the sandboxed writeFile handler only
+  // allows paths inside the PromptWaffle data directory).
+  if (window.electronAPI && typeof window.electronAPI.showSaveDialogAndWrite === 'function') {
+    const result = await window.electronAPI.showSaveDialogAndWrite(
+      {
+        title: 'Export Markdown File',
+        defaultPath: defaultFilename,
+        filters: [
+          { name: 'Markdown Files', extensions: ['md'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      },
+      formattedContent
+    );
+
+    if (result.canceled || !result.filePath) {
       return { filePath: null, exportFolder: null, cancelled: true };
     }
-    
-    // Save the file to the chosen location
-    await safeElectronAPICall('writeFile', result.filePath, formattedContent);
-    
+
     return { filePath: result.filePath, exportFolder: null, cancelled: false };
   } else {
     // Fallback: use default export folder if dialog not available

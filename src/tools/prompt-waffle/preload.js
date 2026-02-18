@@ -60,11 +60,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchLatestRelease: (repoOwner, repoName) =>
     ipcRenderer.invoke('fetchLatestRelease', repoOwner, repoName),
   // ComfyUI integration
-  // DEPRECATED: sendToComfyUI uses legacy API-based approach
-  // Use savePromptToFile/getComfyUIFolder + savePromptToComfyUI() instead
-  // Will be removed in v2.0.0
-  sendToComfyUI: (prompt, nodeId, comfyuiUrl) =>
-    ipcRenderer.invoke('send-to-comfyui', prompt, nodeId, comfyuiUrl),
+  // Legacy sendToComfyUI removed (v2.0.0) - use savePromptToFile/getComfyUIFolder + savePromptToComfyUI() instead
   savePromptToFile: (prompt, folderPath, filename) =>
     ipcRenderer.invoke('save-prompt-to-file', prompt, folderPath, filename),
   selectFolderAndSavePrompt: (prompt) =>
@@ -78,6 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // verifyBackup: (zipPath) => ipcRenderer.invoke('verify-backup', zipPath),
   // File dialog APIs
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+  showSaveDialogAndWrite: (options, content) => ipcRenderer.invoke('show-save-dialog-and-write', options, content),
   // BotWaffle chatbot APIs
   listChatbots: () => ipcRenderer.invoke('chatbot:list'),
   getChatbot: (id) => ipcRenderer.invoke('chatbot:get', id),

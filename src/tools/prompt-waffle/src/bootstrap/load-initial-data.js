@@ -83,35 +83,45 @@ export async function migrateTextSnippetsToJson() {
 async function ensureDefaultBoardExists() {
   try {
     const defaultBoardPath = 'boards/Default Board.json';
-    // Default cards with the default snippets
+    // Default cards using Pip's example snippets
     const defaultCards = [
       {
-        id: 'card-default-photorealistic',
-        snippetPath: 'snippets/Start Here/default_photorealistic.json',
-        x: 100,
-        y: 100,
-        width: 457,
-        height: 152,
-        locked: false,
-        color: '#E74C3C'
-      },
-      {
-        id: 'card-default-cyberpunk',
-        snippetPath: 'snippets/Start Here/default_cyberpunk.json',
-        x: 572,
-        y: 101,
-        width: 352,
-        height: 129,
+        id: 'card-default-pip-quality',
+        snippetPath: 'Pip - Example/pip_quality.json',
+        x: 30,
+        y: 78,
+        width: 569,
+        height: 140,
         locked: false,
         color: '#3498DB'
       },
       {
-        id: 'card-default-space',
-        snippetPath: 'snippets/Start Here/default_space.json',
-        x: 936,
-        y: 96,
-        width: 372,
-        height: 79,
+        id: 'card-default-pip-character',
+        snippetPath: 'Pip - Example/pip_character.json',
+        x: 621,
+        y: 99,
+        width: 800,
+        height: 156,
+        locked: false,
+        color: '#E74C3C'
+      },
+      {
+        id: 'card-default-pip-activity',
+        snippetPath: 'Pip - Example/pip_activity.json',
+        x: 31,
+        y: 288,
+        width: 891,
+        height: 194,
+        locked: false,
+        color: '#F39C12'
+      },
+      {
+        id: 'card-default-pip-lighting',
+        snippetPath: 'Pip - Example/pip_lighting.json',
+        x: 944,
+        y: 301,
+        width: 800,
+        height: 140,
         locked: false,
         color: '#2ECC71'
       }
@@ -126,36 +136,27 @@ async function ensureDefaultBoardExists() {
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString()
     };
-    // Check if default board file exists
-    let shouldCreateBoard = false;
-    try {
-      if (window.electronAPI && window.electronAPI.readFile) {
-        await window.electronAPI.readFile(defaultBoardPath);
-      } else {
-        shouldCreateBoard = true;
-      }
-    } catch (e) {
-      shouldCreateBoard = true;
-    }
-    // Create default board if it doesn't exist
-    if (
-      shouldCreateBoard &&
-      window.electronAPI &&
-      window.electronAPI.writeFile
-    ) {
-      await window.electronAPI.writeFile(
-        defaultBoardPath,
-        JSON.stringify(defaultBoard, null, 2)
+    // Check if the default board already exists in AppState with valid Pip cards
+    const boards = AppState.getBoards();
+    const existingDefault = boards.find(
+      b => b.id === 'board-default' || b.name === 'Default Board'
+    );
+    const hasPipCards =
+      existingDefault &&
+      Array.isArray(existingDefault.cards) &&
+      existingDefault.cards.some(c =>
+        c.snippetPath && c.snippetPath.startsWith('Pip - Example/')
       );
-      // Also ensure it's in the AppState
-      const boards = AppState.getBoards();
-      const existingDefault = boards.find(
-        b => b.id === 'board-default' || b.name === 'Default Board'
-      );
-      if (!existingDefault) {
-        boards.push(defaultBoard);
-        AppState.setBoards(boards);
-      }
+
+    if (!existingDefault) {
+      // No default board at all — add it
+      boards.push(defaultBoard);
+      AppState.setBoards(boards);
+    } else if (!hasPipCards) {
+      // Board exists but has stale/empty cards — reset cards to Pip defaults
+      existingDefault.cards = defaultCards;
+      existingDefault.filePath = undefined;
+      AppState.setBoards(boards);
     }
   } catch (error) {
     console.error('Error ensuring default board exists:', error);
@@ -253,9 +254,9 @@ export function populateSnippetCache(tree) {
   }
 }
 export async function loadInitialData() {
-  // 1. Ensure 'Start Here' folder exists
+  // 1. Ensure 'Pip - Example' folder exists
   try {
-    const folderName = 'Start Here';
+    const folderName = 'Pip - Example';
     const folderPath = `snippets/${folderName}`;
     if (window.electronAPI && window.electronAPI.createFolder) {
       await window.electronAPI.createFolder(folderPath);

@@ -1,32 +1,40 @@
 // Default snippets configuration for new installations
+// These are Pip's example snippets — she's the demo character that ships with BotWaffle.
 export const DEFAULT_SNIPPETS = [
   {
-    id: 'default_photorealistic',
-    text: '(photorealistic:1.2), highly detailed, studio lighting, cinematic composition',
-    tags: ['photo', 'lighting'],
-    title: '(photorealistic:1.2), highly detailed, studio lighting',
-    description:
-      'High-quality photorealistic rendering with professional lighting',
-    category: 'Start Here',
+    id: 'pip_character',
+    text: 'young woman,  short black hair with white streak at left temple, heterochromatic eyes left blue right amber, cream-and-black cropped hoodie, high-waisted joggers, white sneakers with marker doodles, medium triangular black-and-white border collie ears with white inner fur, fluffy black-and-white collie tail',
+    tags: ['character', 'Pip'],
+    title: 'Pip — Character',
+    description: 'Pip\'s core character snippet — her appearance, species traits, and outfit.',
+    category: 'Pip - Example',
     version: '1.0'
   },
   {
-    id: 'default_cyberpunk',
-    text: '(cyberpunk engineer), glowing tattoos, neon visor, dark synthetic jacket',
-    tags: ['cyberpunk'],
-    title: '(cyberpunk engineer), glowing tattoos, neon visor',
-    description:
-      'Cyberpunk character with futuristic elements and glowing features',
-    category: 'Start Here',
+    id: 'pip_quality',
+    text: 'masterpiece, best quality, absurdres, high detail, sharp focus,',
+    tags: ['Style', 'Initial Quality'],
+    title: 'Quality — masterpiece, best quality, absurdres',
+    description: 'Base quality tags for high-detail renders.',
+    category: 'Pip - Example',
     version: '1.0'
   },
   {
-    id: 'default_space',
-    text: 'abandoned space station, flickering lights, zero gravity, floating debris, eerie silence',
-    tags: ['space'],
-    title: 'abandoned space station, flickering lights, zero gravity',
-    description: 'Atmospheric space environment with abandoned technology',
-    category: 'Start Here',
+    id: 'pip_lighting',
+    text: 'warm studio lighting, creative workspace, cozy and energetic atmosphere, slight smile, engaged expression',
+    tags: ['Lighting', 'mood'],
+    title: 'Lighting & Mood — warm studio, cozy atmosphere',
+    description: 'Warm studio lighting and mood for Pip\'s workspace scenes.',
+    category: 'Pip - Example',
+    version: '1.0'
+  },
+  {
+    id: 'pip_activity',
+    text: 'sitting at a studio desk covered in sticky notes and concept art,\nleaning forward on elbows, ears perked forward attentively, tail swaying behind chair, holding a stylus, multiple screens displaying character design documents,',
+    tags: ['activity'],
+    title: 'Activity — studio desk, stylus, concept art',
+    description: 'Pip at her studio desk, working on character designs.',
+    category: 'Pip - Example',
     version: '1.0'
   }
 ];
@@ -74,14 +82,14 @@ export async function checkDefaultSnippetsExist() {
   try {
     const existingSnippets = [];
     const deletedSnippets = await getDeletedSnippetsList();
-    
+
     for (const snippet of DEFAULT_SNIPPETS) {
       // Skip if this snippet was intentionally deleted by the user
       if (deletedSnippets.includes(snippet.id)) {
         continue;
       }
-      
-      const filePath = `snippets/Start Here/${snippet.id}.json`;
+
+      const filePath = `snippets/Pip - Example/${snippet.id}.json`;
       try {
         const content = await window.electronAPI.readFile(filePath);
         const parsed = JSON.parse(content);
@@ -117,7 +125,7 @@ export async function createMissingDefaultSnippets() {
         created: timestamp + i,
         modified: timestamp + i
       };
-      const filePath = `snippets/Start Here/${snippet.id}.json`;
+      const filePath = `snippets/Pip - Example/${snippet.id}.json`;
       try {
         await window.electronAPI.writeFile(
           filePath,
@@ -127,8 +135,6 @@ export async function createMissingDefaultSnippets() {
       } catch (error) {
         console.error(`Failed to create default snippet ${snippet.id}:`, error);
       }
-    }
-    if (createdCount > 0) {
     }
     return createdCount;
   } catch (error) {

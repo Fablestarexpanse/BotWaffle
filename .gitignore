@@ -9,12 +9,13 @@ out/
 .vscode/
 .agent/
 .cursor/
+.claude/
 *.log
+nul
 
-# Ignore all .md files except essential ones
+# Ignore all .md files except README
 *.md
 !README.md
-!SECURITY.md
 
 # Ignore documentation directory (internal docs)
 docs/

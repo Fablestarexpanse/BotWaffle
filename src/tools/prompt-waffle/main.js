@@ -19,7 +19,6 @@ const fsSync = require('fs');
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
-const WebSocket = require('ws');
 
 // PromptWaffle storage utilities
 const { initializePromptWaffleStorage, getPromptWaffleDataPath, resolvePromptWafflePath, validatePromptWafflePath } = require('./storage');
@@ -559,8 +558,8 @@ ipcMain.handle('open-data-path', async () => {
 
 ipcMain.handle('get-comfyui-folder', async () => {
   try {
-    // Return the comfyui folder in the PromptWaffle directory
-    const comfyuiFolder = path.join(__dirname, 'comfyui');
+    // Save to data/comfyui/ — easy to find and link from ComfyUI nodes
+    const comfyuiFolder = getPromptWaffleDataPath('comfyui');
     // Ensure the folder exists
     await fs.mkdir(comfyuiFolder, { recursive: true });
     return comfyuiFolder;
@@ -1308,55 +1307,6 @@ ipcMain.handle('fetchLatestRelease', async (event, repoOwner, repoName) => {
   }
 });
 
-// Helper function to make HTTP requests to ComfyUI
-async function comfyuiRequest(urlObj, path, method = 'GET', data = null) {
-  return new Promise((resolve, reject) => {
-    const requestModule = urlObj.protocol === 'https:' ? https : http;
-    const postData = data ? JSON.stringify(data) : null;
-
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    };
-
-    if (postData) {
-      options.headers['Content-Length'] = Buffer.byteLength(postData);
-    }
-
-    const req = requestModule.request(options, (res) => {
-      let responseData = '';
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseData);
-          resolve({ statusCode: res.statusCode, data: parsed });
-        } catch (e) {
-          resolve({ statusCode: res.statusCode, data: responseData });
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-
-    if (postData) {
-      req.write(postData);
-    }
-    req.end();
-  });
-}
-
 // Helper function to copy directory recursively
 async function copyDirectory(src, dest) {
   try {
@@ -1379,98 +1329,8 @@ async function copyDirectory(src, dest) {
   }
 }
 
-// Helper function to find PromptWafflePromptNode in a workflow
-function findPromptWaffleNode(workflow) {
-  if (!workflow || typeof workflow !== 'object') {
-    return null;
-  }
-  
-  for (const nodeId in workflow) {
-    const node = workflow[nodeId];
-    if (node && node.class_type === 'PromptWafflePromptNode') {
-      return { nodeId, node };
-    }
-  }
-  return null;
-}
-
-// Helper function to update node via WebSocket using ComfyUI's protocol
-// The key insight: We need to send the FULL workflow, not just our node
-// This ensures ComfyUI updates the node's input field in the UI
-async function updateNodeViaWebSocket(wsUrl, workflow, nodeId) {
-  return new Promise((resolve, reject) => {
-    const clientId = `promptwaffle_${Date.now()}`;
-    const ws = new WebSocket(`${wsUrl}?clientId=${clientId}`);
-    
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        ws.close();
-        reject(new Error('WebSocket connection timeout'));
-      }
-    }, 10000);
-    
-    ws.on('open', () => {
-      console.log('[Main] WebSocket connected to ComfyUI, sending full workflow update');
-      console.log('[Main] Workflow contains', Object.keys(workflow).length, 'nodes');
-      
-      // Send the FULL workflow via WebSocket
-      // This is critical: sending only our node creates a new workflow
-      // Sending the full workflow updates the existing one
-      const message = {
-        type: 'prompt',
-        prompt: workflow,
-        client_id: clientId
-      };
-      
-      ws.send(JSON.stringify(message));
-      console.log('[Main] Sent full workflow update via WebSocket');
-    });
-    
-    ws.on('error', (error) => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        reject(error);
-      }
-    });
-    
-    ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log('[Main] WebSocket message type:', message.type);
-        
-        // ComfyUI sends various message types
-        // execution_start means the workflow was queued
-        // We consider this success since the workflow was sent
-        if (message.type === 'execution_start' || message.type === 'status' || message.type === 'executing') {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeout);
-            // Keep connection open briefly to see if we get more messages
-            setTimeout(() => {
-              ws.close();
-            }, 500);
-            resolve({ success: true, method: 'websocket', nodeId });
-          }
-        }
-      } catch (e) {
-        console.warn('[Main] Could not parse WebSocket message:', e);
-      }
-    });
-    
-    // Close after a delay if no response (workflow was sent)
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        ws.close();
-        resolve({ success: true, method: 'websocket', nodeId, note: 'Workflow sent via WebSocket' });
-      }
-    }, 3000);
-  });
-}
+// Legacy ComfyUI helper functions removed (v2.0.0)
+// findPromptWaffleNode and updateNodeViaWebSocket were only used by deprecated handler
 
 // ComfyUI Integration Handler - File-based approach
 // Saves prompt to a text file that ComfyUI node can read
@@ -1520,10 +1380,33 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
       defaultPath: options.defaultPath || 'untitled',
       filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
     });
-    
+
     return result;
   } catch (error) {
     logger.error('[Main] Error showing save dialog:', error);
+    return { canceled: true, error: error.message };
+  }
+});
+
+// Combined save-dialog + write for exports (e.g. Export to Markdown).
+// The renderer cannot write to arbitrary absolute paths through the sandboxed
+// fs-writeFile handler, so we handle the dialog AND the write here in main.
+ipcMain.handle('show-save-dialog-and-write', async (event, options, content) => {
+  try {
+    const result = await dialog.showSaveDialog({
+      title: options.title || 'Save File',
+      defaultPath: options.defaultPath || 'untitled',
+      filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+
+    await fs.writeFile(result.filePath, content, 'utf8');
+    return { canceled: false, filePath: result.filePath };
+  } catch (error) {
+    logger.error('[Main] Error in show-save-dialog-and-write:', error);
     return { canceled: true, error: error.message };
   }
 });
@@ -1637,7 +1520,7 @@ ipcMain.handle('verify-backup', async (event, zipPath) => {
       summary: {}
     };
   }
-}); */
+});
 
 ipcMain.handle('save-prompt-to-file', async (event, prompt, folderPath, filename = 'promptwaffle_prompt.txt') => {
   try {
@@ -1678,246 +1561,5 @@ ipcMain.handle('save-prompt-to-file', async (event, prompt, folderPath, filename
   }
 });
 
-// ============================================================================
-// LEGACY COMFYUI INTEGRATION HANDLER - DEPRECATED
-// ============================================================================
-// This handler is DEPRECATED and will be removed in v2.0.0
-// 
-// Current implementation uses file-based approach (see 'save-prompt-to-file' handler)
-// This legacy code attempted WebSocket/HTTP API integration but proved unreliable
-// 
-// Migration: Use 'save-prompt-to-file' IPC handler instead
-// Frontend: Use savePromptToComfyUI() from comfyui-integration.js
-// ============================================================================
-ipcMain.handle('send-to-comfyui', async (event, prompt, nodeId = null, comfyuiUrl = 'http://127.0.0.1:8188') => {
-  // Deprecation warning
-  console.warn('[Main] DEPRECATED: send-to-comfyui handler is deprecated. Use file-based approach instead.');
-  console.warn('[Main] This handler will be removed in v2.0.0. Migrate to save-prompt-to-file.');
-  try {
-    console.log('[Main] Sending prompt to ComfyUI:', { prompt: prompt.substring(0, 50) + '...', nodeId, comfyuiUrl });
-
-    // Validate inputs
-    if (!prompt || typeof prompt !== 'string') {
-      return { success: false, error: 'Invalid prompt: must be a non-empty string' };
-    }
-
-    if (!comfyuiUrl || typeof comfyuiUrl !== 'string') {
-      return { success: false, error: 'Invalid ComfyUI URL' };
-    }
-
-    // Parse URL
-    let urlObj;
-    try {
-      urlObj = new URL(comfyuiUrl);
-    } catch (urlError) {
-      return { success: false, error: `Invalid URL format: ${urlError.message}` };
-    }
-
-    let workflow = null;
-    let targetNodeId = nodeId;
-    let foundExistingNode = false;
-
-    // Strategy: Get current workflow using ComfyUI API workflow format
-    // Try multiple methods to get the current workflow:
-    // 1. Try /object_info to get workflow structure
-    // 2. Try /history to get most recent executed workflow
-    // 3. Use provided nodeId to update specific node
-    
-    // Method 1: Try to get current workflow via /object_info or other endpoints
-    try {
-      // Some ComfyUI installations expose workflow via different endpoints
-      const endpoints = ['/object_info', '/prompt', '/view'];
-      for (const endpoint of endpoints) {
-        try {
-          const response = await comfyuiRequest(urlObj, endpoint, 'GET');
-          if (response.statusCode === 200 && response.data) {
-            // Check if response contains workflow data
-            if (response.data.workflow) {
-              workflow = response.data.workflow;
-              console.log(`[Main] Found workflow from ${endpoint} endpoint`);
-              break;
-            } else if (response.data.prompt && typeof response.data.prompt === 'object') {
-              // Some endpoints return prompt directly
-              workflow = response.data.prompt;
-              console.log(`[Main] Found workflow from ${endpoint} endpoint (prompt format)`);
-              break;
-            }
-          }
-        } catch (e) {
-          // Endpoint doesn't exist or failed, try next
-          continue;
-        }
-      }
-    } catch (error) {
-      console.warn('[Main] Could not get workflow from API endpoints:', error.message);
-    }
-    
-    // Method 2: Get workflow from history (most reliable fallback)
-    if (!workflow) {
-      try {
-        const historyResponse = await comfyuiRequest(urlObj, '/history', 'GET');
-        if (historyResponse.statusCode === 200 && historyResponse.data) {
-          const history = historyResponse.data;
-          const promptIds = Object.keys(history).sort((a, b) => {
-            const aTime = history[a]?.prompt?.[3] || 0;
-            const bTime = history[b]?.prompt?.[3] || 0;
-            return bTime - aTime;
-          });
-          
-          if (promptIds.length > 0) {
-            const mostRecent = history[promptIds[0]];
-            if (mostRecent && mostRecent.prompt && mostRecent.prompt[2]) {
-              // Get the COMPLETE workflow from history (API format)
-              workflow = JSON.parse(JSON.stringify(mostRecent.prompt[2])); // Deep copy
-              console.log('[Main] Found workflow from history with', Object.keys(workflow).length, 'nodes');
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('[Main] Could not get workflow from history:', error.message);
-      }
-    }
-    
-    // If nodeId was explicitly provided, try to use it even if not found in history
-    // This allows users to specify their node ID manually
-    if (nodeId && !foundExistingNode) {
-      targetNodeId = nodeId;
-      console.log(`[Main] Using provided node ID: ${targetNodeId}`);
-    }
-
-    // Find existing node in workflow if we have one
-    if (workflow) {
-      const foundNode = findPromptWaffleNode(workflow);
-      if (foundNode) {
-        targetNodeId = foundNode.nodeId;
-        foundExistingNode = true;
-        console.log(`[Main] Found existing PromptWafflePromptNode: ${targetNodeId}`);
-      }
-    }
-    
-    // If nodeId was explicitly provided, use it
-    if (nodeId && !foundExistingNode) {
-      targetNodeId = nodeId;
-      console.log(`[Main] Using provided node ID: ${targetNodeId}`);
-    }
-    
-    // CRITICAL: Always update the FULL workflow in API format
-    // ComfyUI's API requires the complete workflow to update node inputs in the UI
-    if (foundExistingNode && workflow) {
-      // Update existing node in the full workflow (API format)
-      workflow[targetNodeId].inputs.prompt = prompt;
-      workflow[targetNodeId].inputs.override = ''; // Clear override
-      console.log(`[Main] Updated existing node ${targetNodeId} in full workflow (${Object.keys(workflow).length} nodes)`);
-      console.log('[Main] New prompt value:', prompt.substring(0, 50) + '...');
-    } else if (workflow) {
-      // We have a workflow but our node isn't in it - add it
-      if (!targetNodeId) {
-        targetNodeId = `promptwaffle_${Date.now()}`;
-      }
-      workflow[targetNodeId] = {
-        inputs: {
-          prompt: prompt,
-          override: ''
-        },
-        class_type: 'PromptWafflePromptNode'
-      };
-      console.log(`[Main] Added new node ${targetNodeId} to existing workflow (${Object.keys(workflow).length} nodes)`);
-    } else {
-      // No workflow found - create minimal workflow in API format
-      if (!targetNodeId) {
-        targetNodeId = `promptwaffle_${Date.now()}`;
-      }
-      workflow = {
-        [targetNodeId]: {
-          inputs: {
-            prompt: prompt,
-            override: ''
-          },
-          class_type: 'PromptWafflePromptNode'
-        }
-      };
-      console.warn(`[Main] WARNING: No workflow found. Created minimal workflow with just our node.`);
-      console.warn(`[Main] To update existing nodes, execute your workflow in ComfyUI first, then try again.`);
-    }
-
-    // Send workflow update using ComfyUI API format
-    // Format: { "prompt": workflow_object, "client_id": "unique_id" }
-    const promptPayload = {
-      prompt: workflow,
-      client_id: `promptwaffle_${Date.now()}`
-    };
-    
-    console.log('[Main] Sending workflow in API format:', {
-      nodeCount: Object.keys(workflow).length,
-      targetNodeId: targetNodeId,
-      hasExistingNode: foundExistingNode
-    });
-
-    // Try WebSocket first (may update UI in real-time), fallback to HTTP
-    const wsProtocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${urlObj.hostname}:${urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80)}/ws`;
-    
-    try {
-      console.log('[Main] Attempting WebSocket workflow update...');
-      const wsResult = await updateNodeViaWebSocket(wsUrl, workflow, targetNodeId);
-      if (wsResult.success) {
-        console.log('[Main] Successfully sent workflow via WebSocket');
-        return {
-          success: true,
-          nodeId: targetNodeId,
-          method: 'websocket',
-          message: foundExistingNode 
-            ? `Prompt updated in node ${targetNodeId} (workflow queued)` 
-            : `Prompt sent to node ${targetNodeId} (workflow queued)`
-        };
-      }
-    } catch (wsError) {
-      console.warn('[Main] WebSocket update failed, falling back to HTTP:', wsError.message);
-    }
-    
-    // Fallback to HTTP POST (standard ComfyUI API)
-    console.log('[Main] Using HTTP API endpoint for workflow update...');
-    try {
-      const response = await comfyuiRequest(urlObj, '/prompt', 'POST', promptPayload);
-      
-      console.log('[Main] ComfyUI API response:', { 
-        statusCode: response.statusCode, 
-        hasPromptId: !!response.data?.prompt_id 
-      });
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        console.log('[Main] Successfully sent workflow to ComfyUI via HTTP API');
-        return {
-          success: true,
-          promptId: response.data?.prompt_id,
-          nodeId: targetNodeId,
-          method: 'http',
-          message: foundExistingNode 
-            ? `Prompt updated in node ${targetNodeId}. Workflow queued for execution.` 
-            : `Prompt sent to node ${targetNodeId}. Workflow queued for execution. Note: The node input field may not update in the UI automatically - this is a ComfyUI API limitation. The prompt will be used when the workflow executes.`
-        };
-      } else {
-        const errorMsg = typeof response.data === 'string' 
-          ? response.data.substring(0, 200) 
-          : JSON.stringify(response.data).substring(0, 200);
-        console.error('[Main] ComfyUI API error:', response.statusCode, errorMsg);
-        return {
-          success: false,
-          error: `ComfyUI returned status ${response.statusCode}: ${errorMsg}`
-        };
-      }
-    } catch (error) {
-      console.error('[Main] Error sending to ComfyUI:', error);
-      return {
-        success: false,
-        error: `Connection error: ${error.message}. Make sure ComfyUI is running at ${comfyuiUrl}`
-      };
-    }
-  } catch (error) {
-    console.error('[Main] Unexpected error sending to ComfyUI:', error);
-    return {
-      success: false,
-      error: `Unexpected error: ${error.message}`
-    };
-  }
-});
+// Legacy ComfyUI integration handler removed (v2.0.0)
+// Use 'save-prompt-to-file' IPC handler and savePromptToComfyUI() from comfyui-integration.js instead

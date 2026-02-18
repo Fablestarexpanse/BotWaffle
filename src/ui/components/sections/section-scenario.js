@@ -6,6 +6,8 @@ class SectionScenario extends customElements.get('section-base') {
 
     connectedCallback() {
         super.connectedCallback();
+        const removeBtn = this.querySelector('.remove-btn');
+        if (removeBtn) removeBtn.remove();
     }
 
     renderContent() {

@@ -6,6 +6,16 @@
 import { showToast } from './index.js';
 import { showInputModal } from './inputModal.js';
 
+// Module-level reference to the currently selected character
+let _currentCharacter = null;
+
+/**
+ * Returns the currently selected character object, or null if none selected.
+ */
+export function getCurrentCharacter() {
+  return _currentCharacter;
+}
+
 /**
  * Loads chatbots from BotWaffle (no longer populates dropdown - modal handles it)
  * Kept for backward compatibility
@@ -47,6 +57,9 @@ function countTokensInObject(obj) {
  * Displays a character card for the selected character (matches BotWaffle card format)
  */
 export async function displayCharacterCard(character) {
+  // Track the currently selected character for the "Save to Character" button
+  _currentCharacter = character || null;
+
   const cardDisplay = document.getElementById('characterCardDisplay');
   if (!cardDisplay) {
     console.warn('Character card display element not found');
@@ -286,7 +299,7 @@ export async function displayCharacterCard(character) {
       
       newSaveBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        await savePromptToCharacter(character.id);
+        await saveCompiledPromptToCharacter(character.id);
       });
       
       // Initialize Feather icons
@@ -301,6 +314,8 @@ export async function displayCharacterCard(character) {
  * Clears the character selection
  */
 export function clearCharacterSelection() {
+  _currentCharacter = null;
+
   const cardDisplay = document.getElementById('characterCardDisplay');
   if (cardDisplay) {
     cardDisplay.style.display = 'none';
@@ -335,9 +350,10 @@ function getCompiledPromptText() {
 }
 
 /**
- * Saves the compiled prompt to the character's image prompts
+ * Saves the compiled prompt to the character's image prompts.
+ * Exported so the compiled-prompt-bar button can call it directly.
  */
-async function savePromptToCharacter(characterId) {
+export async function saveCompiledPromptToCharacter(characterId) {
   try {
     // Get the compiled prompt text
     const promptText = getCompiledPromptText();

@@ -128,7 +128,7 @@ export async function savePromptToComfyUI() {
     const result = await window.electronAPI.savePromptToFile(prompt, folderPath, filename);
 
     if (result.success) {
-      showToast(`Prompt saved to ${filename}`, 'success');
+      showToast(`Prompt saved → ${result.filePath}`, 'success');
       console.log('[ComfyUI] Prompt saved to:', result.filePath);
       return true;
     } else {
@@ -143,19 +143,6 @@ export async function savePromptToComfyUI() {
   }
 }
 
-/**
- * Legacy function name for backward compatibility
- * @deprecated Use savePromptToComfyUI instead
- * @deprecated This function will be removed in v2.0.0
- * 
- * Note: The legacy API-based ComfyUI integration (WebSocket/HTTP) has been
- * replaced with a more reliable file-based approach. This function redirects
- * to the new implementation.
- */
-export async function sendPromptToComfyUI(nodeId = null, comfyuiUrl = 'http://127.0.0.1:8188') {
-  console.warn('[ComfyUI] DEPRECATED: sendPromptToComfyUI() is deprecated. Use savePromptToComfyUI() instead.');
-  console.warn('[ComfyUI] This function will be removed in v2.0.0.');
-  // Redirect to new file-based approach
-  return savePromptToComfyUI();
-}
+// Legacy sendPromptToComfyUI() function removed (v2.0.0)
+// Use savePromptToComfyUI() instead
 

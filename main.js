@@ -16,6 +16,7 @@ function createWindow() {
         width: 1200,
         height: 800,
         backgroundColor: '#1a1a1a', // Match theme bg
+        icon: path.join(__dirname, 'src', 'assets', 'logo.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -141,8 +142,14 @@ app.whenReady().then(() => {
     registerIpcHandler(ipcMain, 'chatbot:delete-all', async () => {
         const allBots = await chatbotManager.listChatbots();
         let deleted = 0;
+        let skipped = 0;
         let errors = 0;
         for (const bot of allBots) {
+            // Never delete demo characters
+            if (bot.metadata && bot.metadata.isDemo) {
+                skipped++;
+                continue;
+            }
             try {
                 await chatbotManager.deleteChatbot(bot.id);
                 deleted++;
@@ -151,7 +158,7 @@ app.whenReady().then(() => {
                 logError(`[Delete All] Error deleting bot ${bot.id}`, error);
             }
         }
-        return { deleted, errors, total: allBots.length };
+        return { deleted, skipped, errors, total: allBots.length };
     }, { rethrow: true });
     registerIpcHandler(ipcMain, 'chatbot:get', (_, id) => chatbotManager.getChatbot(id), { errorReturn: null });
     registerIpcHandler(ipcMain, 'chatbot:categories', () => chatbotManager.getUniqueCategories(), { errorReturn: [] });

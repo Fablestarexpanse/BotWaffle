@@ -82,6 +82,12 @@ class Sidebar {
                 </a>
             </li>
             <li class="nav-item">
+                <a href="#" class="nav-link bot-nav-link" data-view="character-bio">
+                    <i data-feather="user"></i>
+                    <span>Character Bio</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="#" class="nav-link bot-nav-link" data-view="pictures">
                     <i data-feather="image"></i>
                     <span>Pictures</span>

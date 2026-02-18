@@ -1036,7 +1036,7 @@ export async function addCardToBoard(snippetPath, x, y) {
     board.cards.push(card);
     await saveBoards();
     triggerAutosave(); // Add autosave trigger
-    renderBoard();
+    await renderBoard();
     // Schedule partial sidebar update for better performance
     schedulePartialSidebarUpdate(board.id);
     showToast('Card added to board successfully', 'success');
@@ -1465,7 +1465,7 @@ export async function renderBoard() {
  */
 export function onBoardDragOver(e) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'copy';
+  e.dataTransfer.dropEffect = 'move';
   const board = e.currentTarget;
   if (board) {
     board.classList.add('drag-over-board');

@@ -300,6 +300,10 @@
                 viewElement = document.createElement('bot-image-prompts-view');
                 viewElement.botId = botId;
                 break;
+            case 'character-bio':
+                viewElement = document.createElement('bot-bio-view');
+                viewElement.botId = botId;
+                break;
             default:
                 console.warn('Unknown bot view:', view);
                 showList();

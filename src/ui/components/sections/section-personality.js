@@ -4,6 +4,12 @@ class SectionPersonality extends customElements.get('section-base') {
         this._title = 'Personality';
     }
 
+    connectedCallback() {
+        super.connectedCallback();
+        const removeBtn = this.querySelector('.remove-btn');
+        if (removeBtn) removeBtn.remove();
+    }
+
     renderContent() {
         // Get personality text - handle both old format (object) and new format (string)
         let personalityText = '';

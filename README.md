@@ -1,272 +1,234 @@
-# BotWaffle (Chatbot Manager)
+# BotWaffle
 
-A comprehensive desktop application for creating, storing, tracking, and managing AI chatbots and their associated prompts. This tool creates a unified workspace by integrating **PromptWaffle** natively into the BotWaffle Studio.
+A desktop app for creating and managing AI character profiles, with an integrated visual prompt builder (**PromptWaffle**) for composing and sending image generation prompts to ComfyUI.
 
-## Features
+> All data is stored 100% locally. Nothing leaves your machine.
 
-### 🤖 BotWaffle Studio
-- **Chatbot Management**: Create and manage detailed profiles (Personality, Scenario, Greetings).
-- **Markdown Import**: Import markdown outlines (like character sheets) to automatically create sections and fields.
-- **Custom Sections**: Add custom fields and sections to organize character information.
-- **Character Resources**: Per-character libraries for Pictures, Scripts, Image Prompts, and Saved Chats.
-- **Data Management**: Export, import, and verify backups of all your chatbot data.
-- **Secure Configuration**: Local, encrypted storage for API keys.
-- **Conversation Tracking**: History logging for all your chat sessions.
-- **Privacy First**: 100% local data storage.
+---
 
-### 🧇 PromptWaffle (Integrated)
-- **Visual Board System**: Drag-and-drop interface for composing prompts with resizable, color-coded cards
-- **Snippet Library**: Create, organize, and reuse prompt segments in hierarchical folders
-- **Character Builder**: Build detailed character profiles with reference images and automatic prompt generation
-- **Wildcard Studio**: Dynamic prompt building with profiles, wildcard categories, and dice-based randomization
-- **Board Management**: Create multiple boards, organize with tags, and save templates
-- **Image Management**: Add reference images to boards with live preview folder monitoring
-- **Compiled Prompts**: Real-time prompt compilation with color coding and export options
-- **ComfyUI Integration**: Seamless integration with ComfyUI workflows via file-based approach
-- **Dual-View**: Seamlessly switch between Bot Manager and Prompt Builder with a single click
+## Table of Contents
 
-## Quick Start Guide
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Your First Bot: A Walkthrough](#your-first-bot-a-walkthrough)
+- [PromptWaffle: Building Image Prompts](#promptwaffle-building-image-prompts)
+- [ComfyUI Integration](#comfyui-integration)
+- [Data & Backups](#data--backups)
+- [Project Structure](#project-structure)
+- [License](#license)
 
-### 1. Prerequisites (What you need installed)
-Before you start, make sure you have these two tools installed on your computer:
-- **Node.js**: Download "LTS" version from [nodejs.org](https://nodejs.org/)
-- **Git**: Download from [git-scm.com](https://git-scm.com/downloads)
+---
 
-### 2. Installation (Setting it up)
+## Requirements
 
-Open your terminal (Command Prompt, PowerShell, or Terminal) and run these three commands one by one:
+- **Node.js** v18 or higher — [nodejs.org](https://nodejs.org/) *(download the LTS version)*
+- **Git** — [git-scm.com](https://git-scm.com/downloads)
 
-1.  **Download the project:**
-    ```bash
-    git clone https://github.com/Fablestarexpanse/BotWaffle.git
-    cd BotWaffle
-    ```
+---
 
-2.  **Install dependencies (Automatic):**
-    ```bash
-    npm install
-    ```
-    *(Wait for this to finish. It installs everything needed for BotWaffle and the integrated PromptWaffle tool automatically.)*
+## Installation
 
-3.  **Launch the App:**
-    ```bash
-    npm start
-    ```
+Open a terminal and run:
 
-### 3. How to Run (Daily Use)
-Once you have installed it, you don't need to do the installation steps again!
+```bash
+# 1. Clone the repository
+git clone https://github.com/Fablestarexpanse/BotWaffle.git
+cd BotWaffle
 
-To run the app next time:
-1.  Open your terminal.
-2.  Navigate to the folder: `cd BotWaffle`
-3.  Type: `npm start`
+# 2. Install dependencies
+npm install
 
+# 3. Launch
+npm start
+```
 
+That's it. `npm install` handles both BotWaffle and the embedded PromptWaffle tool automatically.
 
-## Architecture & Integration
+**To run again in the future:**
+```bash
+cd BotWaffle
+npm start
+```
 
-BotWaffle uses a **Hybrid WebView Architecture**:
-- **Core App**: Built with native HTML/CSS/JS for the Chatbot Manager.
-- **Embedded Tools**: PromptWaffle runs as a secure, integrated tool via Electron `<webview>`.
-- **Unified Theme**: Both tools share the sleek "Navy & Gold" design system.
-- **Security**: Context isolation enabled, no Node.js access from renderer process.
+---
 
-### Development Structure
+## Your First Bot: A Walkthrough
 
-- `main.js`: Electron main process entry point
-- `preload.js`: IPC bridge between main and renderer processes
-- `src/ui/`: User interface components (HTML/CSS/JS)
-- `src/core/`: Backend logic and storage management
-  - `chatbot-manager.js`: CRUD operations for chatbots
-  - `template-manager.js`: Template save/load functionality
-  - `asset-manager.js`: Asset file management
-  - `storage.js`: Storage directory management
-  - `export-import.js`: Data backup/restore functionality
-  - `prompt-waffle-handler.js`: Bridge logic for embedded PromptWaffle
-- `src/tools/prompt-waffle/`: Source code for the embedded PromptWaffle application
-- `data/`: Local storage directory (created on first run)
-  - `chatbots/`: Individual chatbot JSON files
-  - `templates/`: Saved layout templates
-  - `assets/`: User-uploaded images and files
-  - `prompt-waffle/`: PromptWaffle user data (snippets, boards, profiles)
+This section walks you through creating your first character entry from scratch.
 
-## Key Features in Detail
+### Step 1 — Create a New Character
 
-### BotWaffle Studio Features
+1. Click the **+ New Character** button in the top-left sidebar.
+2. Fill in the **Display Name** (e.g. `Aria`).
+3. Optionally set a **Category** (e.g. `Assistant`, `Fantasy`, `Sci-Fi`) to keep things organized.
+4. Click **Create**.
 
-#### Chatbot Management
-- **Create & Edit**: Build detailed chatbot profiles with customizable sections
-- **Profile Management**: Name, description, category, tags, and multiple images
-- **Personality Builder**: Define personality traits, characteristics, and behaviors
-- **Scenario System**: Create context and scenario descriptions
-- **Initial Messages**: Set up conversation starters
-- **Example Dialogs**: Add example conversations for reference
-- **Custom Sections**: Add unlimited custom fields and sections
-- **Markdown Import**: Import markdown outlines to automatically create sections
+Your new character card will appear in the sidebar.
 
-#### Data Management
-- **Export/Import**: Full data backup and restore functionality
-- **Backup Verification**: Verify backup integrity before importing
-- **PNG Export**: Export chatbot profiles as PNG images
-- **Template System**: Save and load custom layout templates
-- **Category Organization**: Organize chatbots by category
-- **Search & Filter**: Find chatbots quickly by name or category
+---
 
-#### Security & Privacy
-- **Local Storage**: All data stored locally on your machine
-- **Encrypted API Keys**: Secure storage for API keys (when implemented)
-- **No Cloud Sync**: Complete privacy - your data never leaves your computer
-- **Input Validation**: Comprehensive validation on all user inputs
-- **Path Sanitization**: Protection against path traversal attacks
+### Step 2 — Build the Profile
 
-### PromptWaffle Features
+Click your new character card to open the editor. You'll see several sections:
 
-#### Visual Board System
-- **Drag-and-Drop**: Visually compose prompts by dragging snippets onto boards
-- **Multiple Boards**: Create and manage multiple prompt composition workspaces
-- **Color Coding**: Assign colors to cards for visual organization
-- **Resizable Cards**: Adjust card sizes to fit your workspace
-- **Card Locking**: Lock cards in position to prevent accidental movement
-- **Real-time Compilation**: See compiled prompt update as you modify the board
+| Section | What to fill in |
+|---|---|
+| **Profile** | Name, description, tags, and avatar image |
+| **Personality** | Traits, quirks, speaking style |
+| **Scenario** | The world/context this character exists in |
+| **Initial Messages** | How the character opens a conversation |
+| **Example Dialogs** | Sample back-and-forth exchanges |
 
-#### Snippet Management
-- **Create & Edit**: Build a library of reusable prompt components
-- **Hierarchical Organization**: Organize snippets in nested folders
-- **Tag System**: Categorize snippets with tags for easy discovery
-- **Search Functionality**: Find snippets quickly using tag-based search
-- **Duplicate & Split**: Clone existing snippets or split selected text
-- **Import from Clipboard**: Create snippets directly from clipboard content
-- **Character Snippets**: Special character snippets with unique styling
+Fill in as much or as little as you want — all fields are optional. Click **Save** after each section.
 
-#### Character Builder
-- **Character Creation**: Build detailed character profiles with customizable attributes
-- **BotWaffle Integration**: Character Builder now integrates with BotWaffle bots - create new bots directly from characters
-- **Character Library**: Displays all BotWaffle bots as selectable character cards with search functionality
-- **Avatar Support**: Uses bot avatars from BotWaffle for character visualization
-- **Automatic Prompt Generation**: Generate AI-ready character descriptions from form fields
-- **Image Prompts Integration**: Character snippets automatically save to BotWaffle's Image Prompts section with date tags
-- **Character Duplication**: Clone existing characters with automatic naming
-- **Export Options**: Copy character prompts to clipboard or export as Markdown
-- **Board Integration**: Add character snippets directly to PromptWaffle boards
+> **Tip:** You can import a Markdown file (e.g. a character sheet) using the **Import Markdown** button. BotWaffle will automatically parse headings and bullet points into sections.
 
-#### Wildcard Studio
-- **Dynamic Prompt Building**: Create complex prompts using wildcards and profiles
-- **Profile System**: Pre-built prompt templates with customizable positive prompts
-- **Wildcard Categories**: Organized folders with .txt files for prompt variations
-- **Dice Interface**: Click dice buttons to randomly select wildcard items
-- **Section Organization**: Organize prompts into Top, Middle, and Bottom sections
-- **Real-time Assembly**: Automatic prompt assembly with deduplication
-- **Auto-refresh**: Automatically detects new wildcard files and folders
+---
 
-#### Image Management
-- **Reference Images**: Add reference images to boards for visual context
-- **Image Thumbnails**: Automatic thumbnail generation for better performance
-- **Image Viewer**: Full-size image viewing with overlay modal
-- **Live Preview**: Monitor a folder and automatically display the newest image
-- **Image Controls**: Expand and remove buttons on each image thumbnail
+### Step 3 — Add a Profile Image
 
-#### Advanced Features
-- **Compiled Prompt Generation**: Automatically combine all board elements
-- **Color Toggle**: Show/hide color coding in compiled output
-- **Text Selection Tools**: Select and extract portions of text for new snippets
-- **Save Compiled Prompts**: Export finished prompts as new reusable snippets
-- **ComfyUI Integration**: File-based integration with ComfyUI workflows
+1. In the **Profile** section, click **Add Image**.
+2. Select a `.jpg`, `.png`, `.gif`, or `.webp` file from your computer.
+3. If you add multiple images, click the star icon on one to set it as the thumbnail.
 
-## System Requirements
+---
 
-- **Node.js**: v18.x or higher (LTS version recommended)
-- **npm**: v9.x or higher
-- **Operating System**: Windows 10+, macOS 10.15+, or Linux (Ubuntu 18.04+)
-- **Disk Space**: ~200MB for application + dependencies
-- **RAM**: 2GB minimum, 4GB recommended
+### Step 4 — Add Image Prompts
 
-## Available Scripts
+Image Prompts are saved text prompts you can send directly to ComfyUI when you want to generate art of this character.
 
-### Development
-- `npm start` - Launch the application
-- `npm test` - Run unit tests
-- `npm test:watch` - Run tests in watch mode
-- `npm test:coverage` - Generate test coverage report
-- `npm lint` - Run ESLint
-- `npm lint:fix` - Fix ESLint errors automatically
-- `npm format` - Format code with Prettier
-- `npm format:check` - Check code formatting
+1. In the left nav under your character, click **Image Prompts**.
+2. Click **+ Add Prompt**.
+3. Paste or type a prompt (e.g. `"Aria, silver hair, glowing blue eyes, fantasy armor, soft lighting"`).
+4. Give it a name (e.g. `"Portrait"`) and optional tags (e.g. `portrait, closeup`).
+5. Click **Confirm**.
 
-## Data Storage
+You can add as many prompts as you want — one per pose, mood, or style.
 
-**Note**: BotWaffle now uses **portable storage** - all data is stored in the `data/` folder within the application directory, making it fully portable and easy to backup.
+To send a prompt to ComfyUI, click the **Send** (paper plane) icon on any prompt card. It overwrites `promptwaffle_prompt.txt` in the ComfyUI output folder. See [ComfyUI Integration](#comfyui-integration) for the file path.
 
-All user data is stored locally in the application's `data/` directory:
+---
 
-- **Portable Mode**: `[Application Folder]/data/`
-- This makes the entire application portable - just copy the folder to move it
+### Step 5 — Save a Chat (Optional)
 
-### Data Structure
+If you use this character in a chat session elsewhere, you can log it here:
+
+1. Click **Saved Chats** in the left nav.
+2. Click **+ New Chat** and paste or type the conversation.
+3. Saved chats are stored locally with the character's data.
+
+---
+
+## PromptWaffle: Building Image Prompts
+
+Click the **PromptWaffle** button in the top toolbar to switch to the prompt builder.
+
+### The Board
+
+The board is your prompt workspace. Snippets dragged onto the board become **cards** that compile into a final prompt in real time.
+
+- **Drag a snippet** from the left sidebar onto the board to add it as a card.
+- **Resize** cards by dragging their edges.
+- **Color-code** cards using the color picker on each card.
+- **Lock** a card to prevent it from being moved accidentally.
+
+### Snippets
+
+Snippets are reusable text blocks stored in folders in the left sidebar.
+
+- Right-click a folder to create a new snippet or subfolder.
+- Click any snippet to edit its text and tags.
+- The **Pip - Example** folder shows sample snippets to get you started.
+
+### Compiling a Prompt
+
+The compiled output appears in the bar at the bottom of the screen. It combines all cards on the current board in order.
+
+From the compiled prompt bar you can:
+
+| Button | Action |
+|---|---|
+| **Copy** | Copy the compiled text to clipboard |
+| **Save to Character** | Save the prompt to a BotWaffle character's Image Prompts |
+| **Send to ComfyUI** | Write the prompt to `promptwaffle_prompt.txt` |
+
+### Boards
+
+You can create multiple boards for different projects or styles. Use the board tabs at the top to switch between them.
+
+---
+
+## ComfyUI Integration
+
+When you click **Send to ComfyUI** (from either PromptWaffle or the Image Prompts section), the prompt is written to:
+
+```
+[BotWaffle folder]/data/prompt-waffle/comfyui/promptwaffle_prompt.txt
+```
+
+In your ComfyUI workflow, add a **Load Text File** node and point it at this path. Every time you send a new prompt from BotWaffle, the file is overwritten and ComfyUI will pick up the latest version on the next run.
+
+---
+
+## Data & Backups
+
+All data is stored in the `data/` folder inside the BotWaffle directory:
+
 ```
 data/
-├── characters/        # Per-character folders (new structure)
-│   └── [character-name]_[id]/
-│       ├── character.json
-│       ├── images/          # Character images
-│       ├── scripts/         # Character scripts
-│       ├── saved-chats/     # Saved conversations
-│       └── image-prompts/   # Image prompt snippets
-├── chatbots/          # Legacy chatbot JSON files (for migration)
-├── templates/         # Layout templates
-├── assets/           # Legacy assets folder (for migration)
-└── prompt-waffle/    # PromptWaffle data
-    ├── snippets/     # Prompt snippets
-    ├── boards/       # Prompt boards
-    ├── profiles/     # Character profiles
-    └── wildcards/    # Wildcard categories
+├── characters/                  # One folder per character
+│   └── [name]-[id]/
+│       ├── character.json       # All character data
+│       ├── images/
+│       ├── scripts/
+│       ├── saved-chats/
+│       └── image-prompts/
+├── templates/                   # Saved layout templates
+└── prompt-waffle/               # PromptWaffle data
+    ├── snippets/
+    ├── boards/
+    ├── profiles/
+    ├── wildcards/
+    └── comfyui/                 # promptwaffle_prompt.txt lives here
 ```
 
-**Backup**: Simply copy the entire `data/` folder to backup all your work.
+**To back up everything:** copy the entire `data/` folder.
+**To move BotWaffle to another machine:** copy the whole BotWaffle folder (including `data/`).
 
-## Security
+You can also use **Settings → Export Data** for a ZIP backup, and **Import Data** to restore it.
 
-BotWaffle implements comprehensive security measures:
+---
 
-- ✅ **Context Isolation**: Renderer process cannot access Node.js directly
-- ✅ **Input Validation**: All user inputs validated and sanitized
-- ✅ **Path Sanitization**: Protection against directory traversal attacks
-- ✅ **XSS Prevention**: HTML escaping and secure DOM manipulation
-- ✅ **Content Security Policy**: Strict CSP to prevent code injection
-- ✅ **Secure IPC**: All IPC communication validated and secured
-- ✅ **Local Storage Only**: No data uploaded to cloud without explicit action
+## Project Structure
 
-For detailed security information, see [SECURITY.md](SECURITY.md).
+```
+BotWaffle/
+├── main.js                        # Electron main process
+├── preload.js                     # IPC bridge (BotWaffle side)
+├── src/
+│   ├── ui/                        # UI components and views
+│   │   └── components/            # Custom HTML elements
+│   ├── core/                      # Backend logic
+│   │   ├── chatbot-manager.js     # Character CRUD
+│   │   ├── export-import.js       # Backup/restore
+│   │   └── prompt-waffle-handler.js  # IPC bridge for PromptWaffle
+│   └── tools/
+│       └── prompt-waffle/         # Embedded PromptWaffle app
+│           ├── main.js            # PromptWaffle main process (standalone)
+│           ├── preload.js         # PromptWaffle IPC bridge
+│           └── src/               # PromptWaffle renderer source
+└── data/                          # All user data (created on first run)
+```
 
-## Documentation
-
-- **[Developer Guide](docs/DEVELOPER_GUIDE.md)**: Comprehensive guide for developers
-- **[Architecture Documentation](docs/ARCHITECTURE.md)**: System architecture details
-- **[System Audit Report](docs/SYSTEM_AUDIT_REPORT.md)**: Complete security and code quality audit
-- **[Security Policy](SECURITY.md)**: Security measures and vulnerability reporting
-
-## Contributing
-
-We welcome contributions! Please see our contributing guidelines:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `npm test`
-5. Run linter: `npm lint`
-6. Submit a pull request
+---
 
 ## License
 
-This project is licensed under the **MIT License**.
+MIT License — see [LICENSE](LICENSE) for details.
 
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/Fablestarexpanse/BotWaffle/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Fablestarexpanse/BotWaffle/discussions)
+---
 
 ## Acknowledgments
 
 - Built with [Electron](https://www.electronjs.org/)
 - Icons by [Feather Icons](https://feathericons.com/)
-- PromptWaffle integration for advanced prompt engineering
-

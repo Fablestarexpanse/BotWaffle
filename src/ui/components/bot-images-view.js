@@ -153,13 +153,16 @@ class BotImagesView extends HTMLElement {
                                             ` : ''}
                                             ${!isThumbnail ? `
                                                 <button class="icon-btn set-thumbnail-btn" data-index="${index}" title="Set as thumbnail">
-                                                    <i data-feather="image"></i>
+                                                    <i data-feather="thumbs-up"></i>
                                                 </button>
                                             ` : `
                                                 <button class="icon-btn" disabled title="Current thumbnail">
                                                     <i data-feather="check"></i>
                                                 </button>
                                             `}
+                                            <button class="icon-btn copy-image-link-btn" data-index="${index}" data-src="${this.escapeHtml(imageSrc)}" title="Copy image link for use in Character Bio HTML">
+                                                <i data-feather="link"></i>
+                                            </button>
                                             <button class="icon-btn remove-image-btn" data-index="${index}" title="Remove image">
                                                 <i data-feather="trash-2"></i>
                                             </button>
@@ -295,6 +298,33 @@ class BotImagesView extends HTMLElement {
                 const index = parseInt(newBtn.getAttribute('data-index'));
                 if (!isNaN(index)) {
                     this.removeImage(index);
+                }
+            });
+        });
+
+        // Copy image link for use in Character Bio HTML
+        container.querySelectorAll('.copy-image-link-btn').forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            newBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const src = newBtn.getAttribute('data-src');
+                if (src) {
+                    navigator.clipboard.writeText(src).then(() => {
+                        // Brief visual feedback
+                        const icon = newBtn.querySelector('svg') || newBtn.querySelector('i');
+                        newBtn.style.background = 'var(--success)';
+                        newBtn.style.borderColor = 'var(--success)';
+                        newBtn.title = 'Copied!';
+                        setTimeout(() => {
+                            newBtn.style.background = '';
+                            newBtn.style.borderColor = '';
+                            newBtn.title = 'Copy image link for use in Character Bio HTML';
+                        }, 1500);
+                    }).catch(() => {
+                        alert('Could not copy to clipboard. Path: ' + src);
+                    });
                 }
             });
         });

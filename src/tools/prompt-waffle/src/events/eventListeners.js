@@ -457,13 +457,28 @@ export function setupEventListeners() {
       },
       copyCompiledBtn: bootstrap.copyCompiledPrompt,
       saveCompiledBtn: bootstrap.saveCompiledSnippet,
-      exportToObsidianBtn: async () => {
+      saveToCharacterImagePromptsBtn: async () => {
         try {
-          const { exportToObsidian } = await import('../utils/utils.js');
-          await exportToObsidian();
+          const { getCurrentCharacter, displayCharacterCard } = await import('../utils/characterSelector.js');
+          const { characterSelectorModal } = await import('../utils/characterSelectorModal.js');
+          const { saveCompiledPromptToCharacter } = await import('../utils/characterSelector.js');
+
+          const existing = getCurrentCharacter();
+          if (existing) {
+            // Character already selected — save directly
+            await saveCompiledPromptToCharacter(existing.id);
+          } else {
+            // No character selected — open picker, then save
+            await characterSelectorModal.open(async (character) => {
+              if (character) {
+                await displayCharacterCard(character);
+                await saveCompiledPromptToCharacter(character.id);
+              }
+            });
+          }
         } catch (error) {
-          console.error('Error exporting to Obsidian:', error);
-          showToast('Export failed. Please try again.', 'error');
+          console.error('Error saving prompt to character:', error);
+          showToast('Failed to save prompt to character', 'error');
         }
       },
       sendToComfyUIBtn: async () => {

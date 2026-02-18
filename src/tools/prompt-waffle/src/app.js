@@ -2,7 +2,6 @@ import * as bootstrap from './bootstrap/index.js';
 
 import { AppState } from './state/appState.js';
 import { setupEventListeners } from './events/eventListeners.js';
-import { tutorial } from './tutorial.js';
 import { versionChecker } from './utils/version-checker.js';
 import { updateUI } from './utils/update-ui.js';
 import { LoadingScreen } from './utils/loading-screen.js';
@@ -102,9 +101,6 @@ async function init() {
           '<i data-feather="droplet"></i>Colors';
       }
     }
-    // Initialize and start tutorial if needed
-    tutorial.init();
-    tutorial.loadTutorialState();
     // Initialize version checking system
     updateUI.init();
 
@@ -339,12 +335,6 @@ async function init() {
     if (versionElement) {
       versionElement.textContent = await versionChecker.getCurrentVersion();
     }
-    // Start tutorial after a short delay to ensure UI is fully loaded
-    setTimeout(() => {
-      if (tutorial.shouldShowTutorial()) {
-        tutorial.start();
-      }
-    }, 1000);
     // Check for image migration on startup (after a delay)
     setTimeout(async () => {
       try {

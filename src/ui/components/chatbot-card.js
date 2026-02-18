@@ -160,7 +160,10 @@ class ChatbotCard extends HTMLElement {
                         </div>
                         <div class="card-header-actions">
                             <div class="status-badge ${statusValue}">${escapeHtml(statusDisplay)}</div>
-                            <button class="card-delete-btn" title="Delete chatbot" data-chatbot-id="${bot.id}">🗑️</button>
+                            ${bot.metadata && bot.metadata.isDemo
+                                ? `<button class="card-delete-btn card-demo-lock-btn" title="Demo character — cannot be deleted" data-chatbot-id="${bot.id}" disabled style="opacity:0.5;cursor:not-allowed;">🔒</button>`
+                                : `<button class="card-delete-btn" title="Delete chatbot" data-chatbot-id="${bot.id}">🗑️</button>`
+                            }
                         </div>
                     </div>
                     <p class="description">${description}</p>
@@ -235,6 +238,11 @@ class ChatbotCard extends HTMLElement {
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    // Block deletion of demo characters
+                    if (bot.metadata && bot.metadata.isDemo) {
+                        alert(`"${bot.profile?.displayName || bot.profile?.name || 'This character'}" is a demo character and cannot be deleted.`);
+                        return;
+                    }
                     const chatbotName = bot.profile?.displayName || bot.profile?.name || 'this chatbot';
                     if (window.EditorModals && window.EditorModals.showDeleteConfirmationModalForCard) {
                         window.EditorModals.showDeleteConfirmationModalForCard(bot.id, chatbotName, () => {

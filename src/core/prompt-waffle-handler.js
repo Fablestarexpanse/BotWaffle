@@ -397,6 +397,55 @@ function registerPromptWaffleHandlers() {
     ipcMain.handle('maximize-image-viewer', async () => {
         return true;
     });
+
+    // ComfyUI integration handlers
+    ipcMain.handle('get-comfyui-folder', async () => {
+        try {
+            const comfyuiFolder = path.join(PROMPT_WAFFLE_ROOT, 'comfyui');
+            await fs.mkdir(comfyuiFolder, { recursive: true });
+            return comfyuiFolder;
+        } catch (error) {
+            try {
+                console.error('Error in get-comfyui-folder:', error);
+            } catch (e) {}
+            throw error;
+        }
+    });
+
+    ipcMain.handle('save-prompt-to-file', async (_, prompt, folderPath, filename = 'promptwaffle_prompt.txt') => {
+        try {
+            if (!prompt || typeof prompt !== 'string') {
+                return { success: false, error: 'Invalid prompt: must be a non-empty string' };
+            }
+            if (!folderPath || typeof folderPath !== 'string') {
+                return { success: false, error: 'Invalid folder path' };
+            }
+
+            const filePath = path.join(folderPath, filename);
+
+            // Ensure directory exists
+            await fs.mkdir(folderPath, { recursive: true });
+
+            // Write the prompt to the file
+            await fs.writeFile(filePath, prompt, 'utf8');
+            console.log('[PromptWaffle] Prompt saved to:', filePath);
+
+            return {
+                success: true,
+                filePath: filePath,
+                folderPath: folderPath,
+                filename: filename
+            };
+        } catch (error) {
+            try {
+                console.error('Error in save-prompt-to-file:', error);
+            } catch (e) {}
+            return {
+                success: false,
+                error: error.message || 'Failed to save prompt file'
+            };
+        }
+    });
 }
 
 module.exports = { registerPromptWaffleHandlers };

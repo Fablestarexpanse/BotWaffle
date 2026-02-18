@@ -317,7 +317,18 @@ class ChatbotManager {
      */
     async deleteChatbot(id) {
         this._validateId(id);
-        
+
+        // Protect demo characters from deletion
+        try {
+            const candidate = await this.getChatbot(id);
+            if (candidate && candidate.metadata && candidate.metadata.isDemo) {
+                throw new Error(`"${candidate.profile?.displayName || candidate.profile?.name || id}" is a demo character and cannot be deleted.`);
+            }
+        } catch (err) {
+            // Re-throw protection errors; ignore lookup failures (handled below)
+            if (err.message && err.message.includes('demo character')) throw err;
+        }
+
         try {
             // Try to find existing character folder by ID
             const existingFolder = await findCharacterFolderById(id);

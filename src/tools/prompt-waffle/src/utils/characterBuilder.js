@@ -460,8 +460,11 @@ class CharacterBuilder {
         characterCard.classList.add('selected');
       }
 
-      // Get avatar image
-      let avatarHtml = '';
+      // Build card structure using DOM methods for security
+      const imageContainer = document.createElement('div');
+      imageContainer.className = 'character-card-image-container';
+      
+      // Add avatar image if available
       if (character.avatar) {
         const isLocalFile = !character.avatar.startsWith('http://') && 
                            !character.avatar.startsWith('https://') && 
@@ -471,8 +474,29 @@ class CharacterBuilder {
           const normalizedPath = character.avatar.replace(/\\/g, '/');
           imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
         }
-        avatarHtml = `<img src="${imageSrc}" alt="${this.escapeHtml(character.name)}" class="character-card-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
+        const avatarImg = document.createElement('img');
+        avatarImg.src = imageSrc;
+        avatarImg.alt = character.name; // textContent will escape automatically
+        avatarImg.className = 'character-card-avatar';
+        avatarImg.onerror = function() {
+          this.style.display = 'none';
+          if (this.nextElementSibling) {
+            this.nextElementSibling.style.display = 'flex';
+          }
+        };
+        imageContainer.appendChild(avatarImg);
       }
+      
+      // Add placeholder
+      const placeholder = document.createElement('div');
+      placeholder.className = 'character-card-avatar-placeholder';
+      if (character.avatar) {
+        placeholder.style.display = 'none';
+      }
+      const placeholderIcon = document.createElement('i');
+      placeholderIcon.setAttribute('data-feather', 'user');
+      placeholder.appendChild(placeholderIcon);
+      imageContainer.appendChild(placeholder);
       
       // Status badge
       const statusValue = character.status || 'draft';
@@ -480,25 +504,29 @@ class CharacterBuilder {
                            statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
       const statusClass = `status-badge status-${statusValue}`;
       
-      // Tags
-      const tagsHtml = character.tags && character.tags.length > 0
-        ? `<div class="character-card-tags">${character.tags.slice(0, 3).map(tag => `<span class="character-card-tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
-        : '';
-
-      characterCard.innerHTML = `
-        <div class="character-card-image-container">
-          ${avatarHtml}
-          <div class="character-card-avatar-placeholder" style="${character.avatar ? 'display: none;' : ''}">
-            <i data-feather="user"></i>
-          </div>
-        </div>
-        <div class="character-card-content">
-          <div class="character-card-header">
-            <h4 class="character-card-name" title="${this.escapeHtml(character.name)}">${this.escapeHtml(character.name)}</h4>
-            <span class="${statusClass}">${this.escapeHtml(statusDisplay)}</span>
-          </div>
-        </div>
-      `;
+      // Content container
+      const contentContainer = document.createElement('div');
+      contentContainer.className = 'character-card-content';
+      
+      const header = document.createElement('div');
+      header.className = 'character-card-header';
+      
+      const nameElement = document.createElement('h4');
+      nameElement.className = 'character-card-name';
+      nameElement.textContent = character.name;
+      nameElement.title = character.name;
+      
+      const statusElement = document.createElement('span');
+      statusElement.className = statusClass;
+      statusElement.textContent = statusDisplay;
+      
+      header.appendChild(nameElement);
+      header.appendChild(statusElement);
+      contentContainer.appendChild(header);
+      
+      // Assemble card
+      characterCard.appendChild(imageContainer);
+      characterCard.appendChild(contentContainer);
 
       characterCard.addEventListener('click', async () => {
         await this.selectCharacter(character.id);
@@ -2114,7 +2142,19 @@ ${prompt}
         imageSrc = normalizedPath.startsWith('/') ? `file://${normalizedPath}` : `file:///${normalizedPath}`;
       }
       
-      avatarPreview.innerHTML = `<img src="${imageSrc}" alt="Avatar" class="character-avatar-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
+      // Use secure DOM methods instead of innerHTML for user-provided paths
+      avatarPreview.innerHTML = ''; // Clear first
+      const img = document.createElement('img');
+      img.src = imageSrc;
+      img.alt = 'Avatar';
+      img.className = 'character-avatar-image';
+      img.onerror = function() {
+        this.style.display = 'none';
+        if (this.nextElementSibling) {
+          this.nextElementSibling.style.display = 'flex';
+        }
+      };
+      avatarPreview.appendChild(img);
       
       const placeholder = document.createElement('div');
       placeholder.className = 'character-avatar-placeholder';
@@ -2214,7 +2254,17 @@ ${prompt}
     const removeBtn = document.getElementById(`removeImageBtn${slotNumber}`);
 
     if (imagePreview && chooseBtn) {
-      imagePreview.innerHTML = `<img src="${imageData}" alt="Character preview ${slotNumber}" style="width: 100%; height: 300px; object-fit: cover; border-radius: 4px; border: 1px solid #555;">`;
+      // Use secure DOM methods for image data
+      imagePreview.innerHTML = ''; // Clear first
+      const img = document.createElement('img');
+      img.src = imageData;
+      img.alt = `Character preview ${slotNumber}`;
+      img.style.width = '100%';
+      img.style.height = '300px';
+      img.style.objectFit = 'cover';
+      img.style.borderRadius = '4px';
+      img.style.border = '1px solid #555';
+      imagePreview.appendChild(img);
       chooseBtn.textContent = `Change Image ${slotNumber}`;
       if (removeBtn) {
         removeBtn.style.display = 'inline-block';

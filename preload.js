@@ -40,5 +40,9 @@ contextBridge.exposeInMainWorld('api', {
     openPath: (filePath) => ipcRenderer.invoke('openPath', filePath),
     getCharacterFolderPath: (characterId, subfolder) => ipcRenderer.invoke('getCharacterFolderPath', characterId, subfolder),
     saveTextFile: (content, defaultFilename) => ipcRenderer.invoke('saveTextFile', content, defaultFilename),
-    saveBinaryFile: (base64Data, defaultFilename) => ipcRenderer.invoke('saveBinaryFile', base64Data, defaultFilename)
+    saveBinaryFile: (base64Data, defaultFilename) => ipcRenderer.invoke('saveBinaryFile', base64Data, defaultFilename),
+    comfyui: {
+        getFolder: () => ipcRenderer.invoke('get-comfyui-folder'),
+        savePrompt: (prompt, folderPath, filename) => ipcRenderer.invoke('save-prompt-to-file', prompt, folderPath, filename)
+    }
 });

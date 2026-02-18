@@ -375,9 +375,9 @@
           <button id="saveCompiledBtn" title="Save compiled prompt as a new snippet">
             Save as Snippet
           </button>
-          <button id="exportToObsidianBtn" title="Export to Markdown file for Obsidian">
-            <i data-feather="file-text"></i>
-            Export to Markdown
+          <button id="saveToCharacterImagePromptsBtn" title="Save compiled prompt to a character's image prompts in BotWaffle">
+            <i data-feather="bookmark"></i>
+            Save to Character
           </button>
           <button id="sendToComfyUIBtn" title="Send compiled prompt to ComfyUI">
             <i data-feather="send"></i>
@@ -819,41 +819,7 @@
     </div>
   </div>
 
-  <!-- Tutorial Overlay -->
-  <div id="tutorialOverlay" class="tutorial-overlay" style="display: none">
-    <div class="tutorial-backdrop"></div>
-    <div class="tutorial-container">
-      <div class="tutorial-header">
-        <h2 id="tutorialTitle">Welcome to PromptWaffle!</h2>
-        <button id="tutorialSkipBtn" class="tutorial-skip-btn">
-          Skip Tutorial
-        </button>
-      </div>
-      <div class="tutorial-content">
-        <div id="tutorialStep" class="tutorial-step">
-          <div class="tutorial-image">
-            <img id="tutorialImage" src="" alt="Tutorial step" />
-          </div>
-          <div class="tutorial-text">
-            <p id="tutorialDescription"></p>
-          </div>
-        </div>
-      </div>
-      <div class="tutorial-footer">
-        <div class="tutorial-progress">
-          <span id="tutorialProgress">Step 1 of 8</span>
-        </div>
-        <div class="tutorial-buttons">
-          <button id="tutorialPrevBtn" class="tutorial-btn secondary">
-            Previous
-          </button>
-          <button id="tutorialNextBtn" class="tutorial-btn primary">
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Tutorial removed — will be remade as a full-program tutorial -->
   </div>
 
   <script src="https://unpkg.com/exifreader@4.21.0/dist/exif-reader.js"></script>

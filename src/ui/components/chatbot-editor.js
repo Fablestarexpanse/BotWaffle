@@ -4,7 +4,7 @@ class ChatbotEditor extends HTMLElement {
         this.currentId = null;
         this._isDirty = false;
         this._listenersSetup = false;
-        this._eventHandlers = new Map();
+        this._eventHandlers = [];
         this._mutationObservers = [];
     }
 
@@ -113,10 +113,7 @@ class ChatbotEditor extends HTMLElement {
                     <button id="load-template-btn" class="secondary-btn">Load Template</button>
                     <button id="save-template-btn" class="secondary-btn">Save as Template</button>
                     ${isEdit ? `
-                        <button id="export-character-btn" class="secondary-btn" title="Export entire character with all assets">
-                            <i data-feather="download"></i>
-                            Export Character
-                        </button>
+                        <button id="export-character-btn" class="secondary-btn" title="Export entire character with all assets">Export Character</button>
                         <button id="export-sheet-btn" class="secondary-btn">Export Character Sheet</button>
                         <button id="delete-btn" class="danger-btn">Delete</button>
                     ` : ''}
@@ -434,13 +431,12 @@ class ChatbotEditor extends HTMLElement {
 
     cleanupListeners() {
         // Remove all stored event handlers
-        this._eventHandlers.forEach((handler, element) => {
-            if (element && handler) {
-                const [event, callback, options] = handler;
+        this._eventHandlers.forEach(({ element, event, callback, options }) => {
+            if (element) {
                 element.removeEventListener(event, callback, options);
             }
         });
-        this._eventHandlers.clear();
+        this._eventHandlers = [];
 
         // Disconnect all mutation observers
         this._mutationObservers.forEach(observer => {
@@ -461,7 +457,7 @@ class ChatbotEditor extends HTMLElement {
         const addStoredListener = (element, event, callback, options = false) => {
             if (!element) return;
             element.addEventListener(event, callback, options);
-            this._eventHandlers.set(element, [event, callback, options]);
+            this._eventHandlers.push({ element, event, callback, options });
         };
 
         // Character sheet removed - no collapse/expand needed
@@ -509,6 +505,11 @@ class ChatbotEditor extends HTMLElement {
         const deleteBtn = this.querySelector('#delete-btn');
         if (deleteBtn) {
             const deleteHandler = () => {
+                // Block deletion of demo characters
+                if (this._data?.metadata?.isDemo) {
+                    alert(`"${this._data?.profile?.displayName || this._data?.profile?.name || 'This character'}" is a demo character and cannot be deleted.`);
+                    return;
+                }
                 const chatbotName = this._data?.name || this._data?.profile?.name || 'this chatbot';
                 window.EditorModals.showDeleteConfirmationModal(this, chatbotName);
             };

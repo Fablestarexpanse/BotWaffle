@@ -186,11 +186,19 @@
             workspace.style.display = 'flex';
             toolContainer.style.display = 'none';
             promptWaffleView.style.display = 'none';
+            // Force a layout flush and repaint to prevent black screen after idle
+            // on Windows when switching back from PromptWaffle
+            void workspace.offsetHeight;
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new Event('resize'));
+            });
         } else if (tool === 'prompt-waffle') {
             workspace.style.display = 'none';
             toolContainer.style.display = 'flex';
             promptWaffleView.style.display = 'inline-flex';
             injectPromptWaffleTheme();
+            // Force repaint on the webview after making it visible
+            void promptWaffleView.offsetHeight;
         }
     });
 

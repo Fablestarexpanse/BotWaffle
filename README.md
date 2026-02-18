@@ -87,9 +87,11 @@ Fill in as much or as little as you want — all fields are optional. Click **Sa
 
 ### Step 3 — Add a Profile Image
 
-1. In the **Profile** section, click **Add Image**.
-2. Select a `.jpg`, `.png`, `.gif`, or `.webp` file from your computer.
-3. If you add multiple images, click the star icon on one to set it as the thumbnail.
+> **Note:** The image section only appears after you have saved the character for the first time. Save the profile in Step 2 first, then come back to add images.
+
+1. After saving, open your character and navigate to the **Images** tab in the left nav.
+2. Click **Add Image** and select a `.jpg`, `.png`, `.gif`, or `.webp` file from your computer.
+3. If you add multiple images, click the star icon on one to set it as the thumbnail shown on the character card.
 
 ---
 

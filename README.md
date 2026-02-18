@@ -91,7 +91,7 @@ Fill in as much or as little as you want — all fields are optional. Click **Sa
 
 1. After saving, open your character and navigate to the **Images** tab in the left nav.
 2. Click **Add Image** and select a `.jpg`, `.png`, `.gif`, or `.webp` file from your computer.
-3. If you add multiple images, click the star icon on one to set it as the thumbnail shown on the character card.
+3. If you add multiple images, click the **thumbnail icon** on one to set it as the default thumbnail shown on the character card.
 
 ---
 

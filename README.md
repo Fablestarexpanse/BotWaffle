@@ -1,6 +1,6 @@
 # BotWaffle
 
-A desktop app for creating and managing AI character profiles, with an integrated visual prompt builder (**PromptWaffle**) for composing and sending image generation prompts to ComfyUI.
+A desktop app built primarily for backing up and managing AI chatbot characters from **[JanitorAI](https://janitorai.com/)** — keeping your bots, their personalities, scenarios, and image prompts safe and organized locally. It also includes an integrated visual prompt builder (**PromptWaffle**) for composing image generation prompts and sending them directly to ComfyUI.
 
 > All data is stored 100% locally. Nothing leaves your machine.
 

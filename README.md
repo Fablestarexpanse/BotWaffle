@@ -6,6 +6,14 @@ A desktop app built primarily for backing up and managing AI chatbot characters 
 
 ---
 
+> 🚧 **Work in Progress** — BotWaffle is actively being developed. Feedback is always welcome! If you run into issues or have suggestions, feel free to open an issue.
+>
+> ☕ Find it useful? You can [send a taco on Ko-fi](https://ko-fi.com/botwaffle) — it's appreciated!
+>
+> 👋 Want to say hi? Find me on JanitorAI at [Feyndral's profile](https://janitorai.com/profiles/2492711c-453a-4e19-9b91-86362f7b53f5_profile-of-feyndral).
+
+---
+
 ## Table of Contents
 
 - [Requirements](#requirements)

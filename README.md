@@ -171,6 +171,15 @@ From the compiled prompt bar you can:
 
 You can create multiple boards for different projects or styles. Use the board tabs at the top to switch between them.
 
+<table>
+  <tr>
+    <td align="center"><strong>PromptWaffle Board</strong><br/><img src="assets/screenshots/Promptwaffle.png" alt="PromptWaffle Board" width="460"/></td>
+    <td align="center"><strong>Character Builder</strong><br/><img src="assets/screenshots/Promptwaffle_characterbuilder.png" alt="PromptWaffle Character Builder" width="460"/></td>
+  </tr>
+</table>
+
+---
+
 ### Wildcard Studio
 
 The Wildcard Studio lets you randomly roll values from `.txt` lists to vary your prompts. Click the **Wildcard Studio** button in PromptWaffle to open it.
@@ -211,13 +220,6 @@ Wildcards are organized into **category folders**. BotWaffle comes with starter 
 - Use the **section selector** (Top / Middle / Bottom) to control where in the compiled prompt that value appears.
 - Lock a wildcard to keep its current rolled value while re-rolling others.
 - The rolled values are combined with your board cards in the final compiled prompt.
-
-<table>
-  <tr>
-    <td align="center"><strong>PromptWaffle Board</strong><br/><img src="assets/screenshots/Promptwaffle.png" alt="PromptWaffle Board" width="460"/></td>
-    <td align="center"><strong>Character Builder</strong><br/><img src="assets/screenshots/Promptwaffle_characterbuilder.png" alt="PromptWaffle Character Builder" width="460"/></td>
-  </tr>
-</table>
 
 ---
 

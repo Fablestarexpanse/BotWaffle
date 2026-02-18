@@ -221,6 +221,13 @@ Wildcards are organized into **category folders**. BotWaffle comes with starter 
 - Lock a wildcard to keep its current rolled value while re-rolling others.
 - The rolled values are combined with your board cards in the final compiled prompt.
 
+<table>
+  <tr>
+    <td align="center"><strong>Wildcard Studio</strong><br/><img src="assets/screenshots/wildcards.png" alt="Wildcard Studio" width="460"/></td>
+    <td align="center"></td>
+  </tr>
+</table>
+
 ---
 
 ## ComfyUI Integration

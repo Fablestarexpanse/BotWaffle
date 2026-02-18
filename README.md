@@ -95,23 +95,7 @@ Fill in as much or as little as you want — all fields are optional. Click **Sa
 
 ---
 
-### Step 4 — Add Image Prompts
-
-Image Prompts are saved text prompts you can send directly to ComfyUI when you want to generate art of this character.
-
-1. In the left nav under your character, click **Image Prompts**.
-2. Click **+ Add Prompt**.
-3. Paste or type a prompt (e.g. `"Aria, silver hair, glowing blue eyes, fantasy armor, soft lighting"`).
-4. Give it a name (e.g. `"Portrait"`) and optional tags (e.g. `portrait, closeup`).
-5. Click **Confirm**.
-
-You can add as many prompts as you want — one per pose, mood, or style.
-
-To send a prompt to ComfyUI, click the **Send** (paper plane) icon on any prompt card. It overwrites `promptwaffle_prompt.txt` in the ComfyUI output folder. See [ComfyUI Integration](#comfyui-integration) for the file path.
-
----
-
-### Step 5 — Save a Chat (Optional)
+### Step 4 — Save a Chat (Optional)
 
 If you use this character in a chat session elsewhere, you can log it here:
 

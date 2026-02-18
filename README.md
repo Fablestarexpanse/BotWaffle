@@ -170,6 +170,13 @@ From the compiled prompt bar you can:
 
 You can create multiple boards for different projects or styles. Use the board tabs at the top to switch between them.
 
+<table>
+  <tr>
+    <td align="center"><strong>PromptWaffle Board</strong><br/><img src="assets/screenshots/Promptwaffle.png" alt="PromptWaffle Board" width="460"/></td>
+    <td align="center"><strong>Character Builder</strong><br/><img src="assets/screenshots/Promptwaffle_characterbuilder.png" alt="PromptWaffle Character Builder" width="460"/></td>
+  </tr>
+</table>
+
 ---
 
 ## ComfyUI Integration
